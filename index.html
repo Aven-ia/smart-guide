@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Guide — Livrets d'accueil</title>
+<meta name="theme-color" content="#F5F2EB">
+<meta name="description" content="Créez des livrets d'accueil premium et multilingues pour vos locations — remplissage par IA, QR wifi, recommandations de quartier, exports PDF.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Smart Guide">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;450;500;600;650&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="window.__noQR=true"></script>
+<style>
+/* =====================================================
+   SMART GUIDE V2 — Système visuel
+   ===================================================== */
+:root{
+  --bg:#F5F2EB; --bg-deep:#EFEBE1; --paper:#FFFFFF; --paper-warm:#FDFCF9;
+  --ink:#22251E; --ink-soft:#484C3F; --ink-faint:#6E7263;
+  --accent:#66795A; --accent-dark:#525F3F; --accent-deep:#3E4A31;
+  --accent-soft:#E5EADC; --accent-mist:#F0F3E9;
+  --line:#E6E1D4; --line-soft:#DBD5C5; --line-faint:#EEEAE0;
+  --muted:#8D897C; --muted-2:#ABA698;
+  --danger:#B0523B; --danger-soft:#F8EAE5;
+  --gold:#B98D3F;
+  --serif:'Fraunces',Georgia,serif; --mono:'IBM Plex Mono',monospace; --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --sh-xs:0 1px 2px rgba(34,37,30,.05);
+  --sh-sm:0 1px 2px rgba(34,37,30,.04),0 3px 10px rgba(34,37,30,.05);
+  --sh-md:0 2px 4px rgba(34,37,30,.04),0 8px 24px rgba(34,37,30,.07);
+  --sh-lg:0 4px 10px rgba(34,37,30,.06),0 24px 60px rgba(34,37,30,.13);
+  --sh-glow:0 0 0 3.5px rgba(102,121,90,.15);
+  --ease:cubic-bezier(.22,.9,.35,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+html,body{min-height:100%}
+body{
+  font-family:var(--sans);color:var(--ink);font-size:14.5px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  background:
+    radial-gradient(1200px 500px at 85% -8%, rgba(102,121,90,.075), transparent 60%),
+    radial-gradient(900px 480px at -10% 4%, rgba(185,141,63,.055), transparent 55%),
+    var(--bg);
+  background-attachment:fixed;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:14.5px;color:var(--ink)}
+::placeholder{color:#B8B3A4}
+::selection{background:rgba(102,121,90,.22)}
+h1,h2,h3{font-weight:500}
+a{color:var(--accent-dark)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
+
+/* ---------- Structure ---------- */
+#app{min-height:100vh;display:flex;flex-direction:column}
+.view{animation:viewIn .38s var(--ease)}
+@keyframes viewIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+/* ---------- Topbar ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 26px;
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:80;
+  background:rgba(245,242,235,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.brand{display:flex;align-items:center;gap:11px;cursor:pointer;user-select:none}
+.brand:hover .brand-name{color:var(--accent-dark)}
+.brand-name{font-family:var(--serif);font-size:17.5px;font-weight:600;line-height:1;transition:color .2s}
+.brand-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:var(--muted);margin-top:3.5px}
+.topbar-actions{display:flex;align-items:center;gap:8px}
+.savebadge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  color:var(--muted);padding:5px 10px;border-radius:99px;border:1px solid transparent;transition:all .3s}
+.savebadge.saving{color:var(--gold)}
+.savebadge.saved{color:var(--accent-dark)}
+.savebadge .pulse{width:6px;height:6px;border-radius:99px;background:currentColor}
+.savebadge.saving .pulse{animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+
+/* ---------- Boutons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:13px;font-weight:550;
+  padding:8.5px 15px;border-radius:9px;transition:all .16s var(--ease);white-space:nowrap;letter-spacing:.005em}
+.btn:active{transform:scale(.97)}
+.btn svg{flex:none}
+.btn-dark{background:var(--ink);color:#F5F2EB;box-shadow:var(--sh-xs), inset 0 1px 0 rgba(255,255,255,.07)}
+.btn-dark:hover{background:#343830;box-shadow:var(--sh-sm)}
+.btn-accent{background:linear-gradient(180deg,#70845F,var(--accent-dark));color:#fff;box-shadow:var(--sh-xs), inset 0 1px 0 rgba(255,255,255,.14)}
+.btn-accent:hover{background:linear-gradient(180deg,#78906B,var(--accent-dark));box-shadow:var(--sh-sm)}
+.btn-ghost{color:var(--accent-dark);border:1px solid #C6CFB8;background:rgba(255,255,255,.5)}
+.btn-ghost:hover{background:var(--accent-mist);border-color:#AFBC9D}
+.btn-plain{color:var(--ink-soft)}
+.btn-plain:hover{background:var(--bg-deep)}
+.btn-danger{color:var(--danger)}
+.btn-danger:hover{background:var(--danger-soft)}
+.btn:disabled{opacity:.42;cursor:default;transform:none}
+.btn-lg{padding:12px 22px;font-size:14px;border-radius:11px}
+.btn-sm{padding:6px 11px;font-size:12px;border-radius:7px}
+.icon-x{color:var(--muted-2);padding:6px;border-radius:7px;line-height:0;transition:all .14s}
+.icon-x:hover{color:var(--danger);background:var(--danger-soft)}
+
+/* ---------- Dashboard ---------- */
+.dash{max-width:1080px;width:100%;margin:0 auto;padding:46px 30px 90px}
+.dash-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;gap:20px;flex-wrap:wrap}
+.dash-title{font-family:var(--serif);font-size:34px;font-weight:500;line-height:1.1;letter-spacing:-.01em}
+.dash-sub{color:var(--ink-faint);margin-top:8px;font-size:14px;max-width:540px;line-height:1.55}
+.kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-dark);margin-bottom:11px;display:flex;align-items:center;gap:8px}
+.kicker::before{content:'';display:block;width:22px;height:1px;background:var(--accent)}
+.statrow{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 26px}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:13px 18px;min-width:130px;box-shadow:var(--sh-xs)}
+.stat .n{font-family:var(--serif);font-size:23px;font-weight:500;line-height:1.1}
+.stat .l{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.searchbar{display:flex;align-items:center;gap:9px;background:var(--paper);border:1px solid var(--line);border-radius:11px;
+  padding:9px 14px;max-width:330px;box-shadow:var(--sh-xs);transition:all .18s;margin-bottom:22px}
+.searchbar:focus-within{border-color:var(--accent);box-shadow:var(--sh-glow)}
+.searchbar input{border:none;outline:none;background:none;flex:1;font-size:13.5px}
+.searchbar svg{color:var(--muted-2)}
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(305px,1fr));gap:20px}
+.prop-card{background:var(--paper);border:1px solid var(--line);border-radius:17px;overflow:hidden;cursor:pointer;
+  transition:all .22s var(--ease);box-shadow:var(--sh-sm);text-align:left;display:flex;flex-direction:column;position:relative}
+.prop-card:hover{transform:translateY(-3px);box-shadow:var(--sh-lg);border-color:#CBD3BD}
+.prop-cover{height:158px;background:linear-gradient(150deg,var(--accent-mist),var(--accent-soft));display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.prop-cover img{width:100%;height:100%;object-fit:cover;transition:transform .5s var(--ease)}
+.prop-card:hover .prop-cover img{transform:scale(1.045)}
+.prop-chip{position:absolute;top:11px;left:11px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;
+  background:rgba(28,30,24,.78);backdrop-filter:blur(6px);color:#F2EFE7;padding:4.5px 9px;border-radius:6px;text-transform:uppercase}
+.prop-menu-btn{position:absolute;top:9px;right:9px;width:29px;height:29px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.88);backdrop-filter:blur(6px);color:var(--ink-soft);opacity:0;transition:all .18s;box-shadow:var(--sh-xs)}
+.prop-card:hover .prop-menu-btn{opacity:1}
+.prop-menu-btn:hover{background:#fff;color:var(--ink)}
+.prop-body{padding:17px 19px 18px;flex:1;display:flex;flex-direction:column}
+.prop-name{font-family:var(--serif);font-size:19px;margin-bottom:4px;line-height:1.2}
+.prop-city{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.prop-foot{display:flex;align-items:center;justify-content:space-between;margin-top:15px;gap:10px}
+.prop-date{font-size:11.5px;color:var(--muted-2)}
+.pbar{height:4px;border-radius:99px;background:var(--line-faint);overflow:hidden;flex:1;max-width:90px}
+.pbar>span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),#8CA07A);transition:width .5s var(--ease)}
+.pct{font-family:var(--mono);font-size:10px;color:var(--ink-faint)}
+.new-card{border:1.5px dashed var(--line-soft);border-radius:17px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:11px;min-height:255px;color:var(--muted);cursor:pointer;transition:all .2s;background:rgba(255,255,255,.35)}
+.new-card:hover{border-color:var(--accent);color:var(--accent-dark);background:var(--accent-mist);transform:translateY(-2px)}
+.new-card .plus-ring{width:44px;height:44px;border-radius:99px;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.new-card:hover .plus-ring{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* Empty hero */
+.empty-hero{background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:64px 44px;text-align:center;box-shadow:var(--sh-md);position:relative;overflow:hidden}
+.empty-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(600px 220px at 50% -60px, rgba(102,121,90,.09), transparent)}
+.empty-hero>*{position:relative}
+.empty-hero h2{font-family:var(--serif);font-size:27px;margin:18px 0 10px;font-weight:500}
+.empty-hero p{color:var(--ink-faint);max-width:470px;margin:0 auto 26px;line-height:1.6}
+.empty-steps{display:flex;justify-content:center;gap:26px;margin:26px 0 30px;flex-wrap:wrap}
+.estep{display:flex;flex-direction:column;align-items:center;gap:8px;width:130px}
+.estep .ico{width:40px;height:40px;border-radius:12px;background:var(--accent-mist);color:var(--accent-dark);display:flex;align-items:center;justify-content:center}
+.estep p{font-size:12px;color:var(--ink-soft);margin:0;line-height:1.4}
+.estep .num{font-family:var(--mono);font-size:9px;letter-spacing:.15em;color:var(--muted-2)}
+
+/* Menu contextuel */
+.ctx-menu{position:fixed;z-index:300;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-lg);
+  padding:5px;min-width:180px;animation:menuIn .16s var(--ease)}
+@keyframes menuIn{from{opacity:0;transform:scale(.96) translateY(-3px)}to{opacity:1;transform:none}}
+.ctx-menu button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;font-size:13px;padding:8.5px 11px;border-radius:8px;color:var(--ink-soft)}
+.ctx-menu button:hover{background:var(--bg-deep);color:var(--ink)}
+.ctx-menu button.danger{color:var(--danger)}
+.ctx-menu button.danger:hover{background:var(--danger-soft)}
+.ctx-sep{height:1px;background:var(--line-faint);margin:4px 8px}
+
+/* ---------- Éditeur ---------- */
+.editor{display:flex;flex:1;min-height:0}
+.sidebar{width:242px;flex:none;border-right:1px solid var(--line);padding:20px 13px 26px;display:flex;flex-direction:column;gap:2px;
+  position:sticky;top:59px;height:calc(100vh - 59px);overflow-y:auto;background:rgba(245,242,235,.6)}
+.side-progress{display:flex;align-items:center;gap:11px;padding:4px 11px 16px}
+.ring{position:relative;width:38px;height:38px;flex:none}
+.ring svg{transform:rotate(-90deg)}
+.ring .pcttxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8.5px;color:var(--accent-dark)}
+.side-progress .t1{font-size:12.5px;font-weight:550;line-height:1.25}
+.side-progress .t2{font-size:11px;color:var(--muted)}
+.side-item{display:flex;align-items:center;gap:10px;width:100%;padding:8.5px 11px;border-radius:9px;font-size:13.5px;color:var(--ink-soft);transition:all .14s;text-align:left;position:relative}
+.side-item:hover{background:var(--bg-deep)}
+.side-item.active{background:var(--ink);color:#F2EFE7;box-shadow:var(--sh-xs)}
+.side-num{font-family:var(--mono);font-size:9.5px;width:16px;opacity:.45;flex:none}
+.side-item.active .side-num{opacity:.65}
+.side-item svg{flex:none;opacity:.85}
+.side-item .dot{margin-left:auto;width:6px;height:6px;border-radius:99px;background:var(--accent);flex:none;transition:all .2s}
+.side-item.active .dot{background:#A9BC96}
+.editor-main{flex:1;min-width:0;padding:32px 40px 100px;display:flex;justify-content:center}
+.editor-inner{width:100%;max-width:680px}
+
+/* ---------- Cartes & champs ---------- */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-sm);overflow:hidden}
+.card+.card{margin-top:18px}
+.card-head{display:flex;align-items:baseline;gap:13px;padding:22px 25px 4px}
+.card-num{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--muted-2)}
+.card-title{font-family:var(--serif);font-size:20.5px;font-weight:500}
+.card-sub{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.5}
+.card-body{padding:19px 25px 24px;display:flex;flex-direction:column;gap:17px}
+.field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7C8271;margin-bottom:7px}
+.field .hint{font-family:var(--sans);font-size:12px;color:var(--muted-2);text-transform:none;letter-spacing:0;display:block;margin-top:2.5px;font-weight:400}
+.input,.textarea,select.input{width:100%;background:var(--paper-warm);border:1px solid var(--line-soft);border-radius:9px;padding:10px 13px;transition:all .16s}
+.input:hover,.textarea:hover{border-color:#CCC6B4}
+.input:focus,.textarea:focus,select.input:focus{outline:none;border-color:var(--accent);box-shadow:var(--sh-glow);background:#fff}
+.textarea{resize:vertical;min-height:76px;line-height:1.6}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.subcard{border:1px solid var(--line);background:var(--paper-warm);border-radius:11px;padding:13px;display:flex;flex-direction:column;gap:10px;transition:border-color .18s}
+.subcard:hover{border-color:var(--line-soft)}
+.inline-row{display:flex;align-items:center;gap:9px}
+.nav-btns{display:flex;justify-content:space-between;margin-top:20px}
+.ai-note{font-size:12.5px;color:var(--muted);line-height:1.5}
+.err{font-size:12.5px;color:var(--danger)}
+.ai-box{background:linear-gradient(180deg,var(--accent-mist),#F7F8F2);border:1px solid #DCE3D0;border-radius:11px;padding:13px 15px}
+.ai-box .lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-dark);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.pill-group{display:flex;gap:7px;flex-wrap:wrap}
+.pill{font-size:12.5px;font-weight:500;padding:7px 14px;border-radius:99px;border:1px solid var(--line-soft);background:var(--paper-warm);color:var(--ink-soft);transition:all .15s}
+.pill:hover{border-color:var(--accent)}
+.pill.on{background:var(--ink);border-color:var(--ink);color:#F2EFE7;box-shadow:var(--sh-xs)}
+
+/* ---------- Import magique ---------- */
+.magic{border:1px solid #D3DCC5;border-radius:16px;padding:22px 25px;margin-bottom:20px;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,#EEF2E5 0%,#F9FAF5 55%,#F4EFE3 100%);box-shadow:var(--sh-sm)}
+.magic::after{content:'';position:absolute;top:-40px;right:-40px;width:150px;height:150px;border-radius:99px;
+  background:radial-gradient(circle,rgba(102,121,90,.13),transparent 65%)}
+.magic h3{font-family:var(--serif);font-size:18.5px;display:flex;align-items:center;gap:10px;font-weight:500}
+.magic h3 .wico{width:30px;height:30px;border-radius:9px;background:var(--ink);color:#E9EDDF;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs)}
+.magic p{font-size:13px;color:var(--ink-soft);margin:9px 0 13px;line-height:1.55;max-width:520px}
+.magic .textarea{background:rgba(255,255,255,.85)}
+
+/* ---------- Photos ---------- */
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.photo-item{position:relative;border-radius:11px;overflow:hidden;border:1px solid var(--line);aspect-ratio:4/3;background:var(--bg-deep)}
+.photo-item img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-item .tag{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;background:rgba(28,30,24,.82);backdrop-filter:blur(4px);color:#F2EFE7;padding:3.5px 8px;border-radius:5px}
+.photo-item .ovl{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,22,17,.45),transparent 40%,transparent 62%,rgba(20,22,17,.5));opacity:0;transition:opacity .18s;display:flex;flex-direction:column;justify-content:space-between;padding:7px}
+.photo-item:hover .ovl{opacity:1}
+.photo-item .ovl-top{display:flex;justify-content:flex-end}
+.photo-item .ovl-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:5px}
+.pbtn{background:rgba(255,255,255,.93);color:var(--ink-soft);border-radius:7px;padding:5px;line-height:0;transition:all .13s;box-shadow:var(--sh-xs)}
+.pbtn:hover{background:#fff;color:var(--ink)}
+.pbtn.danger:hover{color:var(--danger)}
+.pbtn.txt{font-size:10.5px;padding:5px 9px;line-height:1.2;font-weight:550}
+.drop{border:1.5px dashed var(--line-soft);border-radius:13px;padding:32px;text-align:center;color:var(--muted);cursor:pointer;transition:all .18s;font-size:13.5px;background:rgba(255,255,255,.4)}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-mist);color:var(--accent-dark)}
+.drop .dico{width:42px;height:42px;border-radius:12px;background:var(--accent-mist);color:var(--accent-dark);display:inline-flex;align-items:center;justify-content:center;margin-bottom:10px;transition:all .18s}
+.drop:hover .dico{background:var(--accent);color:#fff}
+
+/* ---------- Habillage ---------- */
+.tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tpl-card{text-align:left;border-radius:14px;border:2px solid var(--line);padding:0;transition:all .18s var(--ease);cursor:pointer;overflow:hidden;position:relative}
+.tpl-card:hover{border-color:#C0C9B0;transform:translateY(-2px);box-shadow:var(--sh-md)}
+.tpl-card.sel{border-color:var(--accent);box-shadow:var(--sh-glow)}
+.tpl-mini{padding:16px 16px 13px}
+.tpl-mini .mini-cover{border-radius:8px;height:56px;margin-bottom:10px;display:flex;align-items:flex-end;padding:9px 11px;position:relative;overflow:hidden}
+.tpl-mini .mini-title{font-family:var(--serif);font-size:12px;font-weight:500}
+.tpl-meta{padding:0 16px 14px;display:flex;align-items:center;justify-content:space-between}
+.tpl-name{font-family:var(--serif);font-size:15.5px;font-weight:500}
+.tpl-desc{font-size:11.5px;opacity:.6;margin-top:1px}
+.tpl-sel-badge{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:99px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs);animation:menuIn .2s}
+.cover-styles{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+.cs-card{border:2px solid var(--line);border-radius:11px;padding:11px;cursor:pointer;transition:all .16s;text-align:center;background:var(--paper-warm)}
+.cs-card:hover{border-color:#C0C9B0}
+.cs-card.sel{border-color:var(--accent);box-shadow:var(--sh-glow)}
+.cs-card .cs-pre{height:52px;border-radius:6px;background:var(--bg-deep);margin-bottom:8px;position:relative;overflow:hidden}
+.cs-card p{font-size:11.5px;font-weight:550;color:var(--ink-soft)}
+
+/* ---------- Quartier ---------- */
+.osm-res{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;padding-right:4px}
+.osm-row{display:flex;align-items:center;gap:12px;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10.5px 13px;transition:border-color .15s;animation:viewIn .3s var(--ease)}
+.osm-row:hover{border-color:var(--line-soft)}
+.osm-row .nm{font-size:13.5px;font-weight:550}
+.osm-row .ds{font-size:12px;color:var(--muted);margin-top:1px}
+.osm-row .add{margin-left:auto;flex:none}
+.osm-ico{width:32px;height:32px;border-radius:10px;background:var(--accent-mist);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;flex:none}
+.skel{height:52px;border-radius:10px;background:linear-gradient(90deg,var(--line-faint) 25%,#F6F3EC 50%,var(--line-faint) 75%);background-size:200% 100%;animation:shimmer 1.3s infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+
+/* ---------- Modales ---------- */
+.overlay{position:fixed;inset:0;background:rgba(30,32,26,.45);z-index:400;display:flex;align-items:center;justify-content:center;padding:24px;
+  backdrop-filter:blur(3px);animation:ovIn .22s}
+@keyframes ovIn{from{opacity:0}to{opacity:1}}
+.modal{background:var(--bg);border-radius:19px;box-shadow:var(--sh-lg);width:100%;max-width:560px;max-height:88vh;overflow-y:auto;padding:30px;animation:modIn .28s var(--ease)}
+@keyframes modIn{from{opacity:0;transform:scale(.96) translateY(10px)}to{opacity:1;transform:none}}
+.modal h3{font-family:var(--serif);font-size:22px;margin-bottom:7px;font-weight:500}
+.modal .sub{color:var(--ink-faint);font-size:13.5px;margin-bottom:18px;line-height:1.55}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+
+/* ---------- Aperçu ---------- */
+.preview-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 26px;border-bottom:1px solid var(--line);
+  background:rgba(245,242,235,.86);backdrop-filter:blur(14px);position:sticky;top:59px;z-index:70;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--bg-deep);border-radius:10px;padding:3px;gap:2px}
+.seg button{font-size:12.5px;padding:6.5px 13px;border-radius:8px;color:var(--ink-soft);font-weight:500;transition:all .16s;display:inline-flex;align-items:center;gap:6px}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:var(--sh-xs)}
+.preview-wrap{flex:1;overflow-y:auto;background:
+  radial-gradient(800px 400px at 70% -5%, rgba(102,121,90,.08), transparent 60%), var(--bg-deep);padding-bottom:80px}
+.device{margin:36px auto 30px;border-radius:20px;overflow:hidden;box-shadow:var(--sh-lg);transition:max-width .35s var(--ease);border:1px solid rgba(34,37,30,.09)}
+.device.paper{max-width:680px}
+.device.phone{max-width:400px;border-radius:38px;border:9px solid #23251E;box-shadow:0 30px 80px rgba(20,22,17,.3)}
+.device.phone .notch{height:24px;background:inherit;display:flex;justify-content:center;align-items:center}
+.share-hint{max-width:680px;margin:0 auto;text-align:center;font-size:12.5px;color:var(--muted)}
+
+/* ---------- Toast ---------- */
+#toasts{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;gap:9px;align-items:center}
+.toast{background:var(--ink);color:#F2EFE7;font-size:13.5px;padding:12px 19px;border-radius:12px;box-shadow:var(--sh-lg);display:flex;align-items:center;gap:10px;animation:toastIn .3s var(--ease);max-width:90vw}
+.toast .tico{color:#A9BC96;line-height:0;flex:none}
+.toast.error{background:#7E3A28}.toast.error .tico{color:#F0B9A8}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+.spin{animation:spin 1s linear infinite;display:inline-flex;line-height:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- Réglages ---------- */
+.settings{max-width:660px;margin:0 auto;padding:46px 30px 90px;display:flex;flex-direction:column;gap:0}
+
+@media(max-width:880px){
+  .sidebar{width:62px;padding:16px 8px}
+  .side-item span.lb,.side-num,.side-progress .txts{display:none}
+  .side-progress{justify-content:center;padding:2px 0 14px}
+  .side-item{justify-content:center;padding:9px 0}
+  .side-item .dot{position:absolute;top:6px;right:8px;margin:0}
+  .editor-main{padding:22px 16px 90px}
+  .row-2,.tpl-grid{grid-template-columns:1fr}
+  .photo-grid,.cover-styles{grid-template-columns:repeat(2,1fr)}
+  .dash{padding:30px 18px 70px}
+}
+
+/* ---------- Impression ---------- */
+@media print{
+  body{background:#fff}
+  body *{visibility:hidden}
+  #print-zone,#print-zone *{visibility:visible}
+  #print-zone{position:absolute;inset:0;width:100%;display:block!important}
+  #print-zone .lv{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #print-zone section{break-inside:avoid}
+  #print-zone .pagebreak{break-after:page}
+  .no-print{display:none!important}
+}
+@page{margin:14mm 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+<div id="ctx-root"></div>
+<div id="print-zone" style="display:none"></div>
+<input type="file" id="photo-input" accept="image/*" multiple style="display:none">
+<script>
+/* =====================================================================
+   SMART GUIDE V2 — Livrets d'accueil & guides pour conciergeries
+   App locale : les données restent sur cet ordinateur (IndexedDB).
+   IA : API Anthropic (clé locale). Cartes : OpenStreetMap (gratuit).
+   ===================================================================== */
+"use strict";
+/* ---------------- Icônes ---------------- */
+const I = (name, size=15) => {
+  const p = {
+    home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+    key:'<circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 9-9"/><path d="m17 6 3 3"/><path d="m14 9 2 2"/>',
+    wifi:'<path d="M2 9.5C7.5 4.5 16.5 4.5 22 9.5"/><path d="M5.5 13c3.8-3.3 9.2-3.3 13 0"/><path d="M9 16.5c1.8-1.5 4.2-1.5 6 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/>',
+    sofa:'<path d="M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3"/><path d="M2 13a2 2 0 0 1 4 0v1h12v-1a2 2 0 0 1 4 0v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-3Z"/><path d="M5 18v2M19 18v2"/>',
+    scroll:'<path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    compass:'<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/>',
+    phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"/>',
+    image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m5 19 5.5-5.5 3 3L17 13l4 4"/>',
+    palette:'<path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a1.5 1.5 0 0 1 0-3h5a4 4 0 0 0 4-4c0-4-4.5-7-9-7Z"/><circle cx="7.5" cy="11.5" r="1" fill="currentColor"/><circle cx="10" cy="7.5" r="1" fill="currentColor"/><circle cx="14.5" cy="7" r="1" fill="currentColor"/>',
+    eye:'<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/>',
+    back:'<path d="m12 19-7-7 7-7"/><path d="M5 12h14"/>',
+    plus:'<path d="M12 5v14M5 12h14"/>',
+    x:'<path d="M18 6 6 18M6 6l12 12"/>',
+    upload:'<path d="M12 16V4"/><path d="m6 9 6-5 6 5"/><path d="M4 20h16"/>',
+    sparkles:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z"/>',
+    loader:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+    car:'<path d="M5 16 6.5 9a2 2 0 0 1 2-1.5h7a2 2 0 0 1 2 1.5L19 16"/><path d="M3 16h18v3h-2.5M3 16v3h2.5"/><circle cx="7.5" cy="19" r="1.5"/><circle cx="16.5" cy="19" r="1.5"/>',
+    food:'<path d="M5 3v7a2 2 0 0 0 2 2v9M9 3v7a2 2 0 0 1-2 2"/><path d="M7 3v5"/><path d="M15 12V4a3 3 0 0 1 3-1v18"/><path d="M15 12h3"/>',
+    bag:'<path d="M6 8h12l1.5 12.5a1 1 0 0 1-1 1H5.5a1 1 0 0 1-1-1L6 8Z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/>',
+    train:'<rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14"/><circle cx="9" cy="14" r="1" fill="currentColor"/><circle cx="15" cy="14" r="1" fill="currentColor"/><path d="m8 21 1.5-3M16 21l-1.5-3"/>',
+    star:'<path d="m12 3 2.7 5.6 6.3.8-4.6 4.3 1.2 6.1L12 17l-5.6 2.8 1.2-6.1L3 9.4l6.3-.8L12 3Z"/>',
+    mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    shield:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/><path d="M12 8v4M12 15.5v.5"/>',
+    check:'<path d="m4.5 12.5 5 5 10-11"/>',
+    pin:'<path d="M12 21s-7-6.5-7-11.5a7 7 0 0 1 14 0C19 14.5 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.4"/>',
+    trash:'<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/><path d="M10 11v5M14 11v5"/>',
+    copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+    download:'<path d="M12 4v12"/><path d="m6 11 6 5 6-5"/><path d="M4 20h16"/>',
+    printer:'<path d="M7 8V3h10v5"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/>',
+    gear:'<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="M19.4 13.5a1.8 1.8 0 0 0 .36 1.98l.07.07a2 2 0 1 1-2.83 2.83l-.07-.07a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V20a2 2 0 1 1-4 0v-.09a1.8 1.8 0 0 0-1.18-1.65 1.8 1.8 0 0 0-1.98.36l-.07.07a2 2 0 1 1-2.83-2.83l.07-.07a1.8 1.8 0 0 0 .36-1.98 1.8 1.8 0 0 0-1.65-1.09H4a2 2 0 1 1 0-4h.09a1.8 1.8 0 0 0 1.65-1.18 1.8 1.8 0 0 0-.36-1.98l-.07-.07a2 2 0 1 1 2.83-2.83l.07.07a1.8 1.8 0 0 0 1.98.36h.09A1.8 1.8 0 0 0 11.37 4.1V4a2 2 0 1 1 4 0v.09a1.8 1.8 0 0 0 1.09 1.65 1.8 1.8 0 0 0 1.98-.36l.07-.07a2 2 0 1 1 2.83 2.83l-.07.07a1.8 1.8 0 0 0-.36 1.98v.09a1.8 1.8 0 0 0 1.65 1.09H23a2 2 0 0 1-2 2h-.09a1.8 1.8 0 0 0-1.51 1.04Z" transform="scale(.92) translate(1,1)"/>',
+    book:'<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 0-2 2V5Z"/><path d="M19 17H6a2 2 0 0 0-2 2"/><path d="M8 7h7"/>',
+    wand:'<path d="m14 6 4 4L7 21l-4-4L14 6Z"/><path d="m13 7 4 4"/><path d="M18 3v2M21 6h-2M20 11l1.5 1.5M11 4 9.5 2.5"/>',
+    coffee:'<path d="M4 8h12v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M16 9h2a2.5 2.5 0 0 1 0 5h-2"/><path d="M7 3.5c0 1-.8 1-.8 2M11 3.5c0 1-.8 1-.8 2"/>',
+    leaf:'<path d="M6 20c8 0 14-6 14-15-9 0-15 6-15 14"/><path d="M5 19c3-6 7-9 11-11"/>',
+    med:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3"/><path d="M12 10.5v5M9.5 13h5"/>',
+    logout:'<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="m10 8-4 4 4 4"/><path d="M6 12h9"/>',
+    share:'<circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="5.5" r="2.5"/><circle cx="17.5" cy="18.5" r="2.5"/><path d="m8.3 10.8 7-4M8.3 13.2l7 4"/>',
+    globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9S14.5 18.3 12 21c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z"/>',
+    search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/>',
+    dots:'<circle cx="12" cy="5.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none"/>',
+    duplicate:'<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 4H5a2 2 0 0 0-2 2v11"/>',
+    pen:'<path d="M4 20h4L20.5 7.5a2.1 2.1 0 0 0-3-3L5 17l-1 4Z"/><path d="m14.5 6.5 3 3"/>',
+    left:'<path d="m14 6-6 6 6 6"/>',
+    right:'<path d="m10 6 6 6-6 6"/>',
+    smartphone:'<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/>',
+    filetext:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6"/><path d="M9 13h6M9 17h6"/>',
+    lang:'<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
+  };
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p[name]||''}</svg>`;
+};
+const logoSVG = (size=24, color='#22251E') => `
+<svg width="${size}" height="${size}" viewBox="0 0 48 48" fill="none">
+  <path d="M24 10c-4-3-9.5-4-15-3.4V38c5.5-.6 11 .4 15 3.4 4-3 9.5-4 15-3.4V6.6C33.5 6 28 7 24 10Z" stroke="${color}" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M24 10v31.4" stroke="${color}" stroke-width="2.4"/>
+  <path d="M31 16.5c2.6 0 4.5 1.9 4.5 4.3 0 3.2-4.5 7.2-4.5 7.2s-4.5-4-4.5-7.2c0-2.4 1.9-4.3 4.5-4.3Z" stroke="${color}" stroke-width="2"/>
+  <circle cx="31" cy="20.8" r="1.3" fill="${color}"/>
+</svg>`;
+
+/* ---------------- Constantes ---------------- */
+const TEMPLATES = [
+  { id:'lichen', nom:'Lichen', accroche:'Alpin, sobre, minéral',   bg:'#F6F4EF', paper:'#FFFFFF', ink:'#23261F', accent:'#6B7F5B', accentSoft:'#E4E9DD', line:'#DCD9CD' },
+  { id:'gres',   nom:'Grès',   accroche:'Terracotta, chaleureux',  bg:'#F7F0E8', paper:'#FFFDF9', ink:'#2E2318', accent:'#B5583C', accentSoft:'#F0DCCB', line:'#E6D6C3' },
+  { id:'marine', nom:'Marine', accroche:'Nocturne, élégant',       bg:'#101826', paper:'#182233', ink:'#EDEAE0', accent:'#C9A24B', accentSoft:'#243046', line:'#2C3849' },
+  { id:'craie',  nom:'Craie',  accroche:'Scandinave, épuré',       bg:'#F4F4F2', paper:'#FFFFFF', ink:'#2B2B2B', accent:'#8791A0', accentSoft:'#E7E8E4', line:'#E2E2DE' },
+  { id:'sable',  nom:'Sable',  accroche:'Littoral, doux, solaire', bg:'#FAF6EE', paper:'#FFFFFF', ink:'#33301F', accent:'#C08A3E', accentSoft:'#F2E4CB', line:'#E9DFC9' },
+  { id:'figue',  nom:'Figue',  accroche:'Feutré, intime, profond', bg:'#F5F1F3', paper:'#FFFFFF', ink:'#2E222B', accent:'#7D4A66', accentSoft:'#EBDCE4', line:'#E3D8DE' },
+];
+const COVER_STYLES = [
+  { id:'photo',   label:'Immersive',  desc:'Photo pleine largeur' },
+  { id:'cadre',   label:'Galerie',    desc:'Photo encadrée, marges' },
+  { id:'minimal', label:'Éditoriale', desc:'Typographie seule' },
+];
+const TONES = [
+  { id:'chaleureux', label:'Chaleureux' },
+  { id:'elegant',    label:'Élégant' },
+  { id:'concis',     label:'Concis' },
+];
+const SECTIONS = [
+  { id:'infos',      label:'Le logement',     icon:'home' },
+  { id:'arrivee',    label:'Arrivée',          icon:'key' },
+  { id:'depart',     label:'Départ',           icon:'logout' },
+  { id:'wifi',       label:'Wifi',             icon:'wifi' },
+  { id:'equipements',label:'Équipements',      icon:'sofa' },
+  { id:'reglement',  label:'Règlement',        icon:'scroll' },
+  { id:'quartier',   label:'Dans le quartier', icon:'compass' },
+  { id:'contacts',   label:'Contacts',         icon:'phone' },
+  { id:'photos',     label:'Photos',           icon:'image' },
+  { id:'style',      label:'Habillage',        icon:'palette' },
+];
+const CATS = [
+  { id:'restaurant', label:'Restaurant', icon:'food' },
+  { id:'cafe',       label:'Café',       icon:'coffee' },
+  { id:'commerce',   label:'Commerce',   icon:'bag' },
+  { id:'transport',  label:'Transport',  icon:'train' },
+  { id:'sante',      label:'Santé',      icon:'med' },
+  { id:'activite',   label:'Activité',   icon:'leaf' },
+];
+const catOf = id => CATS.find(c=>c.id===id) || CATS[0];
+const GUIDES = [
+  { id:'complet', label:'Livret complet',   sections:['cover','essentials','arrivee','wifi','equipements','reglement','quartier','galerie','depart','contacts'] },
+  { id:'arrivee', label:"Guide d'arrivée",  sections:['cover','arrivee','wifi','contacts'] },
+  { id:'depart',  label:'Guide de départ',  sections:['cover','depart','contacts'] },
+  { id:'maison',  label:'Guide maison',     sections:['cover','wifi','equipements','reglement','contacts'] },
+];
+const MODELS = [
+  { id:'claude-haiku-4-5',  label:'Claude Haiku — rapide & très économique (recommandé)' },
+  { id:'claude-sonnet-4-6', label:'Claude Sonnet — qualité maximale (plus cher)' },
+];
+const LANGS = [
+  { id:'fr', label:'Français', flag:'FR' },
+  { id:'en', label:'English',  flag:'EN' },
+  { id:'es', label:'Español',  flag:'ES' },
+  { id:'de', label:'Deutsch',  flag:'DE' },
+  { id:'it', label:'Italiano', flag:'IT' },
+];
+/* Libellés statiques du livret, par langue */
+const L10N = {
+  fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès",
+       wifi:'Wifi', reseau:'Réseau', mdp:'Mot de passe', scan:'Scanner pour se connecter', equip:'Équipements',
+       regl:'Règlement', quartier:'Dans le quartier', images:'Le logement en images', avantpartir:'Avant de partir',
+       checklist:'Check-list', contact:'Nous contacter', urgence:'Urgence hors horaires', itineraire:'Itinéraire Google Maps',
+       guideArr:"Guide d'arrivée", guideDep:'Guide de départ', guideMai:'Guide de la maison', bienvenue:'Bienvenue' },
+  en:{ livret:'Welcome guide', arrivee:'Check-in', depuis:'Check-in from', avant:'Check-out before', code:'Access code',
+       wifi:'Wifi', reseau:'Network', mdp:'Password', scan:'Scan to connect', equip:'Amenities',
+       regl:'House rules', quartier:'In the neighbourhood', images:'The place in pictures', avantpartir:'Before you leave',
+       checklist:'Checklist', contact:'Contact us', urgence:'After-hours emergency', itineraire:'Google Maps directions',
+       guideArr:'Arrival guide', guideDep:'Departure guide', guideMai:'House guide', bienvenue:'Welcome' },
+  es:{ livret:'Guía de bienvenida', arrivee:'Llegada', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso',
+       wifi:'Wifi', reseau:'Red', mdp:'Contraseña', scan:'Escanear para conectarse', equip:'Equipamiento',
+       regl:'Normas de la casa', quartier:'En el barrio', images:'El alojamiento en imágenes', avantpartir:'Antes de salir',
+       checklist:'Lista', contact:'Contáctenos', urgence:'Emergencia fuera de horario', itineraire:'Ruta en Google Maps',
+       guideArr:'Guía de llegada', guideDep:'Guía de salida', guideMai:'Guía de la casa', bienvenue:'Bienvenido' },
+  de:{ livret:'Willkommensmappe', arrivee:'Anreise', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode',
+       wifi:'WLAN', reseau:'Netzwerk', mdp:'Passwort', scan:'Zum Verbinden scannen', equip:'Ausstattung',
+       regl:'Hausregeln', quartier:'In der Nachbarschaft', images:'Die Unterkunft in Bildern', avantpartir:'Vor der Abreise',
+       checklist:'Checkliste', contact:'Kontakt', urgence:'Notfall außerhalb der Zeiten', itineraire:'Google Maps Route',
+       guideArr:'Anreise-Guide', guideDep:'Abreise-Guide', guideMai:'Haus-Guide', bienvenue:'Willkommen' },
+  it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso',
+       wifi:'Wifi', reseau:'Rete', mdp:'Password', scan:'Scansiona per connetterti', equip:'Dotazioni',
+       regl:'Regole della casa', quartier:'Nel quartiere', images:"L'alloggio in immagini", avantpartir:'Prima di partire',
+       checklist:'Checklist', contact:'Contattaci', urgence:'Emergenza fuori orario', itineraire:'Percorso Google Maps',
+       guideArr:'Guida di arrivo', guideDep:'Guida di partenza', guideMai:'Guida della casa', bienvenue:'Benvenuto' },
+};
+const guideLabelLang = (gid, lang) => {
+  const t=L10N[lang]||L10N.fr;
+  return gid==='arrivee'?t.guideArr : gid==='depart'?t.guideDep : gid==='maison'?t.guideMai : t.livret;
+};
+
+let uid = 0;
+const nid = () => `id-${Date.now().toString(36)}-${uid++}`;
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const timeAgo = ts => {
+  const d=Date.now()-ts;
+  if(d<60000) return "à l'instant";
+  if(d<3600000) return `il y a ${Math.floor(d/60000)} min`;
+  if(d<86400000) return `il y a ${Math.floor(d/3600000)} h`;
+  const j=Math.floor(d/86400000);
+  return j===1?'hier':`il y a ${j} jours`;
+};
+
+/* ---------------- État & persistance ---------------- */
+const DB_NAME='smart-guide', DB_STORE='state';
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DB_NAME,1);
+  r.onupgradeneeded=()=>r.result.createObjectStore(DB_STORE);
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });}
+async function dbGet(k){ const d=await idb(); return new Promise((res,rej)=>{ const t=d.transaction(DB_STORE).objectStore(DB_STORE).get(k); t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); });}
+async function dbSet(k,v){ const d=await idb(); return new Promise((res,rej)=>{ const t=d.transaction(DB_STORE,'readwrite').objectStore(DB_STORE).put(v,k); t.onsuccess=()=>res(); t.onerror=()=>rej(t.error); });}
+
+const defaultLogement = () => ({
+  id:nid(), createdAt:Date.now(), updatedAt:Date.now(),
+  nom:'', ville:'', adresse:'', accroche:'', bienvenue:'', notes:'',
+  arrivee:{ heure:'16:00', codeAcces:'', instructions:'', parking:'' },
+  depart:{ heure:'11:00', instructions:'', checklist:['Fermer portes et fenêtres','Éteindre lumières et chauffage','Déposer les clés comme convenu'] },
+  wifi:{ ssid:'', mdp:'' },
+  equipements:[],
+  reglement:['Non-fumeur à l\'intérieur','Pas de fêtes ni d\'événements','Merci de respecter le voisinage après 22h'],
+  recos:[],
+  contacts:{ hote:'', tel:'', email:'', urgence:'' },
+  photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux',
+  translations:{}, geo:null,
+});
+function migrateLogement(l){
+  const d=defaultLogement();
+  for(const k of Object.keys(d)) if(l[k]===undefined) l[k]=d[k];
+  return l;
+}
+
+let S = { settings:{ apiKey:'', model:'claude-haiku-4-5', conciergerie:'' }, logements:[] };
+let route = { view:'dash', id:null, section:'infos', guide:'complet', device:'paper', lang:'fr', search:'' };
+let saveTimer=null, saveBadgeTimer=null;
+function setSaveBadge(state){
+  const b=document.getElementById('savebadge'); if(!b) return;
+  if(state==='saving'){ b.className='savebadge saving'; b.innerHTML='<span class="pulse"></span>ENREGISTREMENT'; }
+  else { b.className='savebadge saved'; b.innerHTML='<span class="pulse"></span>ENREGISTRÉ'; }
+}
+function save(){
+  clearTimeout(saveTimer); setSaveBadge('saving');
+  saveTimer=setTimeout(()=>{
+    dbSet('v1',S).then(()=>setSaveBadge('saved')).catch(e=>toast('Erreur de sauvegarde : '+e.message,true));
+  },350);
+}
+function touch(l){ l.updatedAt=Date.now(); save(); }
+const cur = () => S.logements.find(l=>l.id===route.id);
+
+/* ---------------- Toast & menus ---------------- */
+function toast(msg, isErr=false){
+  const el=document.createElement('div');
+  el.className='toast'+(isErr?' error':'');
+  el.innerHTML=`<span class="tico">${isErr?I('x',15):I('check',15)}</span>${esc(msg)}`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity .35s';setTimeout(()=>el.remove(),380);}, 3400);
+}
+function openCtxMenu(ev, items){
+  ev.stopPropagation();
+  const root=document.getElementById('ctx-root');
+  root.innerHTML=`<div class="ctx-menu" id="ctx">${items.map((it,i)=>it==='sep'?'<div class="ctx-sep"></div>':`<button class="${it.danger?'danger':''}" data-i="${i}">${I(it.icon,14)}${it.label}</button>`).join('')}</div>`;
+  const m=document.getElementById('ctx');
+  const r=ev.currentTarget.getBoundingClientRect();
+  let x=r.right-180, y=r.bottom+6;
+  if(y+m.offsetHeight>innerHeight-10) y=r.top-m.offsetHeight-6;
+  m.style.left=Math.max(8,x)+'px'; m.style.top=y+'px';
+  m.querySelectorAll('button').forEach(b=>b.onclick=e=>{ e.stopPropagation(); closeCtx(); items[+b.dataset.i].fn(); });
+  setTimeout(()=>document.addEventListener('click', closeCtx, {once:true}),0);
+}
+function closeCtx(){ document.getElementById('ctx-root').innerHTML=''; }
+
+/* ---------------- Rendu global ---------------- */
+const app = document.getElementById('app');
+function render(){
+  closeCtx();
+  if(route.view==='dash') renderDash();
+  else if(route.view==='edit') renderEditor();
+  else if(route.view==='preview') renderPreview();
+  else if(route.view==='settings') renderSettings();
+  window.scrollTo(0,0);
+}
+function go(view, extra={}){ route={...route, view, ...extra}; render(); }
+
+function topbar(inner=''){
+  return `
+  <div class="topbar no-print">
+    <div class="brand" onclick="go('dash')">
+      ${logoSVG(27)}
+      <div><div class="brand-name">Smart Guide</div><div class="brand-sub">LIVRETS &amp; GUIDES</div></div>
+    </div>
+    <div class="topbar-actions">
+      <span class="savebadge saved" id="savebadge"><span class="pulse"></span>ENREGISTRÉ</span>
+      ${inner}
+      <button class="btn btn-plain" onclick="go('settings')" title="Réglages">${I('gear',17)}</button>
+    </div>
+  </div>`;
+}
+
+/* ---------------- Dashboard ---------------- */
+function completeness(l){
+  const checks=[!!l.nom, !!(l.arrivee.codeAcces||l.arrivee.instructions), !!l.wifi.ssid, l.photos.length>0,
+    l.equipements.some(e=>e.nom), l.recos.length>0, !!(l.contacts.hote||l.contacts.tel), !!l.accroche];
+  return Math.round(checks.filter(Boolean).length/checks.length*100);
+}
+function renderDash(){
+  const q=(route.search||'').toLowerCase();
+  const list=S.logements.filter(l=>!q || (l.nom+' '+l.ville).toLowerCase().includes(q));
+  const nbComplete=S.logements.filter(l=>completeness(l)>=80).length;
+  const nbLangs=new Set(S.logements.flatMap(l=>Object.keys(l.translations||{}))).size;
+
+  const cards=list.map(l=>{
+    const cover=l.photos[0], pc=completeness(l);
+    return `
+    <div class="prop-card" onclick="openLogement('${l.id}')">
+      <div class="prop-cover">
+        ${cover?`<img src="${cover.dataUrl}" alt="">`:logoSVG(36,'#66795A')}
+        <span class="prop-chip">${esc(TEMPLATES.find(t=>t.id===l.templateId)?.nom||'')}</span>
+        <button class="prop-menu-btn" onclick="logementMenu(event,'${l.id}')">${I('dots',15)}</button>
+      </div>
+      <div class="prop-body">
+        <div class="prop-name">${esc(l.nom||'Logement sans nom')}</div>
+        <div class="prop-city">${I('pin',12)} ${esc(l.ville||'Ville non renseignée')}</div>
+        <div class="prop-foot">
+          <span class="prop-date">${timeAgo(l.updatedAt)}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="pbar"><span style="width:${pc}%"></span></div>
+            <span class="pct">${pc}%</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  app.innerHTML = topbar() + `
+  <div class="view dash">
+    <div class="dash-head">
+      <div>
+        <div class="kicker">${esc(S.settings.conciergerie||'Votre conciergerie')}</div>
+        <h1 class="dash-title">Vos logements</h1>
+        <p class="dash-sub">Chaque logement génère son livret d'accueil complet ainsi que les guides d'arrivée, de départ et de la maison — en plusieurs langues.</p>
+      </div>
+      <button class="btn btn-dark btn-lg" onclick="newLogement()">${I('plus',15)} Nouveau logement</button>
+    </div>
+
+    ${S.logements.length===0 ? `
+      <div class="empty-hero">
+        ${logoSVG(50,'#66795A')}
+        <h2>Créez votre premier livret</h2>
+        <p>Trois minutes suffisent : ajoutez un logement, collez vos notes en vrac, laissez l'IA composer un livret soigné.</p>
+        <div class="empty-steps">
+          <div class="estep"><span class="num">ÉTAPE 1</span><div class="ico">${I('wand',18)}</div><p>Collez votre annonce ou vos notes en vrac</p></div>
+          <div class="estep"><span class="num">ÉTAPE 2</span><div class="ico">${I('image',18)}</div><p>Ajoutez vos photos et choisissez un habillage</p></div>
+          <div class="estep"><span class="num">ÉTAPE 3</span><div class="ico">${I('share',18)}</div><p>Exportez en PDF ou fichier à envoyer</p></div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-dark btn-lg" onclick="newLogement()">${I('plus',15)} Commencer</button>
+          <button class="btn btn-ghost btn-lg" onclick="createDemo()">${I('eye',15)} Voir un exemple</button>
+        </div>
+      </div>` : `
+      <div class="statrow">
+        <div class="stat"><div class="n">${S.logements.length}</div><div class="l">Logement${S.logements.length>1?'s':''}</div></div>
+        <div class="stat"><div class="n">${nbComplete}</div><div class="l">Livret${nbComplete>1?'s':''} prêt${nbComplete>1?'s':''}</div></div>
+        <div class="stat"><div class="n">${S.logements.length*4}</div><div class="l">Guides générés</div></div>
+        ${nbLangs?`<div class="stat"><div class="n">${nbLangs+1}</div><div class="l">Langues</div></div>`:''}
+      </div>
+      ${S.logements.length>3?`
+      <div class="searchbar">${I('search',15)}<input placeholder="Rechercher un logement…" value="${esc(route.search)}" oninput="route.search=this.value;renderDash()"></div>`:''}
+      <div class="grid-cards">
+        ${cards}
+        <button class="new-card" onclick="newLogement()"><span class="plus-ring">${I('plus',19)}</span><span style="font-size:13.5px;font-weight:500">Ajouter un logement</span></button>
+      </div>`}
+  </div>`;
+}
+function logementMenu(ev, id){
+  openCtxMenu(ev,[
+    { icon:'pen', label:'Ouvrir', fn:()=>openLogement(id) },
+    { icon:'eye', label:'Aperçu du livret', fn:()=>{ route.id=id; go('preview'); } },
+    { icon:'duplicate', label:'Dupliquer', fn:()=>duplicateLogement(id) },
+    'sep',
+    { icon:'trash', label:'Supprimer', danger:true, fn:()=>deleteLogement(id) },
+  ]);
+}
+function newLogement(){ const l=defaultLogement(); S.logements.unshift(l); save(); route={...route, view:'edit', id:l.id, section:'infos'}; render(); }
+function openLogement(id){ route={...route, view:'edit', id, section:'infos'}; render(); }
+function duplicateLogement(id){
+  const src=S.logements.find(x=>x.id===id); if(!src) return;
+  const copy=JSON.parse(JSON.stringify(src));
+  copy.id=nid(); copy.nom=(src.nom||'Logement')+' (copie)'; copy.createdAt=Date.now(); copy.updatedAt=Date.now();
+  S.logements.unshift(copy); save(); render(); toast('Logement dupliqué');
+}
+function deleteLogement(id){
+  const l=S.logements.find(x=>x.id===id);
+  confirmModal(`Supprimer « ${esc(l?.nom||'ce logement')} » ?`,'Le logement, ses photos et ses traductions seront définitivement supprimés de cet ordinateur.',()=>{
+    S.logements=S.logements.filter(x=>x.id!==id); save(); go('dash'); toast('Logement supprimé');
+  });
+}
+/* ---------------- Éditeur ---------------- */
+function sectionDone(l,id){
+  switch(id){
+    case 'infos': return !!(l.nom&&l.ville);
+    case 'arrivee': return !!(l.arrivee.codeAcces||l.arrivee.instructions);
+    case 'depart': return !!(l.depart.instructions||l.depart.checklist.some(Boolean));
+    case 'wifi': return !!l.wifi.ssid;
+    case 'equipements': return l.equipements.some(e=>e.nom);
+    case 'reglement': return l.reglement.some(Boolean);
+    case 'quartier': return l.recos.length>0;
+    case 'contacts': return !!(l.contacts.hote||l.contacts.tel);
+    case 'photos': return l.photos.length>0;
+    case 'style': return true;
+  }
+}
+function progressRing(pc){
+  const r=15.5, c=2*Math.PI*r;
+  return `<div class="ring">
+    <svg width="38" height="38" viewBox="0 0 38 38">
+      <circle cx="19" cy="19" r="${r}" fill="none" stroke="#E6E1D4" stroke-width="3.5"/>
+      <circle cx="19" cy="19" r="${r}" fill="none" stroke="#66795A" stroke-width="3.5" stroke-linecap="round"
+        stroke-dasharray="${c}" stroke-dashoffset="${c*(1-pc/100)}" style="transition:stroke-dashoffset .6s var(--ease)"/>
+    </svg>
+    <span class="pcttxt">${pc}</span>
+  </div>`;
+}
+function renderEditor(){
+  const l=cur(); if(!l){ go('dash'); return; }
+  const idx=SECTIONS.findIndex(s=>s.id===route.section);
+  const pc=completeness(l);
+  app.innerHTML = topbar(`
+    <button class="btn btn-plain" onclick="logementMenuTop(event)" title="Options">${I('dots',16)}</button>
+    <button class="btn btn-ghost" onclick="go('dash')">${I('back',14)} Mes logements</button>
+    <button class="btn btn-dark" onclick="go('preview')">${I('eye',14)} Aperçu &amp; export</button>
+  `) + `
+  <div class="editor">
+    <div class="sidebar no-print">
+      <div class="side-progress">
+        ${progressRing(pc)}
+        <div class="txts"><div class="t1">${esc(l.nom||'Nouveau logement')}</div><div class="t2">${pc<100?'Livret en cours':'Livret complet'}</div></div>
+      </div>
+      ${SECTIONS.map((s,i)=>`
+        <button class="side-item ${route.section===s.id?'active':''}" onclick="route.section='${s.id}';render()">
+          <span class="side-num">${String(i+1).padStart(2,'0')}</span>${I(s.icon,14)}<span class="lb">${s.label}</span>
+          ${sectionDone(l,s.id)?'<span class="dot"></span>':''}
+        </button>`).join('')}
+    </div>
+    <div class="editor-main"><div class="editor-inner view">
+      ${route.section==='infos'?magicBox(l):''}
+      ${renderSection(l)}
+      <div class="nav-btns">
+        <button class="btn btn-ghost" ${idx===0?'disabled':''} onclick="route.section='${SECTIONS[Math.max(0,idx-1)].id}';render()">${I('back',14)} Précédent</button>
+        ${idx<SECTIONS.length-1
+          ? `<button class="btn btn-dark" onclick="route.section='${SECTIONS[idx+1].id}';render()">Suivant ${I('right',14)}</button>`
+          : `<button class="btn btn-accent" onclick="go('preview')">${I('eye',14)} Voir le livret</button>`}
+      </div>
+    </div></div>
+  </div>`;
+}
+function logementMenuTop(ev){
+  const l=cur();
+  openCtxMenu(ev,[
+    { icon:'duplicate', label:'Dupliquer ce logement', fn:()=>duplicateLogement(l.id) },
+    'sep',
+    { icon:'trash', label:'Supprimer', danger:true, fn:()=>deleteLogement(l.id) },
+  ]);
+}
+
+/* ---------- Import magique ---------- */
+function magicBox(l){
+  return `
+  <div class="magic">
+    <h3><span class="wico">${I('wand',15)}</span> Remplissage magique</h3>
+    <p>Collez tout ce que vous avez en vrac — annonce Airbnb, mail du propriétaire, notes, codes… L'IA lit tout et remplit chaque fiche du livret, sans jamais inventer un code ou un horaire.</p>
+    <textarea class="textarea" id="magic-text" rows="5" placeholder="Collez votre texte brut ici — plus il y en a, mieux c'est…"></textarea>
+    <div class="inline-row" style="margin-top:12px;flex-wrap:wrap">
+      <button class="btn btn-accent" id="magic-btn" onclick="magicImport()">${I('sparkles',14)} Générer le livret avec l'IA</button>
+      <span class="ai-note" id="magic-note">${S.settings.apiKey?'Quelques secondes, quelques centimes.':'Ajoutez votre clé API dans les réglages pour activer l\'IA.'}</span>
+    </div>
+  </div>`;
+}
+
+/* ---------- Helpers fiches ---------- */
+function card(num,title,sub,body){
+  return `<div class="card"><div class="card-head"><span class="card-num">FICHE ${num}</span><div><h3 class="card-title">${title}</h3>${sub?`<p class="card-sub">${sub}</p>`:''}</div></div><div class="card-body">${body}</div></div>`;
+}
+const F = (path,label,val,ph='',hint='') => `
+  <div class="field"><label>${label}${hint?`<span class="hint">${hint}</span>`:''}</label>
+  <input class="input" value="${esc(val)}" placeholder="${esc(ph)}" oninput="setPath('${path}',this.value)"></div>`;
+const FT = (path,label,val,ph='',rows=3,hint='') => `
+  <div class="field"><label>${label}${hint?`<span class="hint">${hint}</span>`:''}</label>
+  <textarea class="textarea" rows="${rows}" placeholder="${esc(ph)}" oninput="setPath('${path}',this.value)">${esc(val)}</textarea></div>`;
+const aiPolishBtn = (section,label='Améliorer la rédaction') =>
+  `<div><button class="btn btn-ghost btn-sm" id="polish-${section}" onclick="polishSection('${section}')">${I('sparkles',13)} ${label}</button></div>`;
+
+function setPath(path,val){
+  const l=cur(); if(!l) return;
+  const parts=path.split('.'); let o=l;
+  for(let i=0;i<parts.length-1;i++) o=o[parts[i]];
+  o[parts[parts.length-1]]=val; touch(l);
+  if(path==='adresse'||path==='ville') l.geo=null;
+  if(path!=='templateId'&&path!=='coverStyle'&&path!=='tone') l.translations={};
+}
+function setArr(arrPath,i,key,val){
+  const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l);
+  if(key===null) arr[i]=val; else arr[i][key]=val;
+  l.translations={}; touch(l);
+}
+function rmArr(arrPath,i){ const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l); arr.splice(i,1); l.translations={}; touch(l); render(); }
+function pushArr(arrPath,item){ const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l); arr.push(item); touch(l); render(); }
+
+function renderSection(l){
+  switch(route.section){
+    case 'infos': return card('01','Le logement','Ce qui apparaît en couverture du livret',`
+      <div class="row-2">
+        <div style="grid-column:1/-1">${F('nom','Nom du logement',l.nom,"Ex. L'Escale Havraise")}</div>
+        ${F('ville','Ville',l.ville,'Le Havre')}
+        ${F('adresse','Adresse',l.adresse,'92 rue Frédéric Bellanger')}
+      </div>
+      ${FT('notes','Description / notes',l.notes,'Quelques notes sur le logement, son ambiance, ce qui le distingue…',4,"Notes libres — l'IA peut en tirer une accroche et un mot de bienvenue")}
+      <div class="inline-row">
+        <button class="btn btn-ghost" id="btn-accroche" onclick="genAccroche()">${I('sparkles',14)} Rédiger accroche &amp; mot de bienvenue</button>
+      </div>
+      ${l.accroche?`<div class="ai-box"><div class="lbl">${I('sparkles',11)} Accroche (couverture)</div><input class="input" value="${esc(l.accroche)}" oninput="setPath('accroche',this.value)"></div>`:''}
+      ${l.bienvenue?`<div class="ai-box"><div class="lbl">${I('sparkles',11)} Mot de bienvenue</div><textarea class="textarea" rows="3" oninput="setPath('bienvenue',this.value)">${esc(l.bienvenue)}</textarea></div>`:''}
+    `);
+    case 'arrivee': return card('02','Arrivée','Horaires et accès au logement',`
+      <div class="row-2">
+        <div class="field"><label>Arrivée à partir de</label><input type="time" class="input" value="${esc(l.arrivee.heure)}" oninput="setPath('arrivee.heure',this.value)"></div>
+        ${F('arrivee.parking','Stationnement',l.arrivee.parking,'Ex. place gratuite rue Bellanger après 19h')}
+      </div>
+      ${F('arrivee.codeAcces',"Code d'accès / boîte à clés",l.arrivee.codeAcces,'Ex. 4821 — boîtier à gauche de la porte')}
+      ${FT('arrivee.instructions',"Instructions d'accès",l.arrivee.instructions,"Comment trouver l'entrée, monter les étages, etc.",3)}
+      ${l.arrivee.instructions?aiPolishBtn('arrivee'):''}
+    `);
+    case 'depart': return card('03','Départ','Ce que le voyageur doit faire avant de partir',`
+      <div class="row-2">
+        <div class="field"><label>Départ avant</label><input type="time" class="input" value="${esc(l.depart.heure)}" oninput="setPath('depart.heure',this.value)"></div>
+      </div>
+      ${FT('depart.instructions','Instructions de départ',l.depart.instructions,'Où laisser les clés, que faire des draps…',3)}
+      <div class="field"><label>Check-list de départ</label>
+        <div style="display:flex;flex-direction:column;gap:8px">
+        ${l.depart.checklist.map((c,i)=>`
+          <div class="inline-row"><input class="input" value="${esc(c)}" oninput="setArr('depart.checklist',${i},null,this.value)">
+          <button class="icon-x" onclick="rmArr('depart.checklist',${i})">${I('x',15)}</button></div>`).join('')}
+        </div>
+      </div>
+      <div><button class="btn btn-ghost btn-sm" onclick="pushArr('depart.checklist','')">${I('plus',13)} Ajouter un point</button></div>
+    `);
+    case 'wifi': return card('04','Wifi','Un QR code de connexion sera généré automatiquement dans le livret',`
+      <div class="row-2">
+        ${F('wifi.ssid','Nom du réseau',l.wifi.ssid,'Ex. ESCALE-Guest')}
+        ${F('wifi.mdp','Mot de passe',l.wifi.mdp,'••••••••')}
+      </div>
+    `);
+    case 'equipements': return card('05','Équipements','Un mode d\'emploi par appareil qui le mérite',`
+      <div style="display:flex;flex-direction:column;gap:11px">
+      ${l.equipements.map((e,i)=>`
+        <div class="subcard">
+          <div class="inline-row">
+            <input class="input" placeholder="Nom de l'équipement" value="${esc(e.nom)}" oninput="setArr('equipements',${i},'nom',this.value)">
+            <button class="icon-x" onclick="rmArr('equipements',${i})">${I('x',15)}</button>
+          </div>
+          <textarea class="textarea" rows="2" placeholder="Instructions d'utilisation" oninput="setArr('equipements',${i},'instructions',this.value)">${esc(e.instructions)}</textarea>
+        </div>`).join('')}
+      </div>
+      <div class="inline-row">
+        <button class="btn btn-ghost btn-sm" onclick="pushArr('equipements',{id:nid(),nom:'',instructions:''})">${I('plus',13)} Ajouter un équipement</button>
+        ${l.equipements.some(e=>e.instructions)?`<button class="btn btn-ghost btn-sm" id="polish-equipements" onclick="polishSection('equipements')">${I('sparkles',13)} Améliorer la rédaction</button>`:''}
+      </div>
+    `);
+    case 'reglement': return card('06','Règlement intérieur','Les règles affichées dans le livret',`
+      <div style="display:flex;flex-direction:column;gap:8px">
+      ${l.reglement.map((r,i)=>`
+        <div class="inline-row"><input class="input" value="${esc(r)}" oninput="setArr('reglement',${i},null,this.value)">
+        <button class="icon-x" onclick="rmArr('reglement',${i})">${I('x',15)}</button></div>`).join('')}
+      </div>
+      <div class="inline-row">
+        <button class="btn btn-ghost btn-sm" onclick="pushArr('reglement','')">${I('plus',13)} Ajouter une règle</button>
+        ${l.reglement.some(Boolean)?`<button class="btn btn-ghost btn-sm" id="polish-reglement" onclick="polishSection('reglement')">${I('sparkles',13)} Adoucir la formulation</button>`:''}
+      </div>
+    `);
+    case 'quartier': return renderQuartier(l);
+    case 'contacts': return card('08','Contacts','Comment vous joindre pendant le séjour',`
+      <div class="row-2">
+        ${F('contacts.hote','Nom de l\'hôte / conciergerie',l.contacts.hote,'')}
+        ${F('contacts.tel','Téléphone',l.contacts.tel,'')}
+        ${F('contacts.email','Email',l.contacts.email,'')}
+        ${F('contacts.urgence','Urgence (hors horaires)',l.contacts.urgence,'')}
+      </div>
+    `);
+    case 'photos': return card('09','Photos','Couverture et galerie du livret',`
+      <div class="drop" id="dropzone" onclick="document.getElementById('photo-input').click()">
+        <span class="dico">${I('upload',18)}</span><br>
+        <strong style="font-weight:550">Glissez vos photos ici</strong> ou cliquez pour importer<br>
+        <span style="font-size:11.5px;color:var(--muted-2)">Compressées automatiquement · la première sert de couverture</span>
+      </div>
+      ${l.photos.length?`<div class="photo-grid">
+        ${l.photos.map((p,i)=>`
+          <div class="photo-item">
+            <img src="${p.dataUrl}" alt="">
+            ${i===0?'<span class="tag">COUVERTURE</span>':''}
+            <div class="ovl">
+              <div class="ovl-top"><button class="pbtn danger" onclick="rmPhoto(${i})" title="Supprimer">${I('x',13)}</button></div>
+              <div class="ovl-bottom">
+                <div style="display:flex;gap:4px">
+                  ${i>0?`<button class="pbtn" onclick="movePhoto(${i},-1)" title="Reculer">${I('left',13)}</button>`:''}
+                  ${i<l.photos.length-1?`<button class="pbtn" onclick="movePhoto(${i},1)" title="Avancer">${I('right',13)}</button>`:''}
+                </div>
+                ${i!==0?`<button class="pbtn txt" onclick="makeCover(${i})">Couverture</button>`:''}
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`:''}
+    `);
+    case 'style': return card('10','Habillage','Le style visuel du livret remis au voyageur',`
+      <div class="field"><label>Palette</label>
+      <div class="tpl-grid">
+      ${TEMPLATES.map(t=>`
+        <button class="tpl-card ${l.templateId===t.id?'sel':''}" onclick="setPath('templateId','${t.id}');render()">
+          ${l.templateId===t.id?`<span class="tpl-sel-badge">${I('check',12)}</span>`:''}
+          <div class="tpl-mini" style="background:${t.bg}">
+            <div class="mini-cover" style="background:linear-gradient(160deg,${t.accentSoft},${t.paper});border:1px solid ${t.line}">
+              <div>
+                <div style="font-family:var(--mono);font-size:7px;letter-spacing:.15em;color:${t.accent};margin-bottom:3px">LIVRET D'ACCUEIL</div>
+                <div class="mini-title" style="color:${t.ink}">${esc(l.nom||'Votre logement')}</div>
+              </div>
+              <span style="position:absolute;top:8px;right:9px;width:14px;height:14px;border-radius:99px;background:${t.accent}"></span>
+            </div>
+          </div>
+          <div class="tpl-meta" style="background:${t.bg}">
+            <div><div class="tpl-name" style="color:${t.ink}">${t.nom}</div><div class="tpl-desc" style="color:${t.ink}">${t.accroche}</div></div>
+          </div>
+        </button>`).join('')}
+      </div></div>
+      <div class="field"><label>Style de couverture</label>
+      <div class="cover-styles">
+        ${COVER_STYLES.map(cs=>`
+        <button class="cs-card ${l.coverStyle===cs.id?'sel':''}" onclick="setPath('coverStyle','${cs.id}');render()">
+          <div class="cs-pre">${csPreview(cs.id)}</div>
+          <p>${cs.label}</p>
+          <p style="font-weight:400;color:var(--muted-2);font-size:10.5px">${cs.desc}</p>
+        </button>`).join('')}
+      </div></div>
+      <div class="field"><label>Ton de la rédaction IA</label>
+      <div class="pill-group">
+        ${TONES.map(t=>`<button class="pill ${l.tone===t.id?'on':''}" onclick="setPath('tone','${t.id}');render()">${t.label}</button>`).join('')}
+      </div>
+      <span class="hint" style="font-family:var(--sans);font-size:12px;color:var(--muted-2);margin-top:6px;display:block">Appliqué au remplissage magique, aux accroches et aux améliorations de rédaction.</span>
+      </div>
+    `);
+  }
+}
+function csPreview(id){
+  if(id==='photo') return `<div style="position:absolute;inset:0;background:linear-gradient(150deg,#C6CFB8,#8CA07A)"></div><div style="position:absolute;left:8px;bottom:6px;width:40%;height:5px;border-radius:3px;background:rgba(255,255,255,.9)"></div>`;
+  if(id==='cadre') return `<div style="position:absolute;inset:7px 12px auto;height:26px;border-radius:4px;background:linear-gradient(150deg,#C6CFB8,#8CA07A)"></div><div style="position:absolute;left:12px;bottom:6px;width:45%;height:5px;border-radius:3px;background:#9A957F"></div>`;
+  return `<div style="position:absolute;left:10px;top:10px;width:24%;height:3px;border-radius:3px;background:#8CA07A"></div><div style="position:absolute;left:10px;top:19px;width:62%;height:7px;border-radius:3px;background:#6E7263"></div><div style="position:absolute;left:10px;top:32px;width:44%;height:4px;border-radius:3px;background:#B4AF9E"></div>`;
+}
+
+/* ---------- Photos ---------- */
+function compressImage(file){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=1600; let w=img.width,h=img.height;
+      if(Math.max(w,h)>MAX){ const r=MAX/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r); }
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      res(c.toDataURL('image/jpeg',0.82));
+    };
+    img.onerror=rej;
+    const rd=new FileReader(); rd.onload=()=>img.src=rd.result; rd.onerror=rej; rd.readAsDataURL(file);
+  });
+}
+async function addPhotos(files){
+  const l=cur(); if(!l) return;
+  let n=0;
+  for(const f of files){
+    if(!f.type.startsWith('image/')) continue;
+    try{ l.photos.push({id:nid(), dataUrl:await compressImage(f), caption:''}); n++; }
+    catch(e){ toast('Photo illisible : '+f.name, true); }
+  }
+  if(n) toast(n+' photo'+(n>1?'s':'')+' ajoutée'+(n>1?'s':''));
+  touch(l); render();
+}
+function rmPhoto(i){ const l=cur(); l.photos.splice(i,1); touch(l); render(); }
+function makeCover(i){ const l=cur(); const p=l.photos.splice(i,1)[0]; l.photos.unshift(p); touch(l); render(); }
+function movePhoto(i,dir){ const l=cur(); const j=i+dir; if(j<0||j>=l.photos.length) return;
+  [l.photos[i],l.photos[j]]=[l.photos[j],l.photos[i]]; touch(l); render(); }
+document.getElementById('photo-input').addEventListener('change',e=>{ addPhotos([...e.target.files]); e.target.value=''; });
+document.addEventListener('dragover',e=>{ const dz=document.getElementById('dropzone'); if(dz){ e.preventDefault(); dz.classList.add('over'); }});
+document.addEventListener('dragleave',()=>{ document.getElementById('dropzone')?.classList.remove('over'); });
+document.addEventListener('drop',e=>{ const dz=document.getElementById('dropzone'); if(dz){ e.preventDefault(); dz.classList.remove('over'); addPhotos([...e.dataTransfer.files]); }});
+/* ---------------- Quartier — OpenStreetMap ---------------- */
+let osmState={ loading:false, results:[], cats:['restaurant','transport'], radius:900, error:'' };
+
+function renderQuartier(l){
+  return card('07','Dans le quartier','Adresses recommandées aux voyageurs — recherche automatique autour du logement',`
+    ${l.recos.length?`<div style="display:flex;flex-direction:column;gap:10px">
+      ${l.recos.map((r,i)=>{ const c=catOf(r.cat); return `
+      <div class="subcard">
+        <div class="inline-row">
+          <div class="osm-ico">${I(c.icon,14)}</div>
+          <input class="input" placeholder="Nom de l'adresse" value="${esc(r.nom)}" oninput="setArr('recos',${i},'nom',this.value)">
+          <select class="input" style="width:132px;flex:none" onchange="setArr('recos',${i},'cat',this.value)">
+            ${CATS.map(cc=>`<option value="${cc.id}" ${r.cat===cc.id?'selected':''}>${cc.label}</option>`).join('')}
+          </select>
+          <button class="icon-x" onclick="rmArr('recos',${i})">${I('x',15)}</button>
+        </div>
+        <textarea class="textarea" rows="2" placeholder="Pourquoi cette adresse, distance à pied…" oninput="setArr('recos',${i},'desc',this.value)">${esc(r.desc)}</textarea>
+      </div>`;}).join('')}
+    </div>`:''}
+    <div class="inline-row" style="flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="pushArr('recos',{id:nid(),cat:'restaurant',nom:'',desc:'',dist:null,mapsUrl:''})">${I('plus',13)} Ajouter manuellement</button>
+      ${l.recos.some(r=>r.nom)?`<button class="btn btn-ghost btn-sm" id="polish-recos" onclick="polishSection('recos')">${I('sparkles',13)} Rédiger les descriptions</button>`:''}
+    </div>
+
+    <div class="ai-box">
+      <div class="lbl">${I('compass',12)} Recherche automatique autour du logement</div>
+      <p class="ai-note" style="margin-bottom:11px">OpenStreetMap — gratuit, sans clé API. Renseignez d'abord l'adresse du logement (fiche 01).</p>
+      <div class="pill-group" style="margin-bottom:11px">
+        ${CATS.map(c=>`<button class="pill ${osmState.cats.includes(c.id)?'on':''}" onclick="toggleCat('${c.id}')">${I(c.icon,12)} ${c.label}</button>`).join('')}
+      </div>
+      <div class="inline-row" style="flex-wrap:wrap">
+        <button class="btn btn-accent" id="osm-btn" onclick="searchOSM()" ${(!l.adresse&&!l.ville)?'disabled':''}>${I('compass',14)} Chercher</button>
+        <select class="input" style="width:auto" onchange="osmState.radius=+this.value">
+          ${[500,900,1500,3000].map(r=>`<option value="${r}" ${osmState.radius===r?'selected':''}>Rayon ${r>=1000?(r/1000)+' km':r+' m'}</option>`).join('')}
+        </select>
+        ${osmState.error?`<span class="err">${esc(osmState.error)}</span>`:''}
+      </div>
+      ${osmState.loading?`<div style="display:flex;flex-direction:column;gap:8px;margin-top:13px"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`:''}
+      ${osmState.results.length&&!osmState.loading?`
+        <div class="osm-res" style="margin-top:13px">
+          ${osmState.results.map((r,i)=>{ const c=catOf(r.cat); const added=l.recos.some(x=>x.osmId===r.osmId); return `
+          <div class="osm-row">
+            <div class="osm-ico">${I(c.icon,14)}</div>
+            <div><div class="nm">${esc(r.nom)}</div><div class="ds">${c.label} · ${r.dist} m${r.detail?' · '+esc(r.detail):''}</div></div>
+            <button class="btn ${added?'btn-plain':'btn-ghost'} btn-sm add" ${added?'disabled':''} onclick="addOSM(${i})">${added?I('check',12)+' Ajouté':I('plus',12)+' Ajouter'}</button>
+          </div>`;}).join('')}
+        </div>`:''}
+    </div>
+  `);
+}
+function toggleCat(id){
+  osmState.cats = osmState.cats.includes(id) ? osmState.cats.filter(c=>c!==id) : [...osmState.cats,id];
+  render();
+}
+async function geocode(l){
+  if(l.geo) return l.geo;
+  const q=encodeURIComponent([l.adresse,l.ville,'France'].filter(Boolean).join(', '));
+  const res=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,{headers:{'Accept':'application/json'}});
+  const data=await res.json();
+  if(!data.length){
+    const res2=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(l.ville+', France')}&format=json&limit=1`);
+    const d2=await res2.json();
+    if(!d2.length) throw new Error('Adresse introuvable — vérifiez la fiche 01.');
+    l.geo={lat:+d2[0].lat, lon:+d2[0].lon, approx:true};
+  } else l.geo={lat:+data[0].lat, lon:+data[0].lon, approx:false};
+  touch(l); return l.geo;
+}
+const OSM_FILTERS = {
+  restaurant:['["amenity"~"restaurant|fast_food"]'],
+  cafe:['["amenity"~"cafe|bar|pub"]'],
+  commerce:['["shop"~"supermarket|bakery|convenience|greengrocer|butcher"]'],
+  transport:['["highway"="bus_stop"]','["railway"~"station|tram_stop|subway_entrance"]'],
+  sante:['["amenity"~"pharmacy|doctors|hospital"]'],
+  activite:['["tourism"~"attraction|museum|viewpoint"]','["leisure"~"park|beach_resort"]'],
+};
+function haversine(a,b,c,d){ const R=6371e3,p=Math.PI/180; const x=(c-a)*p/2,y=(d-b)*p/2;
+  const h=Math.sin(x)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y)**2; return Math.round(2*R*Math.asin(Math.sqrt(h))); }
+async function searchOSM(){
+  const l=cur();
+  if(!osmState.cats.length){ toast('Choisissez au moins une catégorie', true); return; }
+  osmState.loading=true; osmState.error=''; osmState.results=[]; render();
+  try{
+    const g=await geocode(l);
+    const RAD=osmState.radius;
+    const parts=osmState.cats.flatMap(c=>OSM_FILTERS[c]).map(sel=>`node(around:${RAD},${g.lat},${g.lon})${sel}`).join(';');
+    const q=`[out:json][timeout:20];( ${parts}; );out tags center 90;`;
+    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});
+    if(!res.ok) throw new Error('Service cartographique saturé, réessayez dans une minute.');
+    const data=await res.json();
+    const seen=new Set();
+    const rows=(data.elements||[]).map(e=>{
+      const t=e.tags||{}; const name=t.name; if(!name||seen.has(name)) return null; seen.add(name);
+      let cat='activite';
+      if(/restaurant|fast_food/.test(t.amenity||'')) cat='restaurant';
+      else if(/cafe|bar|pub/.test(t.amenity||'')) cat='cafe';
+      else if(t.shop) cat='commerce';
+      else if(t.highway==='bus_stop'||t.railway) cat='transport';
+      else if(/pharmacy|doctors|hospital/.test(t.amenity||'')) cat='sante';
+      const lat=e.lat??e.center?.lat, lon=e.lon??e.center?.lon;
+      const dist=haversine(g.lat,g.lon,lat,lon);
+      let detail=t.cuisine?t.cuisine.split(';')[0].replace(/_/g,' '):(t.railway?'gare / arrêt':(t.shop||''));
+      return { osmId:e.id, nom:name, cat, dist, detail,
+        mapsUrl:`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}` };
+    }).filter(Boolean).filter(r=>osmState.cats.includes(r.cat));
+    rows.sort((a,b)=>a.dist-b.dist);
+    osmState.results=rows.slice(0,30);
+    if(!rows.length) osmState.error='Rien trouvé dans ce rayon. Essayez plus large ou d\'autres catégories.';
+  }catch(e){ osmState.error=e.message; }
+  osmState.loading=false; render();
+}
+function addOSM(i){
+  const l=cur(); const r=osmState.results[i];
+  l.recos.push({ id:nid(), osmId:r.osmId, cat:r.cat, nom:r.nom,
+    desc:`À ${r.dist<100?'moins de 2 min':'environ '+Math.max(1,Math.round(r.dist/80))+' min'} à pied${r.detail?' — '+r.detail:''}.`,
+    dist:r.dist, mapsUrl:r.mapsUrl });
+  l.translations={}; touch(l); render();
+}
+
+/* ---------------- IA — API Anthropic ---------------- */
+async function callClaude(prompt, maxTokens=1500){
+  if(!S.settings.apiKey) throw new Error('NO_KEY');
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':S.settings.apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true',
+    },
+    body:JSON.stringify({ model:S.settings.model||'claude-haiku-4-5', max_tokens:maxTokens,
+      messages:[{role:'user',content:prompt}] }),
+  });
+  if(!res.ok){
+    const err=await res.json().catch(()=>({}));
+    if(res.status===401) throw new Error('Clé API invalide — vérifiez-la dans les réglages.');
+    if(res.status===429) throw new Error('Trop de requêtes — patientez quelques secondes.');
+    throw new Error(err?.error?.message||('Erreur API ('+res.status+')'));
+  }
+  const data=await res.json();
+  return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+}
+function parseJSONLoose(raw){
+  const cleaned=raw.replace(/```json|```/g,'').trim();
+  const m=cleaned.match(/\{[\s\S]*\}/);
+  return JSON.parse(m?m[0]:cleaned);
+}
+function toneText(l){
+  return l.tone==='elegant' ? 'Ton élégant et sobre, hôtellerie haut de gamme, vouvoiement, aucune familiarité.'
+       : l.tone==='concis'  ? 'Ton direct et concis, phrases courtes, zéro superflu, vouvoiement.'
+       : 'Ton chaleureux mais sobre, accueillant sans emphase, vouvoiement.';
+}
+function needKey(){
+  confirmModal('Clé API requise','Pour activer l\'IA, ajoutez votre clé API Anthropic dans les réglages (icône engrenage). La création prend 5 minutes sur console.anthropic.com et chaque livret généré coûte quelques centimes.',()=>go('settings'),'Ouvrir les réglages');
+}
+function btnLoading(id, html){
+  const b=document.getElementById(id); if(!b) return ()=>{};
+  const prev=b.innerHTML; b.disabled=true; b.innerHTML=`<span class="spin">${I('loader',14)}</span> ${html}`;
+  return ()=>{ if(document.getElementById(id)){ b.disabled=false; b.innerHTML=prev; } };
+}
+
+async function genAccroche(){
+  const l=cur();
+  if(!S.settings.apiKey){ needKey(); return; }
+  const done=btnLoading('btn-accroche','Rédaction en cours…');
+  try{
+    const ctx=`Nom du logement : ${l.nom||'sans nom'}\nVille : ${l.ville||'non précisée'}\nNotes de l'hôte : ${l.notes||'aucune'}\nÉquipements : ${l.equipements.map(e=>e.nom).filter(Boolean).join(', ')||'non précisés'}`;
+    const raw=await callClaude(`Tu écris pour un livret d'accueil de location courte durée en France. ${toneText(l)}\nInformations :\n${ctx}\n\nRédige :\n1) une accroche courte (une phrase, 12 mots max, sobre, sans superlatifs publicitaires)\n2) un mot de bienvenue (3 phrases max)\n\nRéponds UNIQUEMENT avec un objet JSON strict : {"accroche":"...","bienvenue":"..."}`,400);
+    const p=parseJSONLoose(raw);
+    l.accroche=p.accroche||l.accroche; l.bienvenue=p.bienvenue||l.bienvenue;
+    l.translations={}; touch(l); render(); toast('Accroche et mot de bienvenue rédigés');
+  }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
+}
+
+async function magicImport(){
+  const l=cur(); const txt=document.getElementById('magic-text').value.trim();
+  if(!S.settings.apiKey){ needKey(); return; }
+  if(txt.length<40){ toast('Collez d\'abord un texte plus complet (au moins quelques phrases).', true); return; }
+  const done=btnLoading('magic-btn',"L'IA compose le livret…");
+  const note=document.getElementById('magic-note'); if(note) note.textContent='Lecture, tri et rédaction — environ 20 secondes.';
+  try{
+    const raw=await callClaude(
+`Tu es l'assistant d'une conciergerie. Voici des informations en vrac sur un logement en location courte durée (annonce, notes, mails…) :
+
+<<<
+${txt.slice(0,14000)}
+>>>
+
+Extrais et rédige le contenu d'un livret d'accueil en français. ${toneText(l)} N'invente JAMAIS d'information factuelle (codes, horaires, adresses, numéros) absente du texte — laisse vide (""). Tu peux en revanche rédiger librement accroche et bienvenue, et reformuler proprement les instructions.
+
+Réponds UNIQUEMENT avec cet objet JSON strict (aucun texte autour) :
+{
+ "nom": "nom du logement (invente un nom élégant seulement si absent)",
+ "ville": "", "adresse": "",
+ "accroche": "une phrase, 12 mots max, sobre",
+ "bienvenue": "2-3 phrases de bienvenue",
+ "arrivee": {"heure":"HH:MM ou vide","codeAcces":"","instructions":"","parking":""},
+ "depart": {"heure":"HH:MM ou vide","instructions":"","checklist":["3 à 5 points"]},
+ "wifi": {"ssid":"","mdp":""},
+ "equipements": [{"nom":"","instructions":"1-2 phrases"}],
+ "reglement": ["règles trouvées ou 3 règles standard raisonnables"],
+ "contacts": {"hote":"","tel":"","email":"","urgence":""}
+}`, 3000);
+    const p=parseJSONLoose(raw);
+    const keep=(nv,old)=>nv&&String(nv).trim()?String(nv).trim():old;
+    l.nom=keep(p.nom,l.nom); l.ville=keep(p.ville,l.ville); l.adresse=keep(p.adresse,l.adresse);
+    l.accroche=keep(p.accroche,l.accroche); l.bienvenue=keep(p.bienvenue,l.bienvenue);
+    if(p.arrivee){ l.arrivee.heure=keep(p.arrivee.heure,l.arrivee.heure); l.arrivee.codeAcces=keep(p.arrivee.codeAcces,l.arrivee.codeAcces); l.arrivee.instructions=keep(p.arrivee.instructions,l.arrivee.instructions); l.arrivee.parking=keep(p.arrivee.parking,l.arrivee.parking); }
+    if(p.depart){ l.depart.heure=keep(p.depart.heure,l.depart.heure); l.depart.instructions=keep(p.depart.instructions,l.depart.instructions);
+      if(Array.isArray(p.depart.checklist)&&p.depart.checklist.filter(Boolean).length) l.depart.checklist=p.depart.checklist.filter(Boolean); }
+    if(p.wifi){ l.wifi.ssid=keep(p.wifi.ssid,l.wifi.ssid); l.wifi.mdp=keep(p.wifi.mdp,l.wifi.mdp); }
+    if(Array.isArray(p.equipements)&&p.equipements.length) l.equipements=p.equipements.filter(e=>e&&e.nom).map(e=>({id:nid(),nom:e.nom,instructions:e.instructions||''}));
+    if(Array.isArray(p.reglement)&&p.reglement.filter(Boolean).length) l.reglement=p.reglement.filter(Boolean);
+    if(p.contacts){ l.contacts.hote=keep(p.contacts.hote,l.contacts.hote); l.contacts.tel=keep(p.contacts.tel,l.contacts.tel); l.contacts.email=keep(p.contacts.email,l.contacts.email); l.contacts.urgence=keep(p.contacts.urgence,l.contacts.urgence); }
+    l.geo=null; l.translations={}; touch(l); render();
+    toast('Livret généré — relisez chaque fiche puis passez à l\'aperçu');
+  }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
+}
+
+/* Amélioration IA ciblée par fiche */
+async function polishSection(sec){
+  const l=cur();
+  if(!S.settings.apiKey){ needKey(); return; }
+  const done=btnLoading('polish-'+sec,'Réécriture…');
+  try{
+    let payload, instruction;
+    if(sec==='arrivee'){ payload={instructions:l.arrivee.instructions}; instruction='Réécris ces instructions d\'accès pour un voyageur : claires, pas à pas, sans rien inventer. Rends {"instructions":"..."}'; }
+    if(sec==='equipements'){ payload=l.equipements.map(e=>({nom:e.nom,instructions:e.instructions})); instruction='Réécris les instructions de chaque équipement : claires, 1-2 phrases, sans rien inventer. Rends {"items":[{"nom":"...","instructions":"..."}]} dans le même ordre.'; }
+    if(sec==='reglement'){ payload=l.reglement.filter(Boolean); instruction='Reformule ces règles de maison : fermes mais courtoises et accueillantes, une phrase chacune. Rends {"items":["..."]} dans le même ordre.'; }
+    if(sec==='recos'){ payload=l.recos.map(r=>({nom:r.nom,cat:r.cat,dist:r.dist,desc:r.desc})); instruction='Rédige pour chaque adresse une description engageante d\'1 phrase (garde la distance à pied si présente, n\'invente aucun fait précis). Rends {"items":[{"nom":"...","desc":"..."}]} dans le même ordre.'; }
+    const raw=await callClaude(`${toneText(l)}\n${instruction}\nDonnées : ${JSON.stringify(payload)}\nRéponds UNIQUEMENT en JSON strict.`, 1200);
+    const p=parseJSONLoose(raw);
+    if(sec==='arrivee'&&p.instructions) l.arrivee.instructions=p.instructions;
+    if(sec==='equipements'&&Array.isArray(p.items)) l.equipements.forEach((e,i)=>{ if(p.items[i]?.instructions) e.instructions=p.items[i].instructions; });
+    if(sec==='reglement'&&Array.isArray(p.items)){ const clean=l.reglement.filter(Boolean); p.items.forEach((v,i)=>{ if(v&&clean[i]!==undefined) clean[i]=v; }); l.reglement=clean; }
+    if(sec==='recos'&&Array.isArray(p.items)) l.recos.forEach((r,i)=>{ if(p.items[i]?.desc) r.desc=p.items[i].desc; });
+    l.translations={}; touch(l); render(); toast('Rédaction améliorée');
+  }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
+}
+
+/* Traduction complète du livret */
+async function translateLivret(langId){
+  const l=cur(); const lang=LANGS.find(x=>x.id===langId);
+  if(!S.settings.apiKey){ needKey(); return; }
+  const done=btnLoading('lang-btn','Traduction '+lang.label+'…');
+  try{
+    const source={
+      accroche:l.accroche, bienvenue:l.bienvenue,
+      arrivee:{instructions:l.arrivee.instructions, parking:l.arrivee.parking},
+      depart:{instructions:l.depart.instructions, checklist:l.depart.checklist.filter(Boolean)},
+      equipements:l.equipements.map(e=>({nom:e.nom,instructions:e.instructions})),
+      reglement:l.reglement.filter(Boolean),
+      recos:l.recos.map(r=>({desc:r.desc})),
+    };
+    const raw=await callClaude(`Traduis ce contenu de livret d'accueil du français vers ${lang.label} (${langId}). Traduction naturelle et idiomatique, adaptée à l'hôtellerie. Ne traduis PAS les noms propres, codes wifi, numéros de téléphone. Garde EXACTEMENT la même structure JSON et le même nombre d'éléments dans chaque tableau.\n\n${JSON.stringify(source)}\n\nRéponds UNIQUEMENT avec le JSON traduit.`, 3000);
+    const p=parseJSONLoose(raw);
+    l.translations[langId]=p; touch(l);
+    route.lang=langId; render(); toast('Livret traduit en '+lang.label);
+  }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
+}
+/* Vue du logement dans une langue donnée */
+function locView(l, lang){
+  if(lang==='fr'||!l.translations[lang]) return l;
+  const t=l.translations[lang];
+  return {
+    ...l,
+    accroche:t.accroche||l.accroche, bienvenue:t.bienvenue||l.bienvenue,
+    arrivee:{...l.arrivee, instructions:t.arrivee?.instructions||l.arrivee.instructions, parking:t.arrivee?.parking||l.arrivee.parking},
+    depart:{...l.depart, instructions:t.depart?.instructions||l.depart.instructions,
+      checklist:(t.depart?.checklist&&t.depart.checklist.length)?t.depart.checklist:l.depart.checklist},
+    equipements:l.equipements.map((e,i)=>({...e, nom:t.equipements?.[i]?.nom||e.nom, instructions:t.equipements?.[i]?.instructions||e.instructions})),
+    reglement:l.reglement.filter(Boolean).map((r,i)=>t.reglement?.[i]||r),
+    recos:l.recos.map((r,i)=>({...r, desc:t.recos?.[i]?.desc||r.desc})),
+  };
+}
+
+/* ---------------- Modales ---------------- */
+function confirmModal(title, text, onOk, okLabel='Supprimer'){
+  const root=document.getElementById('modal-root');
+  root.innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal"><h3>${title}</h3><p class="sub">${text}</p>
+    <div class="modal-foot">
+      <button class="btn btn-plain" onclick="closeModal()">Annuler</button>
+      <button class="btn ${okLabel==='Supprimer'?'btn-dark':'btn-accent'}" id="modal-ok">${okLabel}</button>
+    </div></div></div>`;
+  document.getElementById('modal-ok').onclick=()=>{ closeModal(); onOk(); };
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
+/* ---------------- QR wifi ---------------- */
+function wifiQR(l, size=170){
+  if(window.__noQR || !window.QRCode || !l.wifi.ssid) return '';
+  try{
+    const holder=document.createElement('div');
+    new QRCode(holder,{ text:`WIFI:T:WPA;S:${l.wifi.ssid};P:${l.wifi.mdp};;`, width:size, height:size, correctLevel:QRCode.CorrectLevel.M });
+    const canvas=holder.querySelector('canvas');
+    return canvas?canvas.toDataURL('image/png'):'';
+  }catch(e){ return ''; }
+}
+
+/* ---------------- Livret voyageur ---------------- */
+function livretHTML(lRaw, guideId='complet', lang='fr'){
+  const l=locView(lRaw, lang);
+  const t=TEMPLATES.find(x=>x.id===l.templateId)||TEMPLATES[0];
+  const g=GUIDES.find(x=>x.id===guideId)||GUIDES[0];
+  const X=L10N[lang]||L10N.fr;
+  const has=id=>g.sections.includes(id);
+  const cover=l.photos[0], gallery=l.photos.slice(1);
+  const qr=has('wifi')?wifiQR(lRaw):'';
+  const mono=`font-family:'IBM Plex Mono',monospace`;
+  const serif=`font-family:'Fraunces',Georgia,serif`;
+  let secNum=0;
+
+  const secTitle=(icon,label)=>{
+    secNum++;
+    return `
+    <div style="display:flex;align-items:center;gap:10px;margin:0 0 14px">
+      <span style="${mono};font-size:10px;color:${t.accent};letter-spacing:.05em">${String(secNum).padStart(2,'0')}</span>
+      <h2 style="${mono};font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:500;color:${t.ink};white-space:nowrap">${label}</h2>
+      <span style="flex:1;height:1px;background:${t.line}"></span>
+      <span style="color:${t.accent};line-height:0;opacity:.85">${I(icon,14)}</span>
+    </div>`;
+  };
+  const block=(label,value,full=false)=>`
+    <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:12px 15px;${full?'grid-column:1/-1':''}">
+      <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:3px;color:${t.ink}">${label}</p>
+      <p style="${serif};font-size:16.5px;color:${t.ink}">${esc(value)||'—'}</p>
+    </div>`;
+
+  let out=`<div class="lv" style="background:${t.bg};color:${t.ink};padding-bottom:46px;font-family:'Inter',-apple-system,sans-serif">`;
+
+  /* ---- Couverture (3 styles) ---- */
+  const coverLabel=guideLabelLang(g.id, lang);
+  const kicker=`<p style="${mono};font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:${t.accent};margin-bottom:10px">${esc(coverLabel)}</p>`;
+  const titleH=`<h1 style="${serif};font-size:34px;font-weight:500;line-height:1.1;margin-bottom:9px">${esc(l.nom||'Votre logement')}</h1>`;
+  const villeP=l.ville?`<p style="display:flex;align-items:center;gap:6px;font-size:13.5px;opacity:.7;margin-bottom:10px"><span style="line-height:0">${I('pin',13)}</span>${esc(l.ville)}</p>`:'';
+  const accP=l.accroche?`<p style="${serif};font-style:italic;font-size:15.5px;opacity:.85;line-height:1.45">${esc(l.accroche)}</p>`:'';
+  const perfo=`<div style="height:1px;background-image:radial-gradient(circle,${t.bg} 2px,transparent 2.5px);background-size:12px 12px"></div>`;
+
+  if(has('cover')){
+    if(l.coverStyle==='minimal'||(!cover&&l.coverStyle!=='photo')){
+      out+=`<div style="max-width:600px;margin:0 auto;padding:52px 30px 6px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">${logoSVG(22,t.accent)}<span style="flex:1;height:1px;background:${t.line}"></span></div>
+        ${kicker}
+        <h1 style="${serif};font-size:42px;font-weight:500;line-height:1.08;margin-bottom:12px;letter-spacing:-.01em">${esc(l.nom||'Votre logement')}</h1>
+        ${villeP}${accP}
+        <div style="margin-top:24px">${perfo}</div>
+        ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:22px;opacity:.92">${esc(l.bienvenue)}</p>`:''}
+      </div>`;
+    } else if(l.coverStyle==='cadre'&&cover){
+      out+=`<div style="max-width:600px;margin:0 auto;padding:38px 30px 6px">
+        <img src="${cover.dataUrl}" style="width:100%;height:250px;object-fit:cover;display:block;border-radius:14px;border:1px solid ${t.line};box-shadow:0 14px 40px rgba(0,0,0,.14)">
+        <div style="padding:26px 4px 0">${kicker}${titleH}${villeP}${accP}</div>
+        <div style="margin-top:22px">${perfo}</div>
+        ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:22px;opacity:.92">${esc(l.bienvenue)}</p>`:''}
+      </div>`;
+    } else {
+      out+=`<div style="max-width:600px;margin:0 auto;padding:36px 26px 6px">
+        <div style="background:${t.paper};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
+          ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:235px;object-fit:cover;display:block">`
+            :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft}">${logoSVG(38,t.accent)}</div>`}
+          <div style="padding:27px 27px 24px">${kicker}${titleH}${villeP}${accP}</div>
+          ${perfo}
+        </div>
+        ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:21px;opacity:.92;padding:0 4px">${esc(l.bienvenue)}</p>`:''}
+      </div>`;
+    }
+  }
+
+  /* ---- Bandeau essentiels (livret complet) ---- */
+  if(has('essentials')&&(l.arrivee.heure||l.depart.heure||l.wifi.ssid)){
+    out+=`<div style="max-width:600px;margin:0 auto;padding:20px 26px 0">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
+        <div style="background:${t.accentSoft};border-radius:10px;padding:11px 13px;text-align:center">
+          <p style="${mono};font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:2px">${X.arrivee}</p>
+          <p style="${serif};font-size:17px">${esc(l.arrivee.heure||'—')}</p>
+        </div>
+        <div style="background:${t.accentSoft};border-radius:10px;padding:11px 13px;text-align:center">
+          <p style="${mono};font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:2px">${lang==='fr'?'Départ':X.avant.split(' ')[0]}</p>
+          <p style="${serif};font-size:17px">${esc(l.depart.heure||'—')}</p>
+        </div>
+        <div style="background:${t.accentSoft};border-radius:10px;padding:11px 13px;text-align:center;overflow:hidden">
+          <p style="${mono};font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:2px">${X.wifi}</p>
+          <p style="${serif};font-size:13.5px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden">${esc(l.wifi.ssid||'—')}</p>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  out+=`<div style="max-width:600px;margin:0 auto;padding:30px 26px 0;display:flex;flex-direction:column;gap:36px">`;
+
+  if(has('arrivee')) out+=`<section>${secTitle('key',X.arrivee)}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      ${block(X.depuis, l.arrivee.heure)}
+      ${block(X.avant, l.depart.heure)}
+      ${l.arrivee.codeAcces?block(X.code, l.arrivee.codeAcces, true):''}
+    </div>
+    ${l.arrivee.instructions?`<p style="font-size:14px;line-height:1.7;opacity:.88">${esc(l.arrivee.instructions)}</p>`:''}
+    ${l.arrivee.parking?`<p style="display:flex;align-items:center;gap:7px;font-size:13.5px;margin-top:10px;opacity:.75"><span style="line-height:0">${I('car',14)}</span>${esc(l.arrivee.parking)}</p>`:''}
+  </section>`;
+
+  if(has('wifi')&&(l.wifi.ssid||l.wifi.mdp)) out+=`<section>${secTitle('wifi',X.wifi)}
+    <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px;display:grid;grid-template-columns:1fr;gap:10px">
+        ${block(X.reseau, l.wifi.ssid)}
+        ${block(X.mdp, l.wifi.mdp)}
+      </div>
+      ${qr?`<div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+        <img src="${qr}" style="width:106px;height:106px;display:block;border-radius:4px">
+        <p style="${mono};font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;opacity:.55">${X.scan}</p>
+      </div>`:''}
+    </div>
+  </section>`;
+
+  if(has('equipements')&&l.equipements.some(e=>e.nom)) out+=`<section>${secTitle('sofa',X.equip)}
+    <div style="display:flex;flex-direction:column;gap:9px">
+      ${l.equipements.filter(e=>e.nom).map(e=>`
+      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
+        <p style="font-size:14px;font-weight:600;margin-bottom:2px">${esc(e.nom)}</p>
+        ${e.instructions?`<p style="font-size:13px;opacity:.72;line-height:1.65">${esc(e.instructions)}</p>`:''}
+      </div>`).join('')}
+    </div>
+  </section>`;
+
+  if(has('reglement')&&l.reglement.some(Boolean)) out+=`<section>${secTitle('shield',X.regl)}
+    <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:16px 18px">
+    <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;margin:0;padding:0">
+      ${l.reglement.filter(Boolean).map(r=>`<li style="font-size:14px;opacity:.88;display:flex;gap:10px;line-height:1.55"><span style="color:${t.accent};flex:none">—</span>${esc(r)}</li>`).join('')}
+    </ul></div>
+  </section>`;
+
+  if(has('quartier')&&l.recos.length) out+=`<section>${secTitle('compass',X.quartier)}
+    <div style="display:flex;flex-direction:column;gap:9px">
+      ${l.recos.filter(r=>r.nom).map(r=>{ const c=catOf(r.cat); return `
+      <div style="display:flex;gap:13px;background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
+        <div style="width:34px;height:34px;border-radius:10px;background:${t.accentSoft};color:${t.accent};display:flex;align-items:center;justify-content:center;flex:none">${I(c.icon,15)}</div>
+        <div style="flex:1;min-width:0">
+          <p style="font-size:14px;font-weight:600">${esc(r.nom)} <span style="${mono};font-size:9px;letter-spacing:.07em;text-transform:uppercase;opacity:.45;margin-left:4px">${c.label}</span></p>
+          ${r.desc?`<p style="font-size:13px;opacity:.72;line-height:1.6;margin-top:1px">${esc(r.desc)}</p>`:''}
+          ${r.mapsUrl?`<a href="${esc(r.mapsUrl)}" target="_blank" style="font-size:12px;color:${t.accent};text-decoration:none;display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-weight:500"><span style="line-height:0">${I('pin',11)}</span>${X.itineraire}</a>`:''}
+        </div>
+      </div>`;}).join('')}
+    </div>
+  </section>`;
+
+  if(has('galerie')&&gallery.length) out+=`<section>${secTitle('image',X.images)}
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
+      ${gallery.map(p=>`<img src="${p.dataUrl}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px;border:1px solid ${t.line}">`).join('')}
+    </div>
+  </section>`;
+
+  if(has('depart')&&(l.depart.instructions||l.depart.checklist.some(Boolean))) out+=`<section>${secTitle('logout',X.avantpartir)}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">${block(X.avant, l.depart.heure)}</div>
+    ${l.depart.instructions?`<p style="font-size:14px;line-height:1.7;opacity:.88;margin-bottom:12px">${esc(l.depart.instructions)}</p>`:''}
+    ${l.depart.checklist.some(Boolean)?`
+    <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:15px 17px">
+      <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:10px">${X.checklist}</p>
+      ${l.depart.checklist.filter(Boolean).map(c=>`
+      <p style="font-size:13.5px;display:flex;gap:10px;align-items:baseline;line-height:1.5;padding:4px 0">
+        <span style="display:inline-block;width:13px;height:13px;border:1.5px solid ${t.accent};border-radius:4px;flex:none;transform:translateY(2px)"></span>${esc(c)}</p>`).join('')}
+    </div>`:''}
+  </section>`;
+
+  const ct=l.contacts;
+  if(has('contacts')&&(ct.hote||ct.tel||ct.email||ct.urgence)) out+=`<section>${secTitle('phone',X.contact)}
+    <div style="background:${t.accentSoft};border-radius:12px;padding:17px 19px;display:flex;flex-direction:column;gap:7px">
+      ${ct.hote?`<p style="${serif};font-size:16px;font-weight:500">${esc(ct.hote)}</p>`:''}
+      ${ct.tel?`<p style="display:flex;align-items:center;gap:8px;font-size:13.5px"><span style="line-height:0;color:${t.accent}">${I('phone',13)}</span>${esc(ct.tel)}</p>`:''}
+      ${ct.email?`<p style="display:flex;align-items:center;gap:8px;font-size:13.5px"><span style="line-height:0;color:${t.accent}">${I('mail',13)}</span>${esc(ct.email)}</p>`:''}
+      ${ct.urgence?`<p style="font-size:12.5px;opacity:.72;padding-top:3px">${X.urgence} : ${esc(ct.urgence)}</p>`:''}
+    </div>
+  </section>`;
+
+  out+=`</div><div style="display:flex;flex-direction:column;align-items:center;gap:7px;padding-top:40px">
+    <span style="width:34px;height:1px;background:${t.line}"></span>
+    ${logoSVG(20,t.accent)}
+    <p style="${mono};font-size:9px;letter-spacing:.16em;text-transform:uppercase;opacity:.42">${esc(S.settings.conciergerie||'Smart Guide')}</p>
+  </div></div>`;
+  return out;
+}
+/* ---------------- Aperçu & export ---------------- */
+function renderPreview(){
+  const l=cur(); if(!l){ go('dash'); return; }
+  if(route.lang!=='fr'&&!l.translations[route.lang]) route.lang='fr';
+  const availLangs=['fr',...Object.keys(l.translations)];
+  app.innerHTML = topbar(`<button class="btn btn-ghost" onclick="go('edit')">${I('back',14)} Retour à l'atelier</button>`) + `
+  <div class="preview-bar no-print">
+    <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+      <div class="seg">
+        ${GUIDES.map(g=>`<button class="${route.guide===g.id?'on':''}" onclick="route.guide='${g.id}';render()">${g.label}</button>`).join('')}
+      </div>
+      <div class="seg">
+        <button class="${route.device==='paper'?'on':''}" onclick="route.device='paper';render()" title="Vue papier / PDF">${I('filetext',13)} Papier</button>
+        <button class="${route.device==='phone'?'on':''}" onclick="route.device='phone';render()" title="Vue téléphone">${I('smartphone',13)} Mobile</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div class="seg" title="Langue du livret">
+        ${availLangs.map(id=>`<button class="${route.lang===id?'on':''}" onclick="route.lang='${id}';render()">${(LANGS.find(x=>x.id===id)||{}).flag||id.toUpperCase()}</button>`).join('')}
+        <button id="lang-btn" onclick="langMenu(event)" title="Traduire le livret">${I('lang',13)} +</button>
+      </div>
+      <div class="seg">${TEMPLATES.map(t=>`<button title="${t.nom}" class="${l.templateId===t.id?'on':''}" onclick="setPath('templateId','${t.id}');render()"><span style="display:inline-block;width:12px;height:12px;border-radius:99px;background:${t.accent};vertical-align:-1.5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)"></span></button>`).join('')}</div>
+      <button class="btn btn-ghost" onclick="exportHTML()">${I('download',14)} Fichier partageable</button>
+      <button class="btn btn-dark" onclick="exportPDF()">${I('printer',14)} Imprimer / PDF</button>
+    </div>
+  </div>
+  <div class="preview-wrap view">
+    <div class="device ${route.device}">${route.device==='phone'?'<div class="notch" style="background:'+(TEMPLATES.find(t=>t.id===l.templateId)||TEMPLATES[0]).bg+'"></div>':''}${livretHTML(l, route.guide, route.lang)}</div>
+    <p class="share-hint">${route.lang!=='fr'?'Version '+(LANGS.find(x=>x.id===route.lang)||{}).label+' — les exports utiliseront cette langue. ':''}Ce livret est aussi beau sur papier que sur téléphone.</p>
+  </div>`;
+}
+function langMenu(ev){
+  const l=cur();
+  openCtxMenu(ev, LANGS.filter(x=>x.id!=='fr').map(x=>({
+    icon:l.translations[x.id]?'check':'lang',
+    label:(l.translations[x.id]?'Retraduire en ':'Traduire en ')+x.label,
+    fn:()=>translateLivret(x.id),
+  })));
+}
+
+function exportPDF(){
+  const l=cur();
+  const pz=document.getElementById('print-zone');
+  pz.innerHTML=livretHTML(l, route.guide, route.lang);
+  pz.style.display='block';
+  const gl=guideLabelLang(route.guide, route.lang);
+  document.title=`${gl} — ${l.nom||'Smart Guide'}`;
+  setTimeout(()=>{ window.print(); setTimeout(()=>{ pz.style.display='none'; pz.innerHTML=''; document.title='Smart Guide — Livrets d\'accueil'; },500); },90);
+}
+
+function exportHTML(){
+  const l=cur();
+  const gl=guideLabelLang(route.guide, route.lang);
+  const body=livretHTML(l, route.guide, route.lang);
+  const doc=`<!DOCTYPE html><html lang="${route.lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(gl)} — ${esc(l.nom||'')}</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',-apple-system,sans-serif}.lv{min-height:100vh}section{break-inside:avoid}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+</head><body>${body}</body></html>`;
+  const blob=new Blob([doc],{type:'text/html'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  const suffix=route.lang!=='fr'?' ('+route.lang.toUpperCase()+')':'';
+  a.download=`${gl}${suffix} - ${(l.nom||'logement').replace(/[\/\\:*?"<>|]/g,'')}.html`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Fichier téléchargé — envoyez-le à vos voyageurs ou hébergez-le en ligne');
+}
+
+/* ---------------- Réglages ---------------- */
+function renderSettings(){
+  app.innerHTML = topbar(`<button class="btn btn-ghost" onclick="go('dash')">${I('back',14)} Retour</button>`) + `
+  <div class="view settings">
+    <div style="margin-bottom:26px">
+      <div class="kicker">Réglages</div>
+      <h1 class="dash-title">Configuration</h1>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:18px">
+    ${card('01',"Intelligence artificielle",'Remplissage magique, rédaction, améliorations et traductions',`
+      <div class="field"><label>Clé API Anthropic<span class="hint">Créez-la sur console.anthropic.com → API keys. Elle reste stockée uniquement sur cet ordinateur.</span></label>
+        <input type="password" class="input" id="set-key" value="${esc(S.settings.apiKey)}" placeholder="sk-ant-…">
+      </div>
+      <div class="field"><label>Modèle</label>
+        <select class="input" id="set-model">${MODELS.map(m=>`<option value="${m.id}" ${S.settings.model===m.id?'selected':''}>${m.label}</option>`).join('')}</select>
+      </div>
+      <div class="inline-row">
+        <button class="btn btn-accent" id="test-key-btn" onclick="saveSettings(true)">${I('check',14)} Enregistrer et tester</button>
+        <span class="ai-note" id="key-status"></span>
+      </div>
+      <p class="ai-note">Coût réel avec Haiku : livret complet ≈ 1-2 centimes, traduction ≈ 1 centime. Aucun abonnement.</p>
+    `)}
+    ${card('02','Votre conciergerie','Affiché en signature discrète au pied de chaque livret',`
+      <div class="field"><label>Nom de la conciergerie</label>
+      <input class="input" id="set-conc" value="${esc(S.settings.conciergerie)}" placeholder="Ex. Aven Conciergerie" oninput="S.settings.conciergerie=this.value;save()"></div>
+    `)}
+    ${card('03','Vos données','Tout est stocké localement, dans ce navigateur, sur cet ordinateur',`
+      <div class="inline-row" style="flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="backupData()">${I('download',14)} Sauvegarder (fichier .json)</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('restore-input').click()">${I('upload',14)} Restaurer une sauvegarde</button>
+        <input type="file" id="restore-input" accept=".json" style="display:none" onchange="restoreData(this.files[0])">
+      </div>
+      <p class="ai-note">Pensez à une sauvegarde régulière : vos livrets n'existent nulle part ailleurs que sur ce Mac. La sauvegarde permet aussi de transférer vos livrets vers un autre ordinateur.</p>
+    `)}
+    </div>
+  </div>`;
+}
+async function saveSettings(test){
+  S.settings.apiKey=document.getElementById('set-key').value.trim();
+  S.settings.model=document.getElementById('set-model').value;
+  save();
+  const st=document.getElementById('key-status');
+  if(!S.settings.apiKey){ st.textContent='Clé effacée.'; return; }
+  if(test){
+    st.innerHTML=`<span class="spin">${I('loader',13)}</span> Test en cours…`; st.style.color='var(--muted)';
+    try{ await callClaude('Réponds uniquement: OK', 10); st.textContent='✓ Clé valide — IA activée.'; st.style.color='var(--accent-dark)'; toast('Clé API validée'); }
+    catch(e){ st.textContent='✗ '+e.message; st.style.color='var(--danger)'; }
+  }
+}
+function backupData(){
+  const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`smart-guide-sauvegarde-${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Sauvegarde téléchargée');
+}
+function restoreData(file){
+  if(!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+    const d=JSON.parse(rd.result);
+    if(!d.logements) throw new Error('format invalide');
+    confirmModal('Restaurer cette sauvegarde ?','Elle remplacera les données actuelles de Smart Guide sur cet ordinateur.',()=>{ S=d; S.logements.forEach(migrateLogement); save(); render(); toast('Sauvegarde restaurée'); },'Restaurer');
+  }catch(e){ toast('Fichier de sauvegarde invalide', true); } };
+  rd.readAsText(file);
+}
+
+/* ---------------- Logement d'exemple ---------------- */
+function artImage(w,h,c1,c2,c3){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,w,h); g.addColorStop(0,c1); g.addColorStop(1,c2);
+  x.fillStyle=g; x.fillRect(0,0,w,h);
+  x.globalAlpha=.3; x.fillStyle=c3;
+  x.beginPath(); x.arc(w*.78,h*.28,h*.42,0,7); x.fill();
+  x.globalAlpha=.18; x.beginPath(); x.arc(w*.2,h*.85,h*.55,0,7); x.fill();
+  x.globalAlpha=.13; x.fillStyle='#FFFFFF';
+  for(let i=0;i<5;i++){ x.fillRect(0, h*(.18+i*.16), w, 1.5); }
+  x.globalAlpha=1;
+  return c.toDataURL('image/jpeg',.85);
+}
+function createDemo(){
+  const l=defaultLogement();
+  Object.assign(l,{
+    nom:"L'Escale Havraise", ville:'Le Havre', adresse:'92 rue Frédéric Bellanger',
+    accroche:'Un balcon lumineux à cinq minutes de la mer.',
+    bienvenue:"Bienvenue à L'Escale Havraise. Nous avons préparé ce livret pour que votre séjour soit simple et agréable du premier au dernier jour. Bon séjour au Havre.",
+    notes:'T2 refait à neuf, déco bord de mer, très lumineux.',
+  });
+  l.arrivee={ heure:'16:00', codeAcces:'4821 — boîtier à gauche de la porte', parking:'Places gratuites rue Bellanger après 19h',
+    instructions:"L'immeuble se trouve au 92 rue Frédéric Bellanger. Récupérez les clés dans la boîte à gauche de la porte d'entrée, puis montez au 3e étage : c'est la porte de droite." };
+  l.depart={ heure:'11:00', instructions:'Merci de remettre les clés dans la boîte et de brouiller le code.',
+    checklist:['Lancer le lave-vaisselle','Déposer les poubelles dans la cour','Laisser les draps sur le lit','Fermer portes et fenêtres'] };
+  l.wifi={ ssid:'ESCALE-Guest', mdp:'bordeplage2024' };
+  l.equipements=[
+    {id:nid(),nom:'Machine à café Senseo',instructions:'Les dosettes sont dans le tiroir sous la machine.'},
+    {id:nid(),nom:'Lave-linge',instructions:'Programme court : bouton A. La lessive est sous l\'évier.'},
+    {id:nid(),nom:'Chauffage',instructions:'Thermostat dans l\'entrée — merci de ne pas dépasser 21°.'},
+  ];
+  l.recos=[
+    {id:nid(),cat:'restaurant',nom:'Les Régates',desc:'À 5 min à pied — poissons et fruits de mer face au port.',dist:400,mapsUrl:'https://www.google.com/maps/dir/?api=1&destination=Les+R%C3%A9gates+Le+Havre'},
+    {id:nid(),cat:'cafe',nom:'Café Louise',desc:'À 3 min à pied — brunch et très bon café de spécialité.',dist:230,mapsUrl:'https://www.google.com/maps/dir/?api=1&destination=Caf%C3%A9+Louise+Le+Havre'},
+    {id:nid(),cat:'transport',nom:'Tramway — Hôtel de Ville',desc:'À 4 min à pied — lignes A et B vers la gare et les plages.',dist:300,mapsUrl:'https://www.google.com/maps/dir/?api=1&destination=H%C3%B4tel+de+Ville+Le+Havre'},
+  ];
+  l.contacts={ hote:'Aven Conciergerie — Bastien', tel:'06 12 34 56 78', email:'contact@aven-ia.com', urgence:'06 98 76 54 32' };
+  try{
+    l.photos=[
+      {id:nid(),dataUrl:artImage(1200,800,'#7A8FA6','#C9D5DD','#E8D5B5'),caption:''},
+      {id:nid(),dataUrl:artImage(900,600,'#C9B28A','#E8DFC9','#7A8FA6'),caption:''},
+      {id:nid(),dataUrl:artImage(900,600,'#8CA07A','#DCE3D0','#C9B28A'),caption:''},
+      {id:nid(),dataUrl:artImage(900,600,'#A6917A','#E5DACB','#8CA07A'),caption:''},
+    ];
+  }catch(e){ l.photos=[]; }
+  S.logements.unshift(l); save();
+  route={...route, view:'preview', id:l.id, guide:'complet', lang:'fr'}; render();
+  toast('Exemple créé — explorez, modifiez, supprimez-le quand vous voulez');
+}
+
+/* ---------------- PWA (version web uniquement) ---------------- */
+(function pwa(){
+  if(location.protocol!=='https:') return;
+  try{
+    const mf=document.createElement('link'); mf.rel='manifest'; mf.href='manifest.webmanifest'; document.head.appendChild(mf);
+    const ai=document.createElement('link'); ai.rel='apple-touch-icon'; ai.href='apple-touch-icon.png'; document.head.appendChild(ai);
+    if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }catch(e){}
+})();
+
+/* ---------------- Démarrage ---------------- */
+(async function init(){
+  try{
+    const saved=await dbGet('v1');
+    if(saved&&saved.logements){
+      S=saved;
+      S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:''},S.settings);
+      S.logements.forEach(migrateLogement);
+    }
+  }catch(e){ console.warn('IndexedDB indisponible', e); }
+  if(location.hash==='#exemple'&&!S.logements.some(x=>x.nom==="L'Escale Havraise")){ createDemo(); return; }
+  render();
+})();
+
+</script>
+</body>
+</html>
