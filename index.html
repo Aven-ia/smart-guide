@@ -262,6 +262,43 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .drop .dico{width:42px;height:42px;border-radius:12px;background:var(--accent-mist);color:var(--accent-dark);display:inline-flex;align-items:center;justify-content:center;margin-bottom:10px;transition:all .18s}
 .drop:hover .dico{background:var(--accent);color:#fff}
 
+/* ---------- Audit ---------- */
+.audit-hero{display:flex;align-items:center;gap:20px;margin:18px 0 4px;padding:16px 18px;background:var(--paper);border:1px solid var(--line);border-radius:14px}
+.audit-verdict{font-family:var(--serif);font-size:17.5px;line-height:1.3;margin-bottom:4px}
+.audit-block{margin-top:18px}
+.audit-plus{display:flex;align-items:flex-start;gap:9px;font-size:13px;color:var(--ink-soft);padding:5px 2px;line-height:1.5}
+.audit-plus svg{color:var(--accent);flex:none;margin-top:2px}
+.audit-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--paper);border:1px solid var(--line);
+  border-radius:10px;padding:11px 13px;margin-bottom:7px;transition:all .15s}
+.audit-row:hover{border-color:var(--accent);transform:translateX(2px)}
+.audit-row .ar-dot{width:7px;height:7px;border-radius:99px;background:var(--muted-2);flex:none}
+.audit-row.grave .ar-dot{background:var(--danger)}
+.audit-row.ia .ar-dot{background:var(--gold)}
+.audit-row .ar-txt{flex:1;min-width:0}
+.audit-row .ar-txt strong{display:block;font-size:13.5px;font-weight:600}
+.audit-row .ar-txt span{display:block;font-size:12px;color:var(--muted);line-height:1.45;margin-top:1px}
+.audit-row .ar-sec{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted-2);flex:none;white-space:nowrap}
+
+/* ---------- Affichettes ---------- */
+.poster-layout{display:grid;grid-template-columns:220px 1fr;gap:18px;margin-top:16px;flex:1;min-height:0}
+.poster-list{display:flex;flex-direction:column;gap:8px}
+.poster-item{display:flex;align-items:center;gap:11px;text-align:left;border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;transition:all .15s;background:var(--paper)}
+.poster-item:hover{border-color:#C6CFB8}
+.poster-item.on{border-color:var(--accent);background:var(--accent-mist);box-shadow:var(--sh-glow)}
+.poster-item.off{opacity:.42;cursor:default}
+.poster-item .pi-ico{width:32px;height:32px;border-radius:9px;background:var(--accent-mist);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;flex:none}
+.poster-item.on .pi-ico{background:var(--accent);color:#fff}
+.poster-item strong{display:block;font-size:13.5px;font-weight:600}
+.poster-item span span{font-size:11.5px;color:var(--muted);line-height:1.35;display:block;margin-top:1px}
+.poster-stage{background:var(--bg-deep);border-radius:14px;padding:18px;display:flex;align-items:flex-start;justify-content:center;overflow:auto;max-height:52vh}
+.poster-scale{transform:scale(.62);transform-origin:top center}
+.poster{box-shadow:var(--sh-lg);border-radius:3px}
+.logo-panel{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo-prev{background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:14px 18px;display:flex;align-items:center;justify-content:center;min-width:150px;min-height:70px}
+.logo-prev img{max-height:46px;max-width:170px;object-fit:contain;display:block}
+.color-pick{width:52px;height:38px;padding:2px;border:1px solid var(--line-soft);border-radius:9px;background:var(--paper);cursor:pointer}
+
 /* ---------- Fond personnalisé ---------- */
 .wp-panel{display:flex;gap:14px;align-items:stretch;flex-wrap:wrap}
 .wp-prev{flex:1;min-width:170px;min-height:118px;border-radius:11px;border:1px solid var(--line);background-size:cover;background-position:center;position:relative;overflow:hidden}
@@ -477,6 +514,7 @@ const SECTIONS = [
   { id:'equipements',label:'Équipements',      icon:'sofa' },
   { id:'reglement',  label:'Règlement',        icon:'scroll' },
   { id:'quartier',   label:'Dans le quartier', icon:'compass' },
+  { id:'urgences',   label:'Urgences & FAQ',   icon:'shield' },
   { id:'contacts',   label:'Contacts',         icon:'phone' },
   { id:'photos',     label:'Photos',           icon:'image' },
   { id:'style',      label:'Habillage',        icon:'palette' },
@@ -546,6 +584,22 @@ const EQUIP_LIB = [
   ]},
 ];
 
+/* Urgences prêtes à l'emploi (France) */
+const URG_LIB = [
+  { label:'Urgences européennes', valeur:'112', note:'Numéro unique valable partout en Europe' },
+  { label:'SAMU', valeur:'15', note:'Urgence médicale' },
+  { label:'Pompiers', valeur:'18', note:'Incendie, accident, fuite de gaz' },
+  { label:'Police / Gendarmerie', valeur:'17', note:'' },
+  { label:'Urgences (sourds et malentendants)', valeur:'114', note:'Par SMS' },
+  { label:'Pharmacie de garde', valeur:'3237', note:'Service payant' },
+  { label:'Centre antipoison', valeur:'01 40 05 48 48', note:'' },
+  { label:'Fuite d\'eau', valeur:'', note:'Vanne d\'arrêt principale sous l\'évier de la cuisine. Coupez puis prévenez-nous.' },
+  { label:'Coupure d\'électricité', valeur:'', note:'Tableau électrique dans l\'entrée : relevez le disjoncteur concerné.' },
+  { label:'Panne de chauffage ou d\'eau chaude', valeur:'', note:'Prévenez-nous, nous intervenons dans la journée.' },
+  { label:'Clés perdues ou porte claquée', valeur:'', note:'Appelez-nous immédiatement, un double est disponible.' },
+  { label:'Wifi ne fonctionne plus', valeur:'', note:'Débranchez la box 30 secondes puis rebranchez. Comptez 2 minutes de redémarrage.' },
+];
+
 const CATS = [
   { id:'restaurant', label:'Restaurant', icon:'food' },
   { id:'cafe',       label:'Café',       icon:'coffee' },
@@ -556,10 +610,10 @@ const CATS = [
 ];
 const catOf = id => CATS.find(c=>c.id===id) || CATS[0];
 const GUIDES = [
-  { id:'complet', label:'Livret complet',   sections:['cover','essentials','arrivee','wifi','equipements','reglement','quartier','galerie','depart','contacts'] },
+  { id:'complet', label:'Livret complet',   sections:['cover','essentials','arrivee','wifi','equipements','reglement','quartier','galerie','depart','faq','urgences','contacts'] },
   { id:'arrivee', label:"Guide d'arrivée",  sections:['cover','arrivee','wifi','contacts'] },
   { id:'depart',  label:'Guide de départ',  sections:['cover','depart','contacts'] },
-  { id:'maison',  label:'Guide maison',     sections:['cover','wifi','equipements','reglement','contacts'] },
+  { id:'maison',  label:'Guide maison',     sections:['cover','wifi','equipements','reglement','faq','urgences','contacts'] },
 ];
 const MODELS = [
   { id:'claude-haiku-4-5',  label:'Claude Haiku — rapide & très économique (recommandé)' },
@@ -577,27 +631,27 @@ const L10N = {
   fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès",
        wifi:'Wifi', reseau:'Réseau', mdp:'Mot de passe', scan:'Scanner pour se connecter', equip:'Équipements',
        regl:'Règlement', quartier:'Dans le quartier', images:'Le logement en images', avantpartir:'Avant de partir',
-       checklist:'Check-list', contact:'Nous contacter', urgence:'Urgence hors horaires', itineraire:'Itinéraire Google Maps', parking:'Stationnement',
+       checklist:'Check-list', contact:'Nous contacter', urgence:'Urgence hors horaires', itineraire:'Itinéraire Google Maps', parking:'Stationnement', faq:'Questions fréquentes', urgences:'En cas de problème',
        guideArr:"Guide d'arrivée", guideDep:'Guide de départ', guideMai:'Guide de la maison', bienvenue:'Bienvenue' },
   en:{ livret:'Welcome guide', arrivee:'Check-in', depuis:'Check-in from', avant:'Check-out before', code:'Access code',
        wifi:'Wifi', reseau:'Network', mdp:'Password', scan:'Scan to connect', equip:'Amenities',
        regl:'House rules', quartier:'In the neighbourhood', images:'The place in pictures', avantpartir:'Before you leave',
-       checklist:'Checklist', contact:'Contact us', urgence:'After-hours emergency', itineraire:'Google Maps directions', parking:'Parking',
+       checklist:'Checklist', contact:'Contact us', urgence:'After-hours emergency', itineraire:'Google Maps directions', parking:'Parking', faq:'Frequently asked questions', urgences:'If something goes wrong',
        guideArr:'Arrival guide', guideDep:'Departure guide', guideMai:'House guide', bienvenue:'Welcome' },
   es:{ livret:'Guía de bienvenida', arrivee:'Llegada', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso',
        wifi:'Wifi', reseau:'Red', mdp:'Contraseña', scan:'Escanear para conectarse', equip:'Equipamiento',
        regl:'Normas de la casa', quartier:'En el barrio', images:'El alojamiento en imágenes', avantpartir:'Antes de salir',
-       checklist:'Lista', contact:'Contáctenos', urgence:'Emergencia fuera de horario', itineraire:'Ruta en Google Maps', parking:'Aparcamiento',
+       checklist:'Lista', contact:'Contáctenos', urgence:'Emergencia fuera de horario', itineraire:'Ruta en Google Maps', parking:'Aparcamiento', faq:'Preguntas frecuentes', urgences:'En caso de problema',
        guideArr:'Guía de llegada', guideDep:'Guía de salida', guideMai:'Guía de la casa', bienvenue:'Bienvenido' },
   de:{ livret:'Willkommensmappe', arrivee:'Anreise', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode',
        wifi:'WLAN', reseau:'Netzwerk', mdp:'Passwort', scan:'Zum Verbinden scannen', equip:'Ausstattung',
        regl:'Hausregeln', quartier:'In der Nachbarschaft', images:'Die Unterkunft in Bildern', avantpartir:'Vor der Abreise',
-       checklist:'Checkliste', contact:'Kontakt', urgence:'Notfall außerhalb der Zeiten', itineraire:'Google Maps Route', parking:'Parkplatz',
+       checklist:'Checkliste', contact:'Kontakt', urgence:'Notfall außerhalb der Zeiten', itineraire:'Google Maps Route', parking:'Parkplatz', faq:'Häufige Fragen', urgences:'Im Problemfall',
        guideArr:'Anreise-Guide', guideDep:'Abreise-Guide', guideMai:'Haus-Guide', bienvenue:'Willkommen' },
   it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso',
        wifi:'Wifi', reseau:'Rete', mdp:'Password', scan:'Scansiona per connetterti', equip:'Dotazioni',
        regl:'Regole della casa', quartier:'Nel quartiere', images:"L'alloggio in immagini", avantpartir:'Prima di partire',
-       checklist:'Checklist', contact:'Contattaci', urgence:'Emergenza fuori orario', itineraire:'Percorso Google Maps', parking:'Parcheggio',
+       checklist:'Checklist', contact:'Contattaci', urgence:'Emergenza fuori orario', itineraire:'Percorso Google Maps', parking:'Parcheggio', faq:'Domande frequenti', urgences:'In caso di problemi',
        guideArr:'Guida di arrivo', guideDep:'Guida di partenza', guideMai:'Guida della casa', bienvenue:'Benvenuto' },
 };
 const guideLabelLang = (gid, lang) => {
@@ -636,8 +690,9 @@ const defaultLogement = () => ({
   recos:[],
   contacts:{ hote:'', tel:'', email:'', urgence:'' },
   photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux',
-  wallpaper:null, wallpaperOpacity:18,
-  translations:{}, geo:null,
+  wallpaper:null, wallpaperOpacity:18, accent:null,
+  urgences:[], faq:[], publicUrl:'',
+  translations:{}, geo:null, audit:null,
 });
 function migrateLogement(l){
   const d=defaultLogement();
@@ -829,6 +884,7 @@ function sectionDone(l,id){
     case 'equipements': return l.equipements.some(e=>e.nom);
     case 'reglement': return l.reglement.some(Boolean);
     case 'quartier': return l.recos.length>0;
+    case 'urgences': return l.urgences.length>0||l.faq.length>0;
     case 'contacts': return !!(l.contacts.hote||l.contacts.tel);
     case 'photos': return l.photos.length>0;
     case 'style': return true;
@@ -980,6 +1036,76 @@ function drawEquipLib(){
   </div>`;
 }
 function focusLibSearch(){ const i=document.getElementById('lib-q'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }
+
+/* ---------- Bibliothèque d'urgences ---------- */
+function openUrgLib(){ libState={ q:'', sel:new Set() }; drawUrgLib(); }
+function drawUrgLib(){
+  const l=cur();
+  const has=lab=>l.urgences.some(u=>(u.label||'').toLowerCase()===lab.toLowerCase());
+  const n=libState.sel.size;
+  document.getElementById('modal-root').innerHTML=`
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal wide lib-modal">
+      <div class="lib-head">
+        <div><h3>Urgences &amp; réflexes</h3><p class="sub" style="margin:0">Numéros officiels et consignes prêtes à l'emploi — tout reste modifiable.</p></div>
+        <button class="icon-x" onclick="closeModal()">${I('x',18)}</button>
+      </div>
+      <div class="lib-body" style="margin-top:16px">
+        <div class="lib-group"><div class="lib-gtitle">${I('phone',13)} Numéros officiels</div>
+          <div class="lib-items">
+          ${URG_LIB.filter(u=>u.valeur).map(u=>{const on=libState.sel.has(u.label),used=has(u.label);
+            return `<button class="lib-chip ${on?'on':''} ${used?'used':''}" ${used?'disabled':''} onclick="toggleUrg('${esc(u.label).replace(/'/g,"\\'")}')">${used||on?I('check',12):I('plus',12)} ${esc(u.label)} <b style="opacity:.6;font-weight:500">${esc(u.valeur)}</b></button>`;}).join('')}
+          </div>
+        </div>
+        <div class="lib-group"><div class="lib-gtitle">${I('shield',13)} Réflexes en cas de problème</div>
+          <div class="lib-items">
+          ${URG_LIB.filter(u=>!u.valeur).map(u=>{const on=libState.sel.has(u.label),used=has(u.label);
+            return `<button class="lib-chip ${on?'on':''} ${used?'used':''}" ${used?'disabled':''} onclick="toggleUrg('${esc(u.label).replace(/'/g,"\\'")}')">${used||on?I('check',12):I('plus',12)} ${esc(u.label)}</button>`;}).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot" style="border-top:1px solid var(--line-faint);padding-top:16px">
+        <span class="ai-note" style="margin-right:auto">${n?`${n} élément${n>1?'s':''} sélectionné${n>1?'s':''}`:'Aucune sélection'}</span>
+        <button class="btn btn-plain" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-accent" ${n?'':'disabled'} onclick="addFromUrgLib()">${I('plus',14)} Ajouter${n?' ('+n+')':''}</button>
+      </div>
+    </div>
+  </div>`;
+}
+function toggleUrg(lab){ libState.sel.has(lab)?libState.sel.delete(lab):libState.sel.add(lab); drawUrgLib(); }
+function addFromUrgLib(){
+  const l=cur(); let n=0;
+  URG_LIB.forEach(u=>{ if(libState.sel.has(u.label)&&!l.urgences.some(x=>(x.label||'').toLowerCase()===u.label.toLowerCase())){
+    l.urgences.push({id:nid(), label:u.label, valeur:u.valeur, note:u.note}); n++; }});
+  l.translations={}; touch(l); closeModal(); render();
+  toast(n+' élément'+(n>1?'s':'')+' ajouté'+(n>1?'s':''));
+}
+
+/* ---------- FAQ générée par l'IA ---------- */
+async function genFAQ(){
+  const l=cur();
+  if(!S.settings.apiKey){ needKey(); return; }
+  const done=btnLoading('faq-btn','Rédaction de la FAQ…');
+  try{
+    const ctx=JSON.stringify({
+      logement:{nom:l.nom, ville:l.ville},
+      arrivee:{heure:l.arrivee.heure, code:!!l.arrivee.codeAcces, instructions:l.arrivee.instructions, parking:l.arrivee.parking},
+      depart:{heure:l.depart.heure, checklist:l.depart.checklist.filter(Boolean)},
+      wifi:!!l.wifi.ssid, equipements:l.equipements.map(e=>e.nom).filter(Boolean),
+      reglement:l.reglement.filter(Boolean), quartier:l.recos.map(r=>r.nom).filter(Boolean),
+    });
+    const raw=await callClaude(
+`Tu es l'assistant d'une conciergerie de location courte durée. Voici le contenu d'un livret d'accueil :\n${ctx}\n
+Rédige 5 à 7 questions que les voyageurs posent réellement le plus souvent, avec leur réponse. ${toneText(l)}
+Règles strictes : appuie-toi UNIQUEMENT sur les informations ci-dessus. Si une information manque (ex. animaux, fumeurs, ménage, bagages), formule une réponse générale et prudente qui invite à contacter l'hôte, sans jamais inventer d'horaire, de code, de prix ou de règle.
+Réponds UNIQUEMENT en JSON strict : {"faq":[{"q":"...","r":"..."}]}`, 1800);
+    const p=parseJSONLoose(raw);
+    if(Array.isArray(p.faq)&&p.faq.length){
+      l.faq=p.faq.filter(f=>f&&f.q).map(f=>({id:nid(), q:f.q, r:f.r||''}));
+      l.translations={}; touch(l); render(); toast(l.faq.length+' questions rédigées — relisez-les');
+    } else { done(); toast('Aucune question générée, réessayez.', true); }
+  }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
+}
 function toggleLib(nom){ libState.sel.has(nom)?libState.sel.delete(nom):libState.sel.add(nom); drawEquipLib(); }
 function addFromLib(){
   const l=cur(); let n=0;
@@ -1076,8 +1202,50 @@ function renderSection(l){
         ${l.reglement.some(Boolean)?`<button class="btn btn-ghost btn-sm" id="polish-reglement" onclick="polishSection('reglement')">${I('sparkles',13)} Adoucir la formulation</button>`:''}
       </div>
     `);
+    case 'urgences': return card('08','Urgences & FAQ','Ce qui rassure le voyageur et vous évite les appels à 23h',`
+      <div class="field"><label>Numéros et réflexes d'urgence</label>
+        ${l.urgences.length?`<div style="display:flex;flex-direction:column;gap:9px;margin-bottom:11px">
+        ${l.urgences.map((u,i)=>`
+          <div class="subcard">
+            <div class="inline-row">
+              <input class="input" placeholder="Ex. Fuite d'eau" value="${esc(u.label)}" oninput="setArr('urgences',${i},'label',this.value)">
+              <input class="input" style="max-width:150px" placeholder="Numéro" value="${esc(u.valeur)}" oninput="setArr('urgences',${i},'valeur',this.value)">
+              ${i>0?`<button class="icon-x" title="Monter" onclick="moveArr('urgences',${i},-1)">${I('left',14)}</button>`:''}
+              <button class="icon-x" onclick="rmArr('urgences',${i})">${I('x',15)}</button>
+            </div>
+            <input class="input" placeholder="Précision (facultatif)" value="${esc(u.note||'')}" oninput="setArr('urgences',${i},'note',this.value)">
+          </div>`).join('')}
+        </div>`:''}
+        <button class="lib-open" onclick="openUrgLib()">
+          <span class="lib-ico">${I('shield',18)}</span>
+          <span class="lib-txt"><strong>Ajouter depuis la bibliothèque</strong><span>${URG_LIB.length} numéros et réflexes prêts à l'emploi</span></span>
+          <span class="lib-arrow">${I('plus',17)}</span>
+        </button>
+        <div class="inline-row" style="margin-top:10px">
+          <button class="btn btn-ghost btn-sm" onclick="pushArr('urgences',{id:nid(),label:'',valeur:'',note:''})">${I('plus',13)} Ajouter manuellement</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:4px"><label>Questions fréquentes<span class="hint">L'IA relit votre livret et rédige les questions que vos voyageurs posent le plus souvent</span></label>
+        ${l.faq.length?`<div style="display:flex;flex-direction:column;gap:9px;margin-bottom:11px">
+        ${l.faq.map((f,i)=>`
+          <div class="subcard">
+            <div class="inline-row">
+              <input class="input" placeholder="Question" value="${esc(f.q)}" oninput="setArr('faq',${i},'q',this.value)">
+              ${i>0?`<button class="icon-x" title="Monter" onclick="moveArr('faq',${i},-1)">${I('left',14)}</button>`:''}
+              <button class="icon-x" onclick="rmArr('faq',${i})">${I('x',15)}</button>
+            </div>
+            <textarea class="textarea" rows="2" placeholder="Réponse" oninput="setArr('faq',${i},'r',this.value)">${esc(f.r)}</textarea>
+          </div>`).join('')}
+        </div>`:`<p class="ai-note" style="margin-bottom:11px">Aucune question pour l'instant.</p>`}
+        <div class="inline-row" style="flex-wrap:wrap">
+          <button class="btn btn-accent btn-sm" id="faq-btn" onclick="genFAQ()">${I('sparkles',13)} Générer la FAQ avec l'IA</button>
+          <button class="btn btn-ghost btn-sm" onclick="pushArr('faq',{id:nid(),q:'',r:''})">${I('plus',13)} Ajouter une question</button>
+        </div>
+      </div>
+    `);
     case 'quartier': return renderQuartier(l);
-    case 'contacts': return card('08','Contacts','Comment vous joindre pendant le séjour',`
+    case 'contacts': return card('09','Contacts','Comment vous joindre pendant le séjour',`
       <div class="row-2">
         ${F('contacts.hote','Nom de l\'hôte / conciergerie',l.contacts.hote,'')}
         ${F('contacts.tel','Téléphone',l.contacts.tel,'')}
@@ -1085,7 +1253,7 @@ function renderSection(l){
         ${F('contacts.urgence','Urgence (hors horaires)',l.contacts.urgence,'')}
       </div>
     `);
-    case 'photos': return card('09','Photos','Couverture et galerie du livret',`
+    case 'photos': return card('10','Photos','Couverture et galerie du livret',`
       <div class="drop" id="dropzone" onclick="document.getElementById('photo-input').click()">
         <span class="dico">${I('upload',18)}</span><br>
         <strong style="font-weight:550">Glissez vos photos ici</strong> ou cliquez pour importer<br>
@@ -1109,7 +1277,7 @@ function renderSection(l){
           </div>`).join('')}
       </div>`:''}
     `);
-    case 'style': return card('10','Habillage','Le style visuel du livret remis au voyageur',`
+    case 'style': return card('11','Habillage','Le style visuel du livret remis au voyageur',`
       <div class="field"><label>Palette</label>
       <div class="tpl-grid">
       ${TEMPLATES.map(t=>`
@@ -1138,6 +1306,14 @@ function renderSection(l){
           <p style="font-weight:400;color:var(--muted-2);font-size:10.5px">${cs.desc}</p>
         </button>`).join('')}
       </div></div>
+      <div class="field"><label>Couleur d'accent<span class="hint">Remplace la couleur de la palette — utile pour coller à votre charte</span></label>
+        <div class="inline-row" style="flex-wrap:wrap;gap:10px">
+          <input type="color" class="color-pick" value="${esc(l.accent||(TEMPLATES.find(t=>t.id===l.templateId)||TEMPLATES[0]).accent)}"
+            oninput="setPath('accent',this.value);renderAccentPreview(this.value)">
+          <span class="ai-note" id="accent-lbl">${l.accent?'Accent personnalisé '+esc(l.accent):'Accent d\'origine de la palette'}</span>
+          ${l.accent?`<button class="btn btn-ghost btn-sm" onclick="setPath('accent',null);render()">Rétablir la palette</button>`:''}
+        </div>
+      </div>
       <div class="field"><label>Fond personnalisé<span class="hint">Votre propre texture ou photo en filigrane derrière tout le livret</span></label>
         ${l.wallpaper?`
         <div class="wp-panel">
@@ -1177,7 +1353,7 @@ function csPreview(id){
 }
 
 /* ---------- Photos ---------- */
-function compressImage(file, MAXW, Q){
+function compressImage(file, MAXW, Q, keepAlpha){
   return new Promise((res,rej)=>{
     const img=new Image();
     img.onload=()=>{
@@ -1185,7 +1361,7 @@ function compressImage(file, MAXW, Q){
       if(Math.max(w,h)>MAX){ const r=MAX/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r); }
       const c=document.createElement('canvas'); c.width=w; c.height=h;
       c.getContext('2d').drawImage(img,0,0,w,h);
-      res(c.toDataURL('image/jpeg',Q||0.82));
+      res(keepAlpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg',Q||0.82));
     };
     img.onerror=rej;
     const rd=new FileReader(); rd.onload=()=>img.src=rd.result; rd.onerror=rej; rd.readAsDataURL(file);
@@ -1211,6 +1387,7 @@ async function addWallpaper(file){
     touch(l); render(); toast('Fond appliqué — ajustez l\'intensité puis vérifiez l\'aperçu');
   }catch(e){ toast('Image illisible', true); }
 }
+function renderAccentPreview(v){ const el=document.getElementById('accent-lbl'); if(el) el.textContent='Accent personnalisé '+v; }
 function liveWallpaper(v){
   const veil=document.querySelector('.wp-veil'); if(veil) veil.style.opacity=(1-v/100);
   const lb=document.querySelector('.wp-ctrl label'); if(lb) lb.textContent='Intensité — '+v+'%';
@@ -1486,6 +1663,8 @@ async function translateLivret(langId){
       equipements:l.equipements.map(e=>({nom:e.nom,instructions:e.instructions})),
       reglement:l.reglement.filter(Boolean),
       recos:l.recos.map(r=>({desc:r.desc})),
+      faq:l.faq.filter(f=>f.q).map(f=>({q:f.q,r:f.r})),
+      urgences:l.urgences.filter(u=>u.label).map(u=>({label:u.label,note:u.note||''})),
     };
     const raw=await callClaude(`Traduis ce contenu de livret d'accueil du français vers ${lang.label} (${langId}). Traduction naturelle et idiomatique, adaptée à l'hôtellerie. Ne traduis PAS les noms propres, codes wifi, numéros de téléphone. Garde EXACTEMENT la même structure JSON et le même nombre d'éléments dans chaque tableau.\n\n${JSON.stringify(source)}\n\nRéponds UNIQUEMENT avec le JSON traduit.`, 3000);
     const p=parseJSONLoose(raw);
@@ -1506,6 +1685,8 @@ function locView(l, lang){
     equipements:l.equipements.map((e,i)=>({...e, nom:t.equipements?.[i]?.nom||e.nom, instructions:t.equipements?.[i]?.instructions||e.instructions})),
     reglement:l.reglement.filter(Boolean).map((r,i)=>t.reglement?.[i]||r),
     recos:l.recos.map((r,i)=>({...r, desc:t.recos?.[i]?.desc||r.desc})),
+    faq:l.faq.filter(f=>f.q).map((f,i)=>({...f, q:t.faq?.[i]?.q||f.q, r:t.faq?.[i]?.r||f.r})),
+    urgences:l.urgences.filter(u=>u.label).map((u,i)=>({...u, label:t.urgences?.[i]?.label||u.label, note:t.urgences?.[i]?.note||u.note})),
   };
 }
 
@@ -1532,6 +1713,14 @@ function wifiQR(l, size=170){
   }catch(e){ return ''; }
 }
 
+/* Mélange deux couleurs hex (ratio = part de la seconde) */
+function mixHex(a,b,ratio){
+  const p=h=>{const s=String(h).replace('#','');const f=s.length===3?s.split('').map(c=>c+c).join(''):s;const n=parseInt(f,16);return [(n>>16)&255,(n>>8)&255,n&255];};
+  const [r1,g1,b1]=p(a),[r2,g2,b2]=p(b);
+  const m=(x,y)=>Math.round(x+(y-x)*ratio);
+  return '#'+[m(r1,r2),m(g1,g2),m(b1,b2)].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
 /* Couleur hex → rgba (pour le voile du fond personnalisé) */
 function hexA(hex, a){
   const h=String(hex).replace('#','');
@@ -1543,7 +1732,8 @@ function hexA(hex, a){
 /* ---------------- Livret voyageur ---------------- */
 function livretHTML(lRaw, guideId='complet', lang='fr'){
   const l=locView(lRaw, lang);
-  const t=TEMPLATES.find(x=>x.id===l.templateId)||TEMPLATES[0];
+  const base=TEMPLATES.find(x=>x.id===l.templateId)||TEMPLATES[0];
+  const t=l.accent ? {...base, accent:l.accent, accentSoft:mixHex(l.accent, base.paper, .82)} : base;
   const g=GUIDES.find(x=>x.id===guideId)||GUIDES[0];
   const X=L10N[lang]||L10N.fr;
   const has=id=>g.sections.includes(id);
@@ -1710,6 +1900,29 @@ function livretHTML(lRaw, guideId='complet', lang='fr'){
     </div>
   </section>`;
 
+  if(has('faq')&&l.faq.some(f=>f.q)) out+=`<section>${secTitle('book',X.faq)}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${l.faq.filter(f=>f.q).map(f=>`
+      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
+        <p style="font-size:13.5px;font-weight:600;margin-bottom:3px">${esc(f.q)}</p>
+        ${f.r?`<p style="font-size:13px;opacity:.72;line-height:1.65">${esc(f.r)}</p>`:''}
+      </div>`).join('')}
+    </div>
+  </section>`;
+
+  if(has('urgences')&&l.urgences.some(u=>u.label)) out+=`<section>${secTitle('shield',X.urgences)}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${l.urgences.filter(u=>u.label).map(u=>`
+      <div style="display:flex;align-items:center;gap:12px;background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:12px 15px">
+        <div style="flex:1;min-width:0">
+          <p style="font-size:13.5px;font-weight:600">${esc(u.label)}</p>
+          ${u.note?`<p style="font-size:12.5px;opacity:.7;line-height:1.55;margin-top:1px">${esc(u.note)}</p>`:''}
+        </div>
+        ${u.valeur?`<span style="${serif};font-size:18px;color:${t.accent};white-space:nowrap;font-weight:500">${esc(u.valeur)}</span>`:''}
+      </div>`).join('')}
+    </div>
+  </section>`;
+
   const ct=l.contacts;
   if(has('contacts')&&(ct.hote||ct.tel||ct.email||ct.urgence)) out+=`<section>${secTitle('phone',X.contact)}
     <div style="background:${t.accentSoft};border-radius:12px;padding:17px 19px;display:flex;flex-direction:column;gap:7px">
@@ -1720,13 +1933,287 @@ function livretHTML(lRaw, guideId='complet', lang='fr'){
     </div>
   </section>`;
 
-  out+=`</div><div style="display:flex;flex-direction:column;align-items:center;gap:7px;padding-top:40px">
+  out+=`</div><div style="display:flex;flex-direction:column;align-items:center;gap:9px;padding-top:42px">
     <span style="width:34px;height:1px;background:${t.line}"></span>
-    ${logoSVG(20,t.accent)}
+    ${S.settings.logo
+      ? `<img src="${S.settings.logo}" style="max-height:38px;max-width:150px;object-fit:contain;opacity:.9">`
+      : logoSVG(20,t.accent)}
     <p style="${mono};font-size:9px;letter-spacing:.16em;text-transform:uppercase;opacity:.42">${esc(S.settings.conciergerie||'Smart Guide')}</p>
   </div></div>`;
   return out;
 }
+/* ---------------- Audit IA du livret ---------------- */
+const AUDIT_SECTIONS = { infos:'Le logement', arrivee:'Arrivée', depart:'Départ', wifi:'Wifi', equipements:'Équipements',
+  reglement:'Règlement', quartier:'Dans le quartier', urgences:'Urgences & FAQ', contacts:'Contacts', photos:'Photos', style:'Habillage' };
+
+/* Contrôles déterministes, sans IA — toujours disponibles */
+function auditLocal(l){
+  const miss=[];
+  const add=(sec,titre,pourquoi,grave)=>miss.push({section:sec,titre,pourquoi,grave});
+  if(!l.nom) add('infos','Le logement n\'a pas de nom','Il apparaît en couverture du livret.',true);
+  if(!l.ville) add('infos','Ville non renseignée','Nécessaire pour la recherche des adresses du quartier.',false);
+  if(!l.adresse) add('infos','Adresse non renseignée','Sans elle, impossible de proposer les commerces et transports alentour.',false);
+  if(!l.accroche&&!l.bienvenue) add('infos','Aucun mot de bienvenue','C\'est la première impression du voyageur.',false);
+  if(!l.arrivee.codeAcces&&!l.arrivee.instructions) add('arrivee','Aucune instruction d\'accès','C\'est la première cause d\'appel le jour de l\'arrivée.',true);
+  if(!l.arrivee.parking) add('arrivee','Stationnement non précisé','Question posée par presque tous les voyageurs en voiture.',false);
+  if(!l.wifi.ssid) add('wifi','Wifi non renseigné','Deuxième cause d\'appel après l\'accès.',true);
+  if(!l.depart.checklist.some(Boolean)) add('depart','Check-list de départ vide','Sans elle, le ménage part souvent d\'un logement mal rendu.',true);
+  if(!l.equipements.some(e=>e.nom)) add('equipements','Aucun équipement documenté','La bibliothèque permet d\'en ajouter en quelques clics.',false);
+  if(!l.contacts.tel) add('contacts','Aucun téléphone de contact','Indispensable en cas de problème.',true);
+  if(!l.contacts.urgence) add('contacts','Pas de contact hors horaires','Rassure fortement le voyageur.',false);
+  if(!l.urgences.some(u=>u.label)) add('urgences','Aucun numéro d\'urgence','La bibliothèque contient les numéros officiels.',false);
+  if(!l.faq.some(f=>f.q)) add('urgences','Aucune question fréquente','La FAQ réduit nettement les messages reçus.',false);
+  if(!l.photos.length) add('photos','Aucune photo','La couverture reste vide et le livret paraît impersonnel.',true);
+  else if(l.photos.length<3) add('photos','Peu de photos','Trois à six photos donnent un livret bien plus vivant.',false);
+  if(!l.recos.length) add('quartier','Aucune adresse dans le quartier','C\'est la section la plus appréciée des voyageurs.',false);
+  return miss;
+}
+function auditScore(l, miss){
+  const graves=miss.filter(m=>m.grave).length, legers=miss.length-graves;
+  return Math.max(0, Math.min(100, 100 - graves*11 - legers*4));
+}
+async function runAudit(){
+  const l=cur();
+  const miss=auditLocal(l);
+  const score=auditScore(l,miss);
+  drawAudit(l, {score, miss, ia:null, loading:!!S.settings.apiKey});
+  if(!S.settings.apiKey) return;
+  try{
+    const ctx=JSON.stringify({
+      nom:l.nom, ville:l.ville, accroche:l.accroche, bienvenue:l.bienvenue,
+      arrivee:l.arrivee, depart:l.depart, wifi:{configure:!!l.wifi.ssid},
+      equipements:l.equipements.map(e=>({nom:e.nom,instructions:e.instructions})),
+      reglement:l.reglement.filter(Boolean), quartier:l.recos.map(r=>({nom:r.nom,desc:r.desc})),
+      urgences:l.urgences.map(u=>u.label), faq:l.faq.map(f=>f.q),
+      contacts:{hote:!!l.contacts.hote, tel:!!l.contacts.tel, urgence:!!l.contacts.urgence},
+      nbPhotos:l.photos.length,
+    });
+    const raw=await callClaude(
+`Tu es un voyageur exigeant qui arrive ce soir dans ce logement et ne peut joindre personne. Voici le livret d'accueil qu'on t'a remis :
+${ctx}
+
+Relis-le avec ce regard et identifie ce qui te bloquerait ou t'agacerait réellement. Concentre-toi sur les formulations ambiguës, les informations contradictoires, les étapes manquantes dans les instructions, le ton maladroit — pas sur les champs simplement vides.
+
+Réponds UNIQUEMENT en JSON strict :
+{"verdict":"une phrase de synthèse honnête, 20 mots max",
+ "forts":["2 à 3 points réellement réussis"],
+ "ameliorations":[{"section":"infos|arrivee|depart|wifi|equipements|reglement|quartier|urgences|contacts|photos","titre":"court","conseil":"une phrase actionnable"}]}
+Maximum 5 améliorations, les plus utiles d'abord.`, 1500);
+    const ia=parseJSONLoose(raw);
+    l.audit={date:Date.now(), score}; touch(l);
+    drawAudit(l, {score, miss, ia, loading:false});
+  }catch(e){
+    drawAudit(l, {score, miss, ia:null, loading:false, err:e.message==='NO_KEY'?'':('IA indisponible : '+e.message)});
+  }
+}
+function drawAudit(l, st){
+  const ring=(pc)=>{ const r=34,c=2*Math.PI*r; const col=pc>=80?'#66795A':pc>=55?'#B98D3F':'#B0523B';
+    return `<div style="position:relative;width:84px;height:84px;flex:none">
+      <svg width="84" height="84" viewBox="0 0 84 84" style="transform:rotate(-90deg)">
+        <circle cx="42" cy="42" r="${r}" fill="none" stroke="#E6E1D4" stroke-width="7"/>
+        <circle cx="42" cy="42" r="${r}" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round"
+          stroke-dasharray="${c}" stroke-dashoffset="${c*(1-pc/100)}" style="transition:stroke-dashoffset .9s var(--ease)"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <span style="font-family:var(--serif);font-size:24px;line-height:1;color:${col}">${pc}</span>
+        <span style="font-family:var(--mono);font-size:7.5px;letter-spacing:.12em;color:var(--muted)">/ 100</span>
+      </div></div>`; };
+  const verdictTxt = st.score>=85?'Livret prêt à être envoyé.' : st.score>=65?'Bon livret, quelques manques à combler.' : st.score>=40?'Les bases sont là, il reste du travail.' : 'Livret encore incomplet.';
+  const graves=st.miss.filter(m=>m.grave), legers=st.miss.filter(m=>!m.grave);
+  const missRow=m=>`<button class="audit-row ${m.grave?'grave':''}" onclick="gotoSection('${m.section}')">
+      <span class="ar-dot"></span>
+      <span class="ar-txt"><strong>${esc(m.titre)}</strong><span>${esc(m.pourquoi)}</span></span>
+      <span class="ar-sec">${esc(AUDIT_SECTIONS[m.section]||'')} ${I('right',12)}</span>
+    </button>`;
+  document.getElementById('modal-root').innerHTML=`
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal wide lib-modal" style="max-width:660px">
+      <div class="lib-head">
+        <div><h3>Audit du livret</h3><p class="sub" style="margin:0">Ce qu'un voyageur trouverait — ou ne trouverait pas.</p></div>
+        <button class="icon-x" onclick="closeModal()">${I('x',18)}</button>
+      </div>
+      <div class="audit-hero">
+        ${ring(st.score)}
+        <div>
+          <p class="audit-verdict">${st.ia?.verdict?esc(st.ia.verdict):verdictTxt}</p>
+          <p class="ai-note">${graves.length?`${graves.length} point${graves.length>1?'s':''} bloquant${graves.length>1?'s':''}`:'Aucun point bloquant'}${legers.length?` · ${legers.length} amélioration${legers.length>1?'s':''} possible${legers.length>1?'s':''}`:''}</p>
+        </div>
+      </div>
+      <div class="lib-body">
+        ${st.ia?.forts?.length?`
+        <div class="audit-block"><div class="lib-gtitle">${I('check',13)} Ce qui fonctionne</div>
+          ${st.ia.forts.map(f=>`<p class="audit-plus">${I('check',12)} ${esc(f)}</p>`).join('')}
+        </div>`:''}
+        ${graves.length?`<div class="audit-block"><div class="lib-gtitle" style="color:var(--danger)">${I('shield',13)} À corriger en priorité</div>${graves.map(missRow).join('')}</div>`:''}
+        ${st.ia?.ameliorations?.length?`
+        <div class="audit-block"><div class="lib-gtitle">${I('sparkles',13)} Regard de l'IA sur vos textes</div>
+          ${st.ia.ameliorations.map(a=>`<button class="audit-row ia" onclick="gotoSection('${esc(a.section)}')">
+            <span class="ar-dot"></span>
+            <span class="ar-txt"><strong>${esc(a.titre)}</strong><span>${esc(a.conseil)}</span></span>
+            <span class="ar-sec">${esc(AUDIT_SECTIONS[a.section]||'')} ${I('right',12)}</span></button>`).join('')}
+        </div>`:''}
+        ${legers.length?`<div class="audit-block"><div class="lib-gtitle">${I('plus',13)} Pour aller plus loin</div>${legers.map(missRow).join('')}</div>`:''}
+        ${st.loading?`<div class="audit-block"><p class="ai-note" style="display:flex;align-items:center;gap:9px"><span class="spin">${I('loader',14)}</span> L'IA relit vos textes en détail…</p></div>`:''}
+        ${st.err?`<p class="err" style="margin-top:12px">${esc(st.err)}</p>`:''}
+        ${(!S.settings.apiKey)?`<p class="ai-note" style="margin-top:14px">Ajoutez votre clé API dans les réglages pour que l'IA relise aussi la qualité de vos textes, pas seulement les champs manquants.</p>`:''}
+      </div>
+      <div class="modal-foot" style="border-top:1px solid var(--line-faint);padding-top:16px">
+        <button class="btn btn-dark" onclick="closeModal()">Fermer</button>
+      </div>
+    </div>
+  </div>`;
+}
+function gotoSection(sec){ closeModal(); route={...route, view:'edit', section:sec}; render(); }
+
+/* ---------------- Affichettes à poser dans le logement ---------------- */
+const POSTERS = [
+  { id:'wifi',       label:'Wifi',              icon:'wifi',     desc:'À poser près de la box ou sur le frigo' },
+  { id:'essentiels', label:'Les essentiels',    icon:'star',     desc:'Arrivée, départ, wifi, contact — sur la table' },
+  { id:'depart',     label:'Avant de partir',   icon:'logout',   desc:'La check-list, sur la porte d\'entrée' },
+  { id:'urgences',   label:'En cas de problème',icon:'shield',   desc:'Numéros utiles, dans le tiroir de la cuisine' },
+];
+function posterHTML(lRaw, type, lang='fr'){
+  const l=locView(lRaw, lang);
+  const base=TEMPLATES.find(x=>x.id===l.templateId)||TEMPLATES[0];
+  const t=l.accent ? {...base, accent:l.accent, accentSoft:mixHex(l.accent, base.paper, .82)} : base;
+  const X=L10N[lang]||L10N.fr;
+  const mono=`font-family:'IBM Plex Mono',monospace`, serif=`font-family:'Fraunces',Georgia,serif`;
+  const qr=type==='wifi'?wifiQR(lRaw,320):'';
+
+  const shell = (kicker, body) => `
+  <div class="poster" style="background:${t.bg};color:${t.ink};font-family:'Inter',sans-serif;
+    width:148mm;min-height:210mm;padding:18mm 16mm;display:flex;flex-direction:column;box-sizing:border-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:auto">
+      <p style="${mono};font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:${t.accent}">${esc(kicker)}</p>
+      <p style="${mono};font-size:9px;letter-spacing:.14em;text-transform:uppercase;opacity:.4">${esc(l.nom||'')}</p>
+    </div>
+    <div style="margin:auto 0">${body}</div>
+    <div style="margin-top:auto;padding-top:14mm;display:flex;align-items:center;justify-content:center;gap:9px;opacity:.55">
+      ${S.settings.logo?`<img src="${S.settings.logo}" style="max-height:22px;max-width:90px;object-fit:contain">`:logoSVG(15,t.accent)}
+      <span style="${mono};font-size:8px;letter-spacing:.16em;text-transform:uppercase">${esc(S.settings.conciergerie||'Smart Guide')}</span>
+    </div>
+  </div>`;
+
+  if(type==='wifi') return shell(X.wifi, `
+    <h1 style="${serif};font-size:34px;font-weight:500;line-height:1.1;margin-bottom:22px">${esc(X.wifi)}</h1>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
+      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:12px;padding:16px 18px">
+        <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.5;margin-bottom:4px">${X.reseau}</p>
+        <p style="${serif};font-size:25px;word-break:break-all">${esc(l.wifi.ssid)||'—'}</p>
+      </div>
+      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:12px;padding:16px 18px">
+        <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.5;margin-bottom:4px">${X.mdp}</p>
+        <p style="${serif};font-size:25px;word-break:break-all">${esc(l.wifi.mdp)||'—'}</p>
+      </div>
+    </div>
+    ${qr?`<div style="text-align:center">
+      <img src="${qr}" style="width:52mm;height:52mm;display:block;margin:0 auto 9px;border:1px solid ${t.line};border-radius:10px;background:#fff;padding:7px">
+      <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.55">${X.scan}</p>
+    </div>`:''}`);
+
+  if(type==='essentiels'){
+    const rows=[[X.depuis,l.arrivee.heure],[X.avant,l.depart.heure]];
+    if(l.arrivee.codeAcces) rows.push([X.code,l.arrivee.codeAcces]);
+    if(l.wifi.ssid) rows.push([X.reseau,l.wifi.ssid]);
+    if(l.wifi.mdp) rows.push([X.mdp,l.wifi.mdp]);
+    if(l.arrivee.parking) rows.push([X.parking,l.arrivee.parking]);
+    return shell(X.livret, `
+    <h1 style="${serif};font-size:32px;font-weight:500;line-height:1.12;margin-bottom:6px">${esc(l.nom||'Votre logement')}</h1>
+    ${l.accroche?`<p style="${serif};font-style:italic;font-size:14px;opacity:.75;margin-bottom:20px">${esc(l.accroche)}</p>`:'<div style="height:16px"></div>'}
+    <div style="display:flex;flex-direction:column;gap:9px">
+      ${rows.map(([k,v])=>`
+      <div style="display:flex;align-items:baseline;gap:14px;background:${t.paper};border:1px solid ${t.line};border-radius:10px;padding:12px 15px">
+        <p style="${mono};font-size:9px;letter-spacing:.11em;text-transform:uppercase;opacity:.5;width:34mm;flex:none">${k}</p>
+        <p style="${serif};font-size:17px;flex:1;word-break:break-word">${esc(v)||'—'}</p>
+      </div>`).join('')}
+    </div>
+    ${(l.contacts.hote||l.contacts.tel)?`
+    <div style="margin-top:16px;background:${t.accentSoft};border-radius:12px;padding:15px 18px">
+      <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.6;margin-bottom:4px">${X.contact}</p>
+      ${l.contacts.hote?`<p style="${serif};font-size:17px">${esc(l.contacts.hote)}</p>`:''}
+      ${l.contacts.tel?`<p style="${serif};font-size:20px;color:${t.accent};margin-top:2px">${esc(l.contacts.tel)}</p>`:''}
+    </div>`:''}`);
+  }
+
+  if(type==='depart') return shell(X.avantpartir, `
+    <h1 style="${serif};font-size:32px;font-weight:500;line-height:1.12;margin-bottom:5px">${esc(X.avantpartir)}</h1>
+    <p style="font-size:14px;opacity:.7;margin-bottom:20px">${X.avant} <b style="${serif};font-size:18px">${esc(l.depart.heure||'')}</b></p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${l.depart.checklist.filter(Boolean).map(c=>`
+      <div style="display:flex;align-items:flex-start;gap:13px;background:${t.paper};border:1px solid ${t.line};border-radius:10px;padding:13px 15px">
+        <span style="width:19px;height:19px;border:2px solid ${t.accent};border-radius:5px;flex:none;margin-top:1px"></span>
+        <span style="font-size:15px;line-height:1.45">${esc(c)}</span>
+      </div>`).join('')}
+    </div>`);
+
+  if(type==='urgences') return shell(X.urgences, `
+    <h1 style="${serif};font-size:32px;font-weight:500;line-height:1.12;margin-bottom:20px">${esc(X.urgences)}</h1>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      ${l.urgences.filter(u=>u.label).map(u=>`
+      <div style="display:flex;align-items:center;gap:14px;background:${t.paper};border:1px solid ${t.line};border-radius:10px;padding:13px 15px">
+        <div style="flex:1;min-width:0">
+          <p style="font-size:14px;font-weight:600">${esc(u.label)}</p>
+          ${u.note?`<p style="font-size:12px;opacity:.68;line-height:1.5;margin-top:1px">${esc(u.note)}</p>`:''}
+        </div>
+        ${u.valeur?`<span style="${serif};font-size:23px;color:${t.accent};white-space:nowrap">${esc(u.valeur)}</span>`:''}
+      </div>`).join('')}
+    </div>
+    ${l.contacts.tel?`<div style="margin-top:16px;background:${t.accentSoft};border-radius:12px;padding:15px 18px;text-align:center">
+      <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.6;margin-bottom:3px">${esc(l.contacts.hote||X.contact)}</p>
+      <p style="${serif};font-size:24px;color:${t.accent}">${esc(l.contacts.tel)}</p>
+    </div>`:''}`);
+  return '';
+}
+function posterAvailable(l, type){
+  if(type==='wifi') return !!(l.wifi.ssid||l.wifi.mdp);
+  if(type==='depart') return l.depart.checklist.some(Boolean);
+  if(type==='urgences') return l.urgences.some(u=>u.label);
+  return true;
+}
+let posterSel='essentiels';
+function openPosters(){
+  const l=cur();
+  if(!posterAvailable(l,posterSel)) posterSel=POSTERS.find(p=>posterAvailable(l,p.id))?.id||'essentiels';
+  drawPosters();
+}
+function drawPosters(){
+  const l=cur();
+  document.getElementById('modal-root').innerHTML=`
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal wide lib-modal" style="max-width:840px">
+      <div class="lib-head">
+        <div><h3>Affichettes à poser dans le logement</h3>
+        <p class="sub" style="margin:0">Format A5, prêtes à imprimer et à glisser dans un cadre. Elles reprennent votre habillage et votre logo.</p></div>
+        <button class="icon-x" onclick="closeModal()">${I('x',18)}</button>
+      </div>
+      <div class="poster-layout">
+        <div class="poster-list">
+          ${POSTERS.map(p=>{ const ok=posterAvailable(l,p.id); return `
+          <button class="poster-item ${posterSel===p.id?'on':''} ${ok?'':'off'}" ${ok?'':'disabled'} onclick="posterSel='${p.id}';drawPosters()">
+            <span class="pi-ico">${I(p.icon,15)}</span>
+            <span><strong>${p.label}</strong><span>${ok?p.desc:'À compléter dans l\'éditeur'}</span></span>
+          </button>`;}).join('')}
+        </div>
+        <div class="poster-stage"><div class="poster-scale">${posterHTML(l, posterSel, route.lang)}</div></div>
+      </div>
+      <div class="modal-foot" style="border-top:1px solid var(--line-faint);padding-top:16px">
+        <span class="ai-note" style="margin-right:auto">Astuce : imprimez en A5, ou en A4 « ajuster à la page » pour une affiche plus grande.</span>
+        <button class="btn btn-ghost" onclick="printPoster('all')">${I('printer',14)} Tout imprimer</button>
+        <button class="btn btn-dark" onclick="printPoster(posterSel)">${I('printer',14)} Imprimer cette affichette</button>
+      </div>
+    </div>
+  </div>`;
+}
+function printPoster(which){
+  const l=cur();
+  const list = which==='all' ? POSTERS.filter(p=>posterAvailable(l,p.id)).map(p=>p.id) : [which];
+  const pz=document.getElementById('print-zone');
+  pz.innerHTML=list.map((id,i)=>`<div class="${i<list.length-1?'pagebreak':''}" style="display:flex;justify-content:center">${posterHTML(l,id,route.lang)}</div>`).join('');
+  pz.style.display='block';
+  document.title=`Affichettes — ${l.nom||'Smart Guide'}`;
+  setTimeout(()=>{ window.print(); setTimeout(()=>{ pz.style.display='none'; pz.innerHTML=''; document.title='Smart Guide — Livrets d\'accueil'; },500); },90);
+}
+
 /* ---------------- Aperçu & export ---------------- */
 function renderPreview(){
   const l=cur(); if(!l){ go('dash'); return; }
@@ -1749,7 +2236,9 @@ function renderPreview(){
         <button id="lang-btn" onclick="langMenu(event)" title="Traduire le livret">${I('lang',13)} +</button>
       </div>
       <div class="seg">${TEMPLATES.map(t=>`<button title="${t.nom}" class="${l.templateId===t.id?'on':''}" onclick="setPath('templateId','${t.id}');render()"><span style="display:inline-block;width:12px;height:12px;border-radius:99px;background:${t.accent};vertical-align:-1.5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)"></span></button>`).join('')}</div>
-      <button class="btn btn-ghost" onclick="exportHTML()">${I('download',14)} Fichier partageable</button>
+      <button class="btn btn-ghost" onclick="runAudit()" id="audit-btn" title="L'IA relit votre livret">${I('shield',14)} Audit</button>
+      <button class="btn btn-ghost" onclick="openPosters()">${I('printer',14)} Affichettes</button>
+      <button class="btn btn-ghost" onclick="exportHTML()">${I('download',14)} Fichier</button>
       <button class="btn btn-dark" onclick="exportPDF()">${I('printer',14)} Imprimer / PDF</button>
     </div>
   </div>
@@ -1817,9 +2306,25 @@ function renderSettings(){
       </div>
       <p class="ai-note">Coût réel avec Haiku : livret complet ≈ 1-2 centimes, traduction ≈ 1 centime. Aucun abonnement.</p>
     `)}
-    ${card('02','Votre conciergerie','Affiché en signature discrète au pied de chaque livret',`
+    ${card('02','Votre marque','Votre logo et votre nom apparaissent au pied de chaque livret et sur les affichettes',`
       <div class="field"><label>Nom de la conciergerie</label>
       <input class="input" id="set-conc" value="${esc(S.settings.conciergerie)}" placeholder="Ex. Aven Conciergerie" oninput="S.settings.conciergerie=this.value;save()"></div>
+      <div class="field"><label>Logo<span class="hint">PNG avec fond transparent recommandé — il sera affiché en pied de livret</span></label>
+        ${S.settings.logo?`
+        <div class="logo-panel">
+          <div class="logo-prev"><img src="${S.settings.logo}" alt="logo"></div>
+          <div class="inline-row">
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('logo-input').click()">${I('upload',13)} Remplacer</button>
+            <button class="btn btn-danger btn-sm" onclick="S.settings.logo=null;save();render()">${I('trash',13)} Retirer</button>
+          </div>
+        </div>`:`
+        <div class="drop" onclick="document.getElementById('logo-input').click()">
+          <span class="dico">${I('image',18)}</span><br>
+          <strong style="font-weight:550">Importer votre logo</strong><br>
+          <span style="font-size:11.5px;color:var(--muted-2)">Les livrets seront à votre image</span>
+        </div>`}
+        <input type="file" id="logo-input" accept="image/*" style="display:none" onchange="addLogo(this.files[0]);this.value=''">
+      </div>
     `)}
     ${card('03','Vos données','Tout est stocké localement, dans ce navigateur, sur cet ordinateur',`
       <div class="inline-row" style="flex-wrap:wrap">
@@ -1843,6 +2348,14 @@ async function saveSettings(test){
     try{ await callClaude('Réponds uniquement: OK', 10); st.textContent='✓ Clé valide — IA activée.'; st.style.color='var(--accent-dark)'; toast('Clé API validée'); }
     catch(e){ st.textContent='✗ '+e.message; st.style.color='var(--danger)'; }
   }
+}
+async function addLogo(file){
+  if(!file||!file.type.startsWith('image/')){ toast('Choisissez un fichier image', true); return; }
+  try{
+    const isPng=/png|svg/.test(file.type);
+    S.settings.logo=await compressImage(file, 600, 0.92, isPng);
+    save(); render(); toast('Logo enregistré — visible en pied de livret');
+  }catch(e){ toast('Image illisible', true); }
 }
 function backupData(){
   const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
@@ -1902,6 +2415,17 @@ function createDemo(){
     {id:nid(),cat:'transport',nom:'Tramway — Hôtel de Ville',desc:'À 4 min à pied — lignes A et B vers la gare et les plages.',dist:300,mapsUrl:'https://www.google.com/maps/dir/?api=1&destination=H%C3%B4tel+de+Ville+Le+Havre'},
   ];
   l.contacts={ hote:'Aven Conciergerie — Bastien', tel:'06 12 34 56 78', email:'contact@aven-ia.com', urgence:'06 98 76 54 32' };
+  l.urgences=[
+    {id:nid(),label:'Urgences européennes',valeur:'112',note:'Numéro unique valable partout en Europe'},
+    {id:nid(),label:'Pharmacie de garde',valeur:'3237',note:'Service payant'},
+    {id:nid(),label:'Fuite d\'eau',valeur:'',note:'Vanne d\'arrêt principale sous l\'évier de la cuisine. Coupez puis prévenez-nous.'},
+    {id:nid(),label:'Wifi ne fonctionne plus',valeur:'',note:'Débranchez la box 30 secondes puis rebranchez. Comptez 2 minutes de redémarrage.'},
+  ];
+  l.faq=[
+    {id:nid(),q:'Puis-je arriver plus tôt que 16h ?',r:'C\'est souvent possible si le logement est libre : écrivez-nous la veille, nous vous confirmerons.'},
+    {id:nid(),q:'Où puis-je laisser mes bagages après le départ ?',r:'Contactez-nous, nous trouvons généralement une solution à proximité.'},
+    {id:nid(),q:'Y a-t-il un ascenseur ?',r:'Le logement se situe au 3e étage sans ascenseur — prévoyez-le si vous voyagez chargé.'},
+  ];
   try{
     l.photos=[
       {id:nid(),dataUrl:artImage(1200,800,'#7A8FA6','#C9D5DD','#E8D5B5'),caption:''},
