@@ -244,6 +244,27 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .lib-chip.used{opacity:.42;cursor:default;background:var(--accent-mist);border-color:#CFD9C2;color:var(--accent-dark)}
 .lib-chip.used:hover{border-color:#CFD9C2}
 
+/* ---------- Accordéons (rythme repris de CollapsibleSection — Smart Host) ---------- */
+.acc{border:1px solid var(--line);border-radius:14px;background:var(--paper);overflow:hidden;transition:box-shadow .18s var(--ease)}
+.acc:hover{box-shadow:var(--sh-xs)}
+.acc+.acc{margin-top:9px}
+.acc-head{width:100%;display:flex;align-items:center;gap:12px;padding:13px 15px;text-align:left;transition:background .16s}
+.acc-head:hover{background:var(--bg-deep)}
+.acc-head:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.acc-ico{width:36px;height:36px;flex:none;border-radius:11px;background:var(--accent-mist);color:var(--accent-dark);display:flex;align-items:center;justify-content:center}
+.acc-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.acc-title{font-size:14px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-sub{font-size:12px;color:var(--muted-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-badge{flex:none;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted);background:var(--bg-deep);
+  border:1px solid var(--line-faint);border-radius:99px;padding:3px 9px;white-space:nowrap}
+.acc-chev{flex:none;color:var(--muted-2);line-height:0;transition:transform .2s var(--ease)}
+.acc[data-open="true"] .acc-chev{transform:rotate(180deg)}
+.acc-panel{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .25s var(--ease),opacity .25s var(--ease)}
+.acc[data-open="true"] .acc-panel{grid-template-rows:1fr;opacity:1}
+.acc-inner{overflow:hidden;min-height:0}
+.acc-body{padding:3px 15px 15px;border-top:1px solid var(--line-faint)}
+@media(prefers-reduced-motion:reduce){ .acc-panel,.acc-chev,.acc{transition:none} }
+
 /* ---------- Photos ---------- */
 .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
 .photo-item{position:relative;border-radius:11px;overflow:hidden;border:1px solid var(--line);aspect-ratio:4/3;background:var(--bg-deep)}
@@ -386,6 +407,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   .row-2,.tpl-grid{grid-template-columns:1fr}
   .photo-grid,.cover-styles{grid-template-columns:repeat(2,1fr)}
   .dash{padding:30px 18px 70px}
+  /* Zone de tap confortable au pouce : l'en-tête reste à ~56px de haut. */
+  .acc-head{gap:10px;padding:12px 12px}
+  .acc-ico{width:32px;height:32px;border-radius:10px}
+  .acc-body{padding:3px 12px 13px}
 }
 
 /* ---------- Impression ---------- */
@@ -473,6 +498,7 @@ const I = (name, size=15) => {
     pen:'<path d="M4 20h4L20.5 7.5a2.1 2.1 0 0 0-3-3L5 17l-1 4Z"/><path d="m14.5 6.5 3 3"/>',
     left:'<path d="m14 6-6 6 6 6"/>',
     right:'<path d="m10 6 6 6-6 6"/>',
+    chevron:'<path d="m6 9 6 6 6-6"/>',
     smartphone:'<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/>',
     filetext:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6"/><path d="M9 13h6M9 17h6"/>',
     lang:'<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
@@ -565,6 +591,7 @@ const EQUIP_LIB = [
     ['Sèche-serviettes', 'Interrupteur sur le côté de l\'appareil.'],
   ]},
   { cat:'Extérieur', icon:'garden', items:[
+    ['Balcon / Terrasse', 'Merci de ne rien déposer ni secouer par-dessus la rambarde, et de rentrer les coussins en cas de pluie ou de vent.'],
     ['Barbecue / plancha', 'Nettoyage après usage apprécié. Ne jamais l\'utiliser sous un abri fermé.'],
     ['Salon de jardin', 'Merci de replier les coussins à l\'abri en cas de pluie.'],
     ['Parasol', 'À refermer systématiquement le soir et par grand vent.'],
@@ -585,20 +612,44 @@ const EQUIP_LIB = [
 ];
 
 /* Urgences prêtes à l'emploi (France) */
+/* Deux groupes, qui formalisent en donnée le découpage que la modale calculait
+   déjà à la volée (« a un numéro » / « n'en a pas »). URG_AUTRES accueille tout
+   ce que le gérant crée lui-même. */
+const URG_NUMEROS='Numéros d\'urgence', URG_INCIDENTS='Incidents dans le logement', URG_AUTRES='Autres';
 const URG_LIB = [
-  { label:'Urgences européennes', valeur:'112', note:'Numéro unique valable partout en Europe' },
-  { label:'SAMU', valeur:'15', note:'Urgence médicale' },
-  { label:'Pompiers', valeur:'18', note:'Incendie, accident, fuite de gaz' },
-  { label:'Police / Gendarmerie', valeur:'17', note:'' },
-  { label:'Urgences (sourds et malentendants)', valeur:'114', note:'Par SMS' },
-  { label:'Pharmacie de garde', valeur:'3237', note:'Service payant' },
-  { label:'Centre antipoison', valeur:'01 40 05 48 48', note:'' },
-  { label:'Fuite d\'eau', valeur:'', note:'Vanne d\'arrêt principale sous l\'évier de la cuisine. Coupez puis prévenez-nous.' },
-  { label:'Coupure d\'électricité', valeur:'', note:'Tableau électrique dans l\'entrée : relevez le disjoncteur concerné.' },
-  { label:'Panne de chauffage ou d\'eau chaude', valeur:'', note:'Prévenez-nous, nous intervenons dans la journée.' },
-  { label:'Clés perdues ou porte claquée', valeur:'', note:'Appelez-nous immédiatement, un double est disponible.' },
-  { label:'Wifi ne fonctionne plus', valeur:'', note:'Débranchez la box 30 secondes puis rebranchez. Comptez 2 minutes de redémarrage.' },
+  { label:'Urgences européennes', valeur:'112', note:'Numéro unique valable partout en Europe', cat:URG_NUMEROS },
+  { label:'SAMU', valeur:'15', note:'Urgence médicale', cat:URG_NUMEROS },
+  { label:'Pompiers', valeur:'18', note:'Incendie, accident, fuite de gaz', cat:URG_NUMEROS },
+  { label:'Police / Gendarmerie', valeur:'17', note:'', cat:URG_NUMEROS },
+  { label:'Urgences (sourds et malentendants)', valeur:'114', note:'Par SMS', cat:URG_NUMEROS },
+  { label:'Pharmacie de garde', valeur:'3237', note:'Service payant', cat:URG_NUMEROS },
+  { label:'Centre antipoison', valeur:'01 40 05 48 48', note:'', cat:URG_NUMEROS },
+  { label:'Fuite d\'eau', valeur:'', note:'Vanne d\'arrêt principale sous l\'évier de la cuisine. Coupez puis prévenez-nous.', cat:URG_INCIDENTS },
+  { label:'Coupure d\'électricité', valeur:'', note:'Tableau électrique dans l\'entrée : relevez le disjoncteur concerné.', cat:URG_INCIDENTS },
+  { label:'Panne de chauffage ou d\'eau chaude', valeur:'', note:'Prévenez-nous, nous intervenons dans la journée.', cat:URG_INCIDENTS },
+  { label:'Clés perdues ou porte claquée', valeur:'', note:'Appelez-nous immédiatement, un double est disponible.', cat:URG_INCIDENTS },
+  { label:'Wifi ne fonctionne plus', valeur:'', note:'Débranchez la box 30 secondes puis rebranchez. Comptez 2 minutes de redémarrage.', cat:URG_INCIDENTS },
 ];
+
+/* ---------------- Catégories : ordre d'affichage et rattachement ----------------
+   La catégorie est PERSISTÉE sur chaque équipement / urgence au moment de l'ajout.
+   Les fonctions ci-dessous ne servent qu'à la deviner UNE FOIS, pour les livrets
+   créés avant ce lot (cf. migrateLogement). Passé cette dérivation initiale,
+   renommer un élément ne change plus jamais sa catégorie. */
+const EQUIP_AUTRES='Autres équipements';
+const EQUIP_CATS=[...EQUIP_LIB.map(g=>({ id:g.cat, icon:g.icon, total:g.items.length })),
+                  { id:EQUIP_AUTRES, icon:'sofa', total:null }];
+const URG_CATS=[{ id:URG_NUMEROS, icon:'phone' }, { id:URG_INCIDENTS, icon:'shield' }, { id:URG_AUTRES, icon:'book' }];
+
+const norm = s => String(s??'').toLowerCase().trim();
+const EQUIP_INDEX=new Map(EQUIP_LIB.flatMap(g=>g.items.map(([n])=>[norm(n), g.cat])));
+const URG_INDEX=new Map(URG_LIB.map(u=>[norm(u.label), u.cat]));
+const equipCatDuNom  = nom => EQUIP_INDEX.get(norm(nom)) || EQUIP_AUTRES;
+const urgCatDuLabel  = lab => URG_INDEX.get(norm(lab))   || URG_AUTRES;
+/* Une catégorie inconnue (sauvegarde ancienne, fichier bricolé) retombe sur
+   « Autres » : aucun élément ne peut devenir orphelin. */
+const equipCatConnue = c => EQUIP_CATS.some(x=>x.id===c) ? c : EQUIP_AUTRES;
+const urgCatConnue   = c => URG_CATS.some(x=>x.id===c)   ? c : URG_AUTRES;
 
 const CATS = [
   { id:'restaurant', label:'Restaurant', icon:'food' },
@@ -632,28 +683,45 @@ const L10N = {
        wifi:'Wifi', reseau:'Réseau', mdp:'Mot de passe', scan:'Scanner pour se connecter', equip:'Équipements',
        regl:'Règlement', quartier:'Dans le quartier', images:'Le logement en images', avantpartir:'Avant de partir',
        checklist:'Check-list', contact:'Nous contacter', urgence:'Urgence hors horaires', itineraire:'Itinéraire Google Maps', parking:'Stationnement', faq:'Questions fréquentes', urgences:'En cas de problème',
-       guideArr:"Guide d'arrivée", guideDep:'Guide de départ', guideMai:'Guide de la maison', bienvenue:'Bienvenue' },
+       etage:'Étage', guideArr:"Guide d'arrivée", guideDep:'Guide de départ', guideMai:'Guide de la maison', bienvenue:'Bienvenue' },
   en:{ livret:'Welcome guide', arrivee:'Check-in', depuis:'Check-in from', avant:'Check-out before', code:'Access code',
        wifi:'Wifi', reseau:'Network', mdp:'Password', scan:'Scan to connect', equip:'Amenities',
        regl:'House rules', quartier:'In the neighbourhood', images:'The place in pictures', avantpartir:'Before you leave',
        checklist:'Checklist', contact:'Contact us', urgence:'After-hours emergency', itineraire:'Google Maps directions', parking:'Parking', faq:'Frequently asked questions', urgences:'If something goes wrong',
-       guideArr:'Arrival guide', guideDep:'Departure guide', guideMai:'House guide', bienvenue:'Welcome' },
+       etage:'Floor', guideArr:'Arrival guide', guideDep:'Departure guide', guideMai:'House guide', bienvenue:'Welcome' },
   es:{ livret:'Guía de bienvenida', arrivee:'Llegada', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso',
        wifi:'Wifi', reseau:'Red', mdp:'Contraseña', scan:'Escanear para conectarse', equip:'Equipamiento',
        regl:'Normas de la casa', quartier:'En el barrio', images:'El alojamiento en imágenes', avantpartir:'Antes de salir',
        checklist:'Lista', contact:'Contáctenos', urgence:'Emergencia fuera de horario', itineraire:'Ruta en Google Maps', parking:'Aparcamiento', faq:'Preguntas frecuentes', urgences:'En caso de problema',
-       guideArr:'Guía de llegada', guideDep:'Guía de salida', guideMai:'Guía de la casa', bienvenue:'Bienvenido' },
+       etage:'Planta', guideArr:'Guía de llegada', guideDep:'Guía de salida', guideMai:'Guía de la casa', bienvenue:'Bienvenido' },
   de:{ livret:'Willkommensmappe', arrivee:'Anreise', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode',
        wifi:'WLAN', reseau:'Netzwerk', mdp:'Passwort', scan:'Zum Verbinden scannen', equip:'Ausstattung',
        regl:'Hausregeln', quartier:'In der Nachbarschaft', images:'Die Unterkunft in Bildern', avantpartir:'Vor der Abreise',
        checklist:'Checkliste', contact:'Kontakt', urgence:'Notfall außerhalb der Zeiten', itineraire:'Google Maps Route', parking:'Parkplatz', faq:'Häufige Fragen', urgences:'Im Problemfall',
-       guideArr:'Anreise-Guide', guideDep:'Abreise-Guide', guideMai:'Haus-Guide', bienvenue:'Willkommen' },
+       etage:'Etage', guideArr:'Anreise-Guide', guideDep:'Abreise-Guide', guideMai:'Haus-Guide', bienvenue:'Willkommen' },
   it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso',
        wifi:'Wifi', reseau:'Rete', mdp:'Password', scan:'Scansiona per connetterti', equip:'Dotazioni',
        regl:'Regole della casa', quartier:'Nel quartiere', images:"L'alloggio in immagini", avantpartir:'Prima di partire',
        checklist:'Checklist', contact:'Contattaci', urgence:'Emergenza fuori orario', itineraire:'Percorso Google Maps', parking:'Parcheggio', faq:'Domande frequenti', urgences:'In caso di problemi',
-       guideArr:'Guida di arrivo', guideDep:'Guida di partenza', guideMai:'Guida della casa', bienvenue:'Benvenuto' },
+       etage:'Piano', guideArr:'Guida di arrivo', guideDep:'Guida di partenza', guideMai:'Guida della casa', bienvenue:'Benvenuto' },
 };
+/* Libellés de catégorie dans le livret voyageur. La clé est le libellé français,
+   qui est aussi la valeur persistée sur l'élément. */
+const CAT_L10N = {
+  'Cuisine':                    { en:'Kitchen', es:'Cocina', de:'Küche', it:'Cucina' },
+  'Buanderie':                  { en:'Laundry', es:'Lavandería', de:'Waschküche', it:'Lavanderia' },
+  'Confort':                    { en:'Comfort', es:'Confort', de:'Komfort', it:'Comfort' },
+  'Multimédia':                 { en:'Media', es:'Multimedia', de:'Multimedia', it:'Multimedia' },
+  'Salle de bain':              { en:'Bathroom', es:'Baño', de:'Badezimmer', it:'Bagno' },
+  'Extérieur':                  { en:'Outdoor', es:'Exterior', de:'Außenbereich', it:'Esterno' },
+  'Pratique':                   { en:'Practical', es:'Práctico', de:'Praktisches', it:'Pratico' },
+  'Autres équipements':         { en:'Other amenities', es:'Otros equipamientos', de:'Weitere Ausstattung', it:'Altre dotazioni' },
+  'Numéros d\'urgence':         { en:'Emergency numbers', es:'Números de emergencia', de:'Notrufnummern', it:'Numeri di emergenza' },
+  'Incidents dans le logement': { en:'Issues in the flat', es:'Incidencias en el alojamiento', de:'Probleme in der Unterkunft', it:'Problemi nell\'alloggio' },
+  'Autres':                     { en:'Other', es:'Otros', de:'Sonstiges', it:'Altro' },
+};
+const catL10N = (id, lang) => (lang==='fr' ? id : (CAT_L10N[id]||{})[lang] || id);
+
 const guideLabelLang = (gid, lang) => {
   const t=L10N[lang]||L10N.fr;
   return gid==='arrivee'?t.guideArr : gid==='depart'?t.guideDep : gid==='maison'?t.guideMai : t.livret;
@@ -671,6 +739,29 @@ const timeAgo = ts => {
   return j===1?'hier':`il y a ${j} jours`;
 };
 
+/* Adresse postale d'un logement, assemblée à partir des morceaux réellement saisis.
+   Tout est facultatif : on ne produit jamais de virgule orpheline ni d'espace parasite,
+   y compris pour un livret enregistré avant l'ajout de ces champs. */
+function adresseComplete(l){
+  const rue=String(l.adresse||'').trim();
+  const cp=String(l.codePostal||'').trim();
+  const ville=String(l.ville||'').trim();
+  const localite=[cp, ville].filter(Boolean).join(' ');   // « 75011 Paris », « Paris », « 75011 »
+  return [rue, localite].filter(Boolean).join(', ');      // « 12 rue Machin, 75011 Paris »
+}
+/* Le code postal français fait 5 chiffres, mais l'international ne doit jamais être
+   bloqué : on se contente de signaler un format inhabituel, la saisie est conservée. */
+const cpInhabituel = v => { const s=String(v||'').trim(); return !!s && !/^\d{5}$/.test(s); };
+function hintCP(v){
+  const el=document.getElementById('cp-hint');
+  if(el) el.textContent = cpInhabituel(v) ? 'Format inhabituel — 5 chiffres en France. La saisie est conservée telle quelle.' : '';
+}
+/* Lien de cartes universel : ouvre l'app Plans/Maps sur iOS comme sur Android,
+   et retombe sur le navigateur ailleurs. */
+function mapsUrl(adresse){
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresse)}`;
+}
+
 /* ---------------- État & persistance ---------------- */
 const DB_NAME='smart-guide', DB_STORE='state';
 function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DB_NAME,1);
@@ -681,7 +772,7 @@ async function dbSet(k,v){ const d=await idb(); return new Promise((res,rej)=>{ 
 
 const defaultLogement = () => ({
   id:nid(), createdAt:Date.now(), updatedAt:Date.now(),
-  nom:'', ville:'', adresse:'', accroche:'', bienvenue:'', notes:'',
+  nom:'', ville:'', adresse:'', codePostal:'', etage:'', accroche:'', bienvenue:'', notes:'',
   arrivee:{ heure:'16:00', codeAcces:'', instructions:'', parking:'' },
   depart:{ heure:'11:00', checklist:['Fermer portes et fenêtres','Éteindre lumières et chauffage','Déposer les clés comme convenu'] },
   wifi:{ ssid:'', mdp:'' },
@@ -694,9 +785,21 @@ const defaultLogement = () => ({
   urgences:[], faq:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
+let migrationsAppliquees=0;
 function migrateLogement(l){
   const d=defaultLogement();
   for(const k of Object.keys(d)) if(l[k]===undefined) l[k]=d[k];
+  // v3 : la catégorie devient une donnée portée par l'élément. On la devine ici
+  // UNE SEULE FOIS depuis le nom, puis elle est persistée — un renommage
+  // ultérieur ne peut donc plus rendre l'élément orphelin.
+  if(Array.isArray(l.equipements)) l.equipements.forEach(e=>{
+    const c=e.cat?equipCatConnue(e.cat):equipCatDuNom(e.nom);
+    if(e.cat!==c){ e.cat=c; migrationsAppliquees++; }
+  });
+  if(Array.isArray(l.urgences)) l.urgences.forEach(u=>{
+    const c=u.cat?urgCatConnue(u.cat):urgCatDuLabel(u.label);
+    if(u.cat!==c){ u.cat=c; migrationsAppliquees++; }
+  });
   // v2.1 : les instructions de départ faisaient doublon avec la check-list → fusion
   if(l.depart && l.depart.instructions){
     const txt=String(l.depart.instructions).trim();
@@ -751,15 +854,32 @@ function closeCtx(){ document.getElementById('ctx-root').innerHTML=''; }
 
 /* ---------------- Rendu global ---------------- */
 const app = document.getElementById('app');
+/* Règle : render() ne touche JAMAIS au scroll. Seule la navigation (go / goSection)
+   remet la page en haut. Une modification de contenu conserve la position du gérant. */
 function render(){
   closeCtx();
   if(route.view==='dash') renderDash();
   else if(route.view==='edit') renderEditor();
   else if(route.view==='preview') renderPreview();
   else if(route.view==='settings') renderSettings();
-  window.scrollTo(0,0);
 }
-function go(view, extra={}){ route={...route, view, ...extra}; render(); }
+function scrollTop(){ window.scrollTo(0,0); }
+function go(view, extra={}){ route={...route, view, ...extra}; render(); scrollTop(); }
+function goSection(sec){ route={...route, section:sec}; render(); scrollTop(); }
+
+/* Re-rendus ciblés — on ne reconstruit que le sous-arbre réellement modifié.
+   Le reste de la page (topbar, sidebar, hauteur au-dessus de la fiche) est intact,
+   donc ni le scroll de la page ni celui des listes internes ne bougent. */
+function renderCard(){
+  const l=cur(); const host=document.getElementById('section-host');
+  if(!l || !host || route.view!=='edit'){ render(); return; }
+  host.innerHTML = renderSection(l);
+  refreshSidebar();
+}
+function refreshSidebar(){
+  const l=cur(); const side=document.getElementById('side-host');
+  if(l&&side) side.innerHTML = sidebarHTML(l);
+}
 
 function topbar(inner=''){
   return `
@@ -860,8 +980,8 @@ function logementMenu(ev, id){
     { icon:'trash', label:'Supprimer', danger:true, fn:()=>deleteLogement(id) },
   ]);
 }
-function newLogement(){ const l=defaultLogement(); S.logements.unshift(l); save(); route={...route, view:'edit', id:l.id, section:'infos'}; render(); }
-function openLogement(id){ route={...route, view:'edit', id, section:'infos'}; render(); }
+function newLogement(){ const l=defaultLogement(); S.logements.unshift(l); save(); route={...route, view:'edit', id:l.id, section:'infos'}; render(); scrollTop(); }
+function openLogement(id){ route={...route, view:'edit', id, section:'infos'}; render(); scrollTop(); }
 function duplicateLogement(id){
   const src=S.logements.find(x=>x.id===id); if(!src) return;
   const copy=JSON.parse(JSON.stringify(src));
@@ -901,34 +1021,36 @@ function progressRing(pc){
     <span class="pcttxt">${pc}</span>
   </div>`;
 }
+function sidebarHTML(l){
+  const pc=completeness(l);
+  return `
+      <div class="side-progress">
+        ${progressRing(pc)}
+        <div class="txts"><div class="t1">${esc(l.nom||'Nouveau logement')}</div><div class="t2">${pc<100?'Livret en cours':'Livret complet'}</div></div>
+      </div>
+      ${SECTIONS.map((s,i)=>`
+        <button class="side-item ${route.section===s.id?'active':''}" onclick="goSection('${s.id}')">
+          <span class="side-num">${String(i+1).padStart(2,'0')}</span>${I(s.icon,14)}<span class="lb">${s.label}</span>
+          ${sectionDone(l,s.id)?'<span class="dot"></span>':''}
+        </button>`).join('')}`;
+}
 function renderEditor(){
   const l=cur(); if(!l){ go('dash'); return; }
   const idx=SECTIONS.findIndex(s=>s.id===route.section);
-  const pc=completeness(l);
   app.innerHTML = topbar(`
     <button class="btn btn-plain" onclick="logementMenuTop(event)" title="Options">${I('dots',16)}</button>
     <button class="btn btn-ghost" onclick="go('dash')">${I('back',14)} Mes logements</button>
     <button class="btn btn-dark" onclick="go('preview')">${I('eye',14)} Aperçu &amp; export</button>
   `) + `
   <div class="editor">
-    <div class="sidebar no-print">
-      <div class="side-progress">
-        ${progressRing(pc)}
-        <div class="txts"><div class="t1">${esc(l.nom||'Nouveau logement')}</div><div class="t2">${pc<100?'Livret en cours':'Livret complet'}</div></div>
-      </div>
-      ${SECTIONS.map((s,i)=>`
-        <button class="side-item ${route.section===s.id?'active':''}" onclick="route.section='${s.id}';render()">
-          <span class="side-num">${String(i+1).padStart(2,'0')}</span>${I(s.icon,14)}<span class="lb">${s.label}</span>
-          ${sectionDone(l,s.id)?'<span class="dot"></span>':''}
-        </button>`).join('')}
-    </div>
+    <div class="sidebar no-print" id="side-host">${sidebarHTML(l)}</div>
     <div class="editor-main"><div class="editor-inner view">
       ${route.section==='infos'?magicBox(l):''}
-      ${renderSection(l)}
+      <div id="section-host">${renderSection(l)}</div>
       <div class="nav-btns">
-        <button class="btn btn-ghost" ${idx===0?'disabled':''} onclick="route.section='${SECTIONS[Math.max(0,idx-1)].id}';render()">${I('back',14)} Précédent</button>
+        <button class="btn btn-ghost" ${idx===0?'disabled':''} onclick="goSection('${SECTIONS[Math.max(0,idx-1)].id}')">${I('back',14)} Précédent</button>
         ${idx<SECTIONS.length-1
-          ? `<button class="btn btn-dark" onclick="route.section='${SECTIONS[idx+1].id}';render()">Suivant ${I('right',14)}</button>`
+          ? `<button class="btn btn-dark" onclick="goSection('${SECTIONS[idx+1].id}')">Suivant ${I('right',14)}</button>`
           : `<button class="btn btn-accent" onclick="go('preview')">${I('eye',14)} Voir le livret</button>`}
       </div>
     </div></div>
@@ -957,6 +1079,40 @@ function magicBox(l){
   </div>`;
 }
 
+/* ---------------- Accordéons de l'éditeur ----------------
+   Transposition de CollapsibleSection (Smart Host) : en-tête bouton accessible,
+   pastille d'icône, badge compteur, chevron pivotant, panneau animé.
+   Deux écarts assumés faute de framer-motion : l'ouverture passe par
+   grid-template-rows 0fr→1fr, et l'état vit en mémoire plutôt qu'en localStorage
+   — ce qui suffit à lui faire survivre à tous les re-rendus de la session. */
+const accOuverts={};
+const accEstOuvert=(cle,parDefaut=false)=> accOuverts[cle]===undefined ? parDefaut : !!accOuverts[cle];
+const accSet=(cle,ouvert)=>{ accOuverts[cle]=!!ouvert; };
+/* Bascule chirurgicale : on ne touche qu'aux attributs du bloc cliqué.
+   Aucun nœud n'est reconstruit, donc aucun défilement ne peut bouger. */
+function toggleAcc(btn){
+  const acc=btn.closest('.acc'); if(!acc) return;
+  const ouvert = acc.dataset.open!=='true';
+  acc.dataset.open = ouvert?'true':'false';
+  btn.setAttribute('aria-expanded', ouvert?'true':'false');
+  accSet(acc.dataset.cle, ouvert);
+}
+function accordeon({cle, icon, titre, badge='', sousTitre='', corps, ouvertParDefaut=false, forceOuvert=false}){
+  const ouvert = forceOuvert || accEstOuvert(cle, ouvertParDefaut);
+  const pid = 'acc-'+cle.replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  return `<div class="acc" data-open="${ouvert}" data-cle="${esc(cle)}">
+    <button type="button" class="acc-head" aria-expanded="${ouvert}" aria-controls="${pid}" onclick="toggleAcc(this)">
+      <span class="acc-ico">${I(icon,17)}</span>
+      <span class="acc-txt"><span class="acc-title">${esc(titre)}</span>${sousTitre?`<span class="acc-sub">${esc(sousTitre)}</span>`:''}</span>
+      ${badge?`<span class="acc-badge">${esc(badge)}</span>`:''}
+      <span class="acc-chev">${I('chevron',18)}</span>
+    </button>
+    <div class="acc-panel" id="${pid}" role="region" aria-label="${esc(titre)}">
+      <div class="acc-inner"><div class="acc-body">${corps}</div></div>
+    </div>
+  </div>`;
+}
+
 /* ---------- Helpers fiches ---------- */
 function card(num,title,sub,body){
   return `<div class="card"><div class="card-head"><span class="card-num">FICHE ${num}</span><div><h3 class="card-title">${title}</h3>${sub?`<p class="card-sub">${sub}</p>`:''}</div></div><div class="card-body">${body}</div></div>`;
@@ -975,7 +1131,7 @@ function setPath(path,val){
   const parts=path.split('.'); let o=l;
   for(let i=0;i<parts.length-1;i++) o=o[parts[i]];
   o[parts[parts.length-1]]=val; touch(l);
-  if(path==='adresse'||path==='ville') l.geo=null;
+  if(path==='adresse'||path==='ville'||path==='codePostal') l.geo=null;
   if(path!=='templateId'&&path!=='coverStyle'&&path!=='tone') l.translations={};
 }
 function setArr(arrPath,i,key,val){
@@ -983,22 +1139,73 @@ function setArr(arrPath,i,key,val){
   if(key===null) arr[i]=val; else arr[i][key]=val;
   l.translations={}; touch(l);
 }
-function rmArr(arrPath,i){ const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l); arr.splice(i,1); l.translations={}; touch(l); render(); }
+function rmArr(arrPath,i){ const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l); arr.splice(i,1); l.translations={}; touch(l); renderCard(); }
 function moveArr(arrPath,i,dir){ const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l); const j=i+dir;
-  if(j<0||j>=arr.length) return; [arr[i],arr[j]]=[arr[j],arr[i]]; l.translations={}; touch(l); render(); }
+  if(j<0||j>=arr.length) return; [arr[i],arr[j]]=[arr[j],arr[i]]; l.translations={}; touch(l); renderCard(); }
 
 /* ---------- Bibliothèque d'équipements ---------- */
-let libState={ q:'', sel:new Set() };
+let libState={ q:'', sel:new Set(), mot:'équipement' };
+/* Pied de modale : compteur + bouton d'ajout, mis à jour sans reconstruire la liste. */
+function syncLibFoot(){
+  const n=libState.sel.size, mot=libState.mot;
+  const c=document.getElementById('lib-count'), b=document.getElementById('lib-add');
+  if(c) c.textContent = n?`${n} ${mot}${n>1?'s':''} sélectionné${n>1?'s':''}`:'Aucune sélection';
+  if(b){ b.disabled=!n; b.innerHTML=`${I('plus',14)} Ajouter${n?' ('+n+')':''}`; }
+}
+/* Sélection d'une puce : on ne touche qu'au bouton cliqué. Aucun nœud n'est détruit,
+   donc le conteneur .lib-body garde sa position de défilement au pixel près. */
+function toggleChip(btn, key){
+  const on = !libState.sel.has(key);
+  on ? libState.sel.add(key) : libState.sel.delete(key);
+  btn.classList.toggle('on', on);
+  const ico=btn.querySelector('.chip-ico'); if(ico) ico.innerHTML=I(on?'check':'plus',12);
+  syncLibFoot();
+  majBadgeLib(btn.closest('.acc'));
+}
 function openEquipLib(){
-  libState={ q:'', sel:new Set() };
+  libState={ q:'', sel:new Set(), mot:'équipement' };
   drawEquipLib();
 }
-function drawEquipLib(){
-  const l=cur();
+function equipGroupsHTML(l){
   const q=libState.q.trim().toLowerCase();
   const has=nom=>l.equipements.some(e=>(e.nom||'').toLowerCase()===nom.toLowerCase());
   const groups=EQUIP_LIB.map(g=>({...g, items:g.items.filter(([nom])=>!q||nom.toLowerCase().includes(q))})).filter(g=>g.items.length);
-  const n=libState.sel.size;
+  if(!groups.length) return `<p class="ai-note" style="padding:20px 4px">Aucun équipement ne correspond à « ${esc(libState.q)} ». Vous pourrez l'ajouter manuellement.</p>`;
+  return groups.map(g=>{
+    const retenus=g.items.filter(([n])=>has(n)||libState.sel.has(n)).length;
+    return accordeon({
+      cle:'lib:'+g.cat, icon:g.icon, titre:g.cat, badge:`${retenus}/${g.items.length}`,
+      /* Une recherche en cours déplie les groupes qui ont des résultats, sinon
+         le gérant chercherait dans des tiroirs fermés. L'état mémorisé n'est pas écrasé. */
+      forceOuvert:!!q,
+      corps:`<div class="lib-items">
+              ${g.items.map(([nom])=>{
+                const already=has(nom), on=libState.sel.has(nom);
+                return `<button class="lib-chip ${on?'on':''} ${already?'used':''}" ${already?'disabled title="Déjà dans votre livret"':''} data-nom="${esc(nom)}" onclick="toggleChip(this,this.dataset.nom)">
+                  <span class="chip-ico">${already||on?I('check',12):I('plus',12)}</span> ${esc(nom)}
+                </button>`;
+              }).join('')}
+             </div>`
+    });
+  }).join('');
+}
+/* Compteur d'un accordéon de bibliothèque, recalculé depuis le DOM : aucune
+   reconstruction, donc aucun impact sur le défilement de .lib-body. */
+function majBadgeLib(acc){
+  if(!acc) return;
+  const b=acc.querySelector('.acc-badge'); if(!b) return;
+  const chips=[...acc.querySelectorAll('.lib-chip')];
+  b.textContent=`${chips.filter(c=>c.classList.contains('on')||c.classList.contains('used')).length}/${chips.length}`;
+}
+/* Recherche : seule la liste est reconstruite. Le champ garde son focus et son curseur,
+   et la modale n'est pas démontée. */
+function filterEquipLib(q){
+  libState.q=q;
+  const list=document.getElementById('lib-list');
+  if(list) list.innerHTML=equipGroupsHTML(cur());
+}
+function drawEquipLib(){
+  const l=cur();
   document.getElementById('modal-root').innerHTML=`
   <div class="overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal wide lib-modal">
@@ -1010,39 +1217,26 @@ function drawEquipLib(){
         <button class="icon-x" onclick="closeModal()">${I('x',18)}</button>
       </div>
       <div class="searchbar" style="max-width:none;margin:16px 0 4px">
-        ${I('search',15)}<input id="lib-q" placeholder="Rechercher un équipement…" value="${esc(libState.q)}" oninput="libState.q=this.value;drawEquipLib();focusLibSearch()">
+        ${I('search',15)}<input id="lib-q" placeholder="Rechercher un équipement…" value="${esc(libState.q)}" oninput="filterEquipLib(this.value)">
       </div>
       <div class="lib-body">
-        ${groups.length?groups.map(g=>`
-          <div class="lib-group">
-            <div class="lib-gtitle">${I(g.icon,14)} ${g.cat}</div>
-            <div class="lib-items">
-              ${g.items.map(([nom,ins])=>{
-                const already=has(nom), on=libState.sel.has(nom);
-                return `<button class="lib-chip ${on?'on':''} ${already?'used':''}" ${already?'disabled title="Déjà dans votre livret"':''} onclick="toggleLib('${esc(nom).replace(/'/g,"\\'")}')">
-                  ${already?I('check',12):(on?I('check',12):I('plus',12))} ${esc(nom)}
-                </button>`;
-              }).join('')}
-            </div>
-          </div>`).join('')
-        :`<p class="ai-note" style="padding:20px 4px">Aucun équipement ne correspond à « ${esc(libState.q)} ». Vous pourrez l'ajouter manuellement.</p>`}
+        <div id="lib-list">${equipGroupsHTML(l)}</div>
       </div>
       <div class="modal-foot" style="border-top:1px solid var(--line-faint);padding-top:16px">
-        <span class="ai-note" style="margin-right:auto">${n?`${n} équipement${n>1?'s':''} sélectionné${n>1?'s':''}`:'Aucune sélection'}</span>
+        <span class="ai-note" id="lib-count" style="margin-right:auto">Aucune sélection</span>
         <button class="btn btn-plain" onclick="closeModal()">Annuler</button>
-        <button class="btn btn-accent" ${n?'':'disabled'} onclick="addFromLib()">${I('plus',14)} Ajouter${n?' ('+n+')':''}</button>
+        <button class="btn btn-accent" id="lib-add" disabled onclick="addFromLib()">${I('plus',14)} Ajouter</button>
       </div>
     </div>
   </div>`;
+  syncLibFoot();
 }
-function focusLibSearch(){ const i=document.getElementById('lib-q'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } }
 
 /* ---------- Bibliothèque d'urgences ---------- */
-function openUrgLib(){ libState={ q:'', sel:new Set() }; drawUrgLib(); }
+function openUrgLib(){ libState={ q:'', sel:new Set(), mot:'élément' }; drawUrgLib(); }
 function drawUrgLib(){
   const l=cur();
   const has=lab=>l.urgences.some(u=>(u.label||'').toLowerCase()===lab.toLowerCase());
-  const n=libState.sel.size;
   document.getElementById('modal-root').innerHTML=`
   <div class="overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal wide lib-modal">
@@ -1051,33 +1245,31 @@ function drawUrgLib(){
         <button class="icon-x" onclick="closeModal()">${I('x',18)}</button>
       </div>
       <div class="lib-body" style="margin-top:16px">
-        <div class="lib-group"><div class="lib-gtitle">${I('phone',13)} Numéros officiels</div>
-          <div class="lib-items">
-          ${URG_LIB.filter(u=>u.valeur).map(u=>{const on=libState.sel.has(u.label),used=has(u.label);
-            return `<button class="lib-chip ${on?'on':''} ${used?'used':''}" ${used?'disabled':''} onclick="toggleUrg('${esc(u.label).replace(/'/g,"\\'")}')">${used||on?I('check',12):I('plus',12)} ${esc(u.label)} <b style="opacity:.6;font-weight:500">${esc(u.valeur)}</b></button>`;}).join('')}
-          </div>
-        </div>
-        <div class="lib-group"><div class="lib-gtitle">${I('shield',13)} Réflexes en cas de problème</div>
-          <div class="lib-items">
-          ${URG_LIB.filter(u=>!u.valeur).map(u=>{const on=libState.sel.has(u.label),used=has(u.label);
-            return `<button class="lib-chip ${on?'on':''} ${used?'used':''}" ${used?'disabled':''} onclick="toggleUrg('${esc(u.label).replace(/'/g,"\\'")}')">${used||on?I('check',12):I('plus',12)} ${esc(u.label)}</button>`;}).join('')}
-          </div>
-        </div>
+        ${URG_CATS.filter(c=>URG_LIB.some(u=>u.cat===c.id)).map(c=>{
+          const items=URG_LIB.filter(u=>u.cat===c.id);
+          const retenus=items.filter(u=>has(u.label)||libState.sel.has(u.label)).length;
+          return accordeon({ cle:'liburg:'+c.id, icon:c.icon, titre:c.id, badge:`${retenus}/${items.length}`,
+            corps:`<div class="lib-items">
+            ${items.map(u=>{const on=libState.sel.has(u.label),used=has(u.label);
+              return `<button class="lib-chip ${on?'on':''} ${used?'used':''}" ${used?'disabled':''} data-nom="${esc(u.label)}" onclick="toggleChip(this,this.dataset.nom)"><span class="chip-ico">${used||on?I('check',12):I('plus',12)}</span> ${esc(u.label)}${u.valeur?` <b style="opacity:.6;font-weight:500">${esc(u.valeur)}</b>`:''}</button>`;}).join('')}
+            </div>` });
+        }).join('')}
       </div>
       <div class="modal-foot" style="border-top:1px solid var(--line-faint);padding-top:16px">
-        <span class="ai-note" style="margin-right:auto">${n?`${n} élément${n>1?'s':''} sélectionné${n>1?'s':''}`:'Aucune sélection'}</span>
+        <span class="ai-note" id="lib-count" style="margin-right:auto">Aucune sélection</span>
         <button class="btn btn-plain" onclick="closeModal()">Annuler</button>
-        <button class="btn btn-accent" ${n?'':'disabled'} onclick="addFromUrgLib()">${I('plus',14)} Ajouter${n?' ('+n+')':''}</button>
+        <button class="btn btn-accent" id="lib-add" disabled onclick="addFromUrgLib()">${I('plus',14)} Ajouter</button>
       </div>
     </div>
   </div>`;
+  syncLibFoot();
 }
-function toggleUrg(lab){ libState.sel.has(lab)?libState.sel.delete(lab):libState.sel.add(lab); drawUrgLib(); }
 function addFromUrgLib(){
   const l=cur(); let n=0;
   URG_LIB.forEach(u=>{ if(libState.sel.has(u.label)&&!l.urgences.some(x=>(x.label||'').toLowerCase()===u.label.toLowerCase())){
-    l.urgences.push({id:nid(), label:u.label, valeur:u.valeur, note:u.note}); n++; }});
-  l.translations={}; touch(l); closeModal(); render();
+    l.urgences.push({id:nid(), label:u.label, valeur:u.valeur, note:u.note, cat:u.cat}); n++;
+    accSet('urg:'+u.cat, true); }});
+  l.translations={}; touch(l); closeModal(); renderCard();
   toast(n+' élément'+(n>1?'s':'')+' ajouté'+(n>1?'s':''));
 }
 
@@ -1102,30 +1294,119 @@ Réponds UNIQUEMENT en JSON strict : {"faq":[{"q":"...","r":"..."}]}`, 1800);
     const p=parseJSONLoose(raw);
     if(Array.isArray(p.faq)&&p.faq.length){
       l.faq=p.faq.filter(f=>f&&f.q).map(f=>({id:nid(), q:f.q, r:f.r||''}));
-      l.translations={}; touch(l); render(); toast(l.faq.length+' questions rédigées — relisez-les');
+      l.translations={}; touch(l); renderCard(); toast(l.faq.length+' questions rédigées — relisez-les');
     } else { done(); toast('Aucune question générée, réessayez.', true); }
   }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
 }
-function toggleLib(nom){ libState.sel.has(nom)?libState.sel.delete(nom):libState.sel.add(nom); drawEquipLib(); }
 function addFromLib(){
   const l=cur(); let n=0;
   for(const g of EQUIP_LIB) for(const [nom,ins] of g.items){
     if(libState.sel.has(nom) && !l.equipements.some(e=>(e.nom||'').toLowerCase()===nom.toLowerCase())){
-      l.equipements.push({id:nid(), nom, instructions:ins}); n++;
+      l.equipements.push({id:nid(), nom, cat:g.cat, instructions:ins}); n++;
+      accSet('eq:'+g.cat, true);   // le gérant doit voir ce qu'il vient d'ajouter
     }
   }
-  l.translations={}; touch(l); closeModal(); render();
+  l.translations={}; touch(l); closeModal(); renderCard();
   toast(n+' équipement'+(n>1?'s':'')+' ajouté'+(n>1?'s':'')+' — relisez les instructions');
 }
-function pushArr(arrPath,item){ const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l); arr.push(item); touch(l); render(); }
+const PREFIXE_ACC={ equipements:'eq:', urgences:'urg:' };
+function pushArr(arrPath,item){
+  const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l); arr.push(item);
+  // Ajout manuel dans une section groupée : on déplie la catégorie d'arrivée.
+  if(item&&item.cat&&PREFIXE_ACC[arrPath]) accSet(PREFIXE_ACC[arrPath]+item.cat, true);
+  touch(l); renderCard();
+}
+
+/* ---------- Regroupement par catégorie dans l'éditeur ----------
+   On groupe sur le champ `cat` persisté, jamais sur le nom : renommer un
+   équipement ne le déplace donc pas. Toute catégorie inconnue retombe sur
+   « Autres », si bien qu'aucun élément ne peut disparaître de l'écran. */
+function grouperParCat(liste, cats, normaliser){
+  const par=new Map();
+  liste.forEach((item,i)=>{
+    const c=normaliser(item.cat);
+    if(!par.has(c)) par.set(c,[]);
+    par.get(c).push({item,i});
+  });
+  return cats.filter(c=>par.has(c.id)).map(c=>({...c, entrees:par.get(c.id)}));
+}
+/* « Monter » doit déplacer l'élément au sein de SA catégorie. Sur le tableau
+   global, le bouton paraîtrait sans effet dès que le voisin appartient à un
+   autre groupe. */
+function moveDansCat(arrPath,i,dir,normaliser){
+  const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l);
+  const cat=normaliser(arr[i].cat);
+  const memeCat=arr.map((x,j)=>normaliser(x.cat)===cat?j:-1).filter(j=>j>=0);
+  const cible=memeCat[memeCat.indexOf(i)+dir];
+  if(cible===undefined) return;
+  [arr[i],arr[cible]]=[arr[cible],arr[i]];
+  l.translations={}; touch(l); renderCard();
+}
+/* Changement de catégorie : on déplie la destination pour que le gérant voie
+   où son élément est parti. */
+function changerCat(arrPath, i, cle, valeur){
+  accSet(cle+valeur, true);
+  setArr(arrPath, i, 'cat', valeur);
+  renderCard();
+}
+const selectCat = (arrPath, i, valeurCourante, cats, cle) => `
+  <select class="input" style="width:158px;flex:none" title="Catégorie" onchange="changerCat('${arrPath}',${i},'${cle}',this.value)">
+    ${cats.map(c=>`<option value="${esc(c.id)}" ${valeurCourante===c.id?'selected':''}>${esc(c.id)}</option>`).join('')}
+  </select>`;
+
+function equipementsParCategorie(l){
+  return grouperParCat(l.equipements, EQUIP_CATS, equipCatConnue).map(c=>accordeon({
+    cle:'eq:'+c.id, icon:c.icon, titre:c.id,
+    badge:c.total?`${c.entrees.length}/${c.total}`:String(c.entrees.length),
+    corps:`<div style="display:flex;flex-direction:column;gap:11px">
+      ${c.entrees.map(({item:e,i},k)=>`
+        <div class="subcard">
+          <div class="inline-row">
+            ${k>0?`<button class="icon-x" title="Monter dans la catégorie" onclick="moveDansCat('equipements',${i},-1,equipCatConnue)">${I('left',14)}</button>`:''}
+            <input class="input" placeholder="Nom de l'équipement" value="${esc(e.nom)}" oninput="setArr('equipements',${i},'nom',this.value)">
+            <button class="icon-x" onclick="rmArr('equipements',${i})">${I('x',15)}</button>
+          </div>
+          <div class="inline-row">
+            ${selectCat('equipements',i,equipCatConnue(e.cat),EQUIP_CATS,'eq:')}
+            <textarea class="textarea" rows="2" placeholder="Instructions d'utilisation" oninput="setArr('equipements',${i},'instructions',this.value)">${esc(e.instructions)}</textarea>
+          </div>
+        </div>`).join('')}
+    </div>`
+  })).join('');
+}
+function urgencesParCategorie(l){
+  return grouperParCat(l.urgences, URG_CATS, urgCatConnue).map(c=>accordeon({
+    cle:'urg:'+c.id, icon:c.icon, titre:c.id, badge:String(c.entrees.length),
+    corps:`<div style="display:flex;flex-direction:column;gap:9px">
+      ${c.entrees.map(({item:u,i},k)=>`
+        <div class="subcard">
+          <div class="inline-row">
+            <input class="input" placeholder="Ex. Fuite d'eau" value="${esc(u.label)}" oninput="setArr('urgences',${i},'label',this.value)">
+            <input class="input" style="max-width:150px" placeholder="Numéro" value="${esc(u.valeur)}" oninput="setArr('urgences',${i},'valeur',this.value)">
+            ${k>0?`<button class="icon-x" title="Monter dans la catégorie" onclick="moveDansCat('urgences',${i},-1,urgCatConnue)">${I('left',14)}</button>`:''}
+            <button class="icon-x" onclick="rmArr('urgences',${i})">${I('x',15)}</button>
+          </div>
+          <div class="inline-row">
+            ${selectCat('urgences',i,urgCatConnue(u.cat),URG_CATS,'urg:')}
+            <input class="input" placeholder="Précision (facultatif)" value="${esc(u.note||'')}" oninput="setArr('urgences',${i},'note',this.value)">
+          </div>
+        </div>`).join('')}
+    </div>`
+  })).join('');
+}
 
 function renderSection(l){
   switch(route.section){
     case 'infos': return card('01','Le logement','Ce qui apparaît en couverture du livret',`
       <div class="row-2">
         <div style="grid-column:1/-1">${F('nom','Nom du logement',l.nom,"Ex. L'Escale Havraise")}</div>
+        <div style="grid-column:1/-1">${F('adresse','Adresse',l.adresse,'92 rue Frédéric Bellanger','Affichée en couverture du livret, cliquable vers les cartes')}</div>
+        <div class="field"><label>Code postal</label>
+          <input class="input" value="${esc(l.codePostal)}" placeholder="76600" oninput="setPath('codePostal',this.value);hintCP(this.value)">
+          <span class="hint" id="cp-hint" style="display:block;margin-top:5px">${cpInhabituel(l.codePostal)?'Format inhabituel — 5 chiffres en France. La saisie est conservée telle quelle.':''}</span>
+        </div>
         ${F('ville','Ville',l.ville,'Le Havre')}
-        ${F('adresse','Adresse',l.adresse,'92 rue Frédéric Bellanger')}
+        <div style="grid-column:1/-1">${F('etage','Étage',l.etage,'RDC, 3ème gauche, Dernier étage…','Texte libre — masqué sur le livret si vous le laissez vide')}</div>
       </div>
       ${FT('notes','Description / notes',l.notes,'Quelques notes sur le logement, son ambiance, ce qui le distingue…',4,"Notes libres — l'IA peut en tirer une accroche et un mot de bienvenue")}
       <div class="inline-row">
@@ -1175,19 +1456,9 @@ function renderSection(l){
         <span class="lib-txt"><strong>Ajouter depuis la bibliothèque</strong><span>${EQUIP_LIB.reduce((n,g)=>n+g.items.length,0)} équipements courants, prêts à l'emploi</span></span>
         <span class="lib-arrow">${I('plus',17)}</span>
       </button>
-      ${l.equipements.length?`<div style="display:flex;flex-direction:column;gap:11px">
-      ${l.equipements.map((e,i)=>`
-        <div class="subcard">
-          <div class="inline-row">
-            ${i>0?`<button class="icon-x" title="Monter" onclick="moveArr('equipements',${i},-1)">${I('left',14)}</button>`:''}
-            <input class="input" placeholder="Nom de l'équipement" value="${esc(e.nom)}" oninput="setArr('equipements',${i},'nom',this.value)">
-            <button class="icon-x" onclick="rmArr('equipements',${i})">${I('x',15)}</button>
-          </div>
-          <textarea class="textarea" rows="2" placeholder="Instructions d'utilisation" oninput="setArr('equipements',${i},'instructions',this.value)">${esc(e.instructions)}</textarea>
-        </div>`).join('')}
-      </div>`:`<p class="ai-note">Aucun équipement pour l'instant. Ouvrez la bibliothèque ci-dessus ou ajoutez-en un manuellement.</p>`}
+      ${l.equipements.length?equipementsParCategorie(l):`<p class="ai-note">Aucun équipement pour l'instant. Ouvrez la bibliothèque ci-dessus ou ajoutez-en un manuellement.</p>`}
       <div class="inline-row" style="flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" onclick="pushArr('equipements',{id:nid(),nom:'',instructions:''})">${I('plus',13)} Ajouter manuellement</button>
+        <button class="btn btn-ghost btn-sm" onclick="pushArr('equipements',{id:nid(),nom:'',instructions:'',cat:EQUIP_AUTRES})">${I('plus',13)} Ajouter manuellement</button>
         ${l.equipements.some(e=>e.instructions)?`<button class="btn btn-ghost btn-sm" id="polish-equipements" onclick="polishSection('equipements')">${I('sparkles',13)} Personnaliser avec l'IA</button>`:''}
       </div>
     `);
@@ -1204,25 +1475,14 @@ function renderSection(l){
     `);
     case 'urgences': return card('08','Urgences & FAQ','Ce qui rassure le voyageur et vous évite les appels à 23h',`
       <div class="field"><label>Numéros et réflexes d'urgence</label>
-        ${l.urgences.length?`<div style="display:flex;flex-direction:column;gap:9px;margin-bottom:11px">
-        ${l.urgences.map((u,i)=>`
-          <div class="subcard">
-            <div class="inline-row">
-              <input class="input" placeholder="Ex. Fuite d'eau" value="${esc(u.label)}" oninput="setArr('urgences',${i},'label',this.value)">
-              <input class="input" style="max-width:150px" placeholder="Numéro" value="${esc(u.valeur)}" oninput="setArr('urgences',${i},'valeur',this.value)">
-              ${i>0?`<button class="icon-x" title="Monter" onclick="moveArr('urgences',${i},-1)">${I('left',14)}</button>`:''}
-              <button class="icon-x" onclick="rmArr('urgences',${i})">${I('x',15)}</button>
-            </div>
-            <input class="input" placeholder="Précision (facultatif)" value="${esc(u.note||'')}" oninput="setArr('urgences',${i},'note',this.value)">
-          </div>`).join('')}
-        </div>`:''}
+        ${l.urgences.length?`<div style="margin-bottom:11px">${urgencesParCategorie(l)}</div>`:''}
         <button class="lib-open" onclick="openUrgLib()">
           <span class="lib-ico">${I('shield',18)}</span>
           <span class="lib-txt"><strong>Ajouter depuis la bibliothèque</strong><span>${URG_LIB.length} numéros et réflexes prêts à l'emploi</span></span>
           <span class="lib-arrow">${I('plus',17)}</span>
         </button>
         <div class="inline-row" style="margin-top:10px">
-          <button class="btn btn-ghost btn-sm" onclick="pushArr('urgences',{id:nid(),label:'',valeur:'',note:''})">${I('plus',13)} Ajouter manuellement</button>
+          <button class="btn btn-ghost btn-sm" onclick="pushArr('urgences',{id:nid(),label:'',valeur:'',note:'',cat:URG_AUTRES})">${I('plus',13)} Ajouter manuellement</button>
         </div>
       </div>
 
@@ -1281,7 +1541,7 @@ function renderSection(l){
       <div class="field"><label>Palette</label>
       <div class="tpl-grid">
       ${TEMPLATES.map(t=>`
-        <button class="tpl-card ${l.templateId===t.id?'sel':''}" onclick="setPath('templateId','${t.id}');render()">
+        <button class="tpl-card ${l.templateId===t.id?'sel':''}" onclick="setPath('templateId','${t.id}');renderCard()">
           ${l.templateId===t.id?`<span class="tpl-sel-badge">${I('check',12)}</span>`:''}
           <div class="tpl-mini" style="background:${t.bg}">
             <div class="mini-cover" style="background:linear-gradient(160deg,${t.accentSoft},${t.paper});border:1px solid ${t.line}">
@@ -1300,7 +1560,7 @@ function renderSection(l){
       <div class="field"><label>Style de couverture</label>
       <div class="cover-styles">
         ${COVER_STYLES.map(cs=>`
-        <button class="cs-card ${l.coverStyle===cs.id?'sel':''}" onclick="setPath('coverStyle','${cs.id}');render()">
+        <button class="cs-card ${l.coverStyle===cs.id?'sel':''}" onclick="setPath('coverStyle','${cs.id}');renderCard()">
           <div class="cs-pre">${csPreview(cs.id)}</div>
           <p>${cs.label}</p>
           <p style="font-weight:400;color:var(--muted-2);font-size:10.5px">${cs.desc}</p>
@@ -1311,7 +1571,7 @@ function renderSection(l){
           <input type="color" class="color-pick" value="${esc(l.accent||(TEMPLATES.find(t=>t.id===l.templateId)||TEMPLATES[0]).accent)}"
             oninput="setPath('accent',this.value);renderAccentPreview(this.value)">
           <span class="ai-note" id="accent-lbl">${l.accent?'Accent personnalisé '+esc(l.accent):'Accent d\'origine de la palette'}</span>
-          ${l.accent?`<button class="btn btn-ghost btn-sm" onclick="setPath('accent',null);render()">Rétablir la palette</button>`:''}
+          ${l.accent?`<button class="btn btn-ghost btn-sm" onclick="setPath('accent',null);renderCard()">Rétablir la palette</button>`:''}
         </div>
       </div>
       <div class="field"><label>Fond personnalisé<span class="hint">Votre propre texture ou photo en filigrane derrière tout le livret</span></label>
@@ -1326,7 +1586,7 @@ function renderSection(l){
               oninput="setPath('wallpaperOpacity',+this.value);liveWallpaper(+this.value)">
             <div class="inline-row" style="margin-top:11px">
               <button class="btn btn-ghost btn-sm" onclick="document.getElementById('wp-input').click()">${I('upload',13)} Remplacer</button>
-              <button class="btn btn-danger btn-sm" onclick="setPath('wallpaper',null);render()">${I('trash',13)} Retirer</button>
+              <button class="btn btn-danger btn-sm" onclick="setPath('wallpaper',null);renderCard()">${I('trash',13)} Retirer</button>
             </div>
           </div>
         </div>`:`
@@ -1339,7 +1599,7 @@ function renderSection(l){
       </div>
       <div class="field"><label>Ton de la rédaction IA</label>
       <div class="pill-group">
-        ${TONES.map(t=>`<button class="pill ${l.tone===t.id?'on':''}" onclick="setPath('tone','${t.id}');render()">${t.label}</button>`).join('')}
+        ${TONES.map(t=>`<button class="pill ${l.tone===t.id?'on':''}" onclick="setPath('tone','${t.id}');renderCard()">${t.label}</button>`).join('')}
       </div>
       <span class="hint" style="font-family:var(--sans);font-size:12px;color:var(--muted-2);margin-top:6px;display:block">Appliqué au remplissage magique, aux accroches et aux améliorations de rédaction.</span>
       </div>
@@ -1376,7 +1636,7 @@ async function addPhotos(files){
     catch(e){ toast('Photo illisible : '+f.name, true); }
   }
   if(n) toast(n+' photo'+(n>1?'s':'')+' ajoutée'+(n>1?'s':''));
-  touch(l); render();
+  touch(l); renderCard();
 }
 async function addWallpaper(file){
   if(!file||!file.type.startsWith('image/')){ toast('Choisissez un fichier image', true); return; }
@@ -1384,7 +1644,7 @@ async function addWallpaper(file){
   try{
     l.wallpaper=await compressImage(file, 1800, 0.78);
     if(!l.wallpaperOpacity) l.wallpaperOpacity=18;
-    touch(l); render(); toast('Fond appliqué — ajustez l\'intensité puis vérifiez l\'aperçu');
+    touch(l); renderCard(); toast('Fond appliqué — ajustez l\'intensité puis vérifiez l\'aperçu');
   }catch(e){ toast('Image illisible', true); }
 }
 function renderAccentPreview(v){ const el=document.getElementById('accent-lbl'); if(el) el.textContent='Accent personnalisé '+v; }
@@ -1392,10 +1652,10 @@ function liveWallpaper(v){
   const veil=document.querySelector('.wp-veil'); if(veil) veil.style.opacity=(1-v/100);
   const lb=document.querySelector('.wp-ctrl label'); if(lb) lb.textContent='Intensité — '+v+'%';
 }
-function rmPhoto(i){ const l=cur(); l.photos.splice(i,1); touch(l); render(); }
-function makeCover(i){ const l=cur(); const p=l.photos.splice(i,1)[0]; l.photos.unshift(p); touch(l); render(); }
+function rmPhoto(i){ const l=cur(); l.photos.splice(i,1); touch(l); renderCard(); }
+function makeCover(i){ const l=cur(); const p=l.photos.splice(i,1)[0]; l.photos.unshift(p); touch(l); renderCard(); }
 function movePhoto(i,dir){ const l=cur(); const j=i+dir; if(j<0||j>=l.photos.length) return;
-  [l.photos[i],l.photos[j]]=[l.photos[j],l.photos[i]]; touch(l); render(); }
+  [l.photos[i],l.photos[j]]=[l.photos[j],l.photos[i]]; touch(l); renderCard(); }
 document.getElementById('photo-input').addEventListener('change',e=>{ addPhotos([...e.target.files]); e.target.value=''; });
 document.addEventListener('dragover',e=>{ const dz=document.getElementById('dropzone'); if(dz){ e.preventDefault(); dz.classList.add('over'); }});
 document.addEventListener('dragleave',()=>{ document.getElementById('dropzone')?.classList.remove('over'); });
@@ -1403,9 +1663,11 @@ document.addEventListener('drop',e=>{ const dz=document.getElementById('dropzone
 /* ---------------- Quartier — OpenStreetMap ---------------- */
 let osmState={ loading:false, results:[], cats:['restaurant','transport'], radius:900, error:'' };
 
-function renderQuartier(l){
-  return card('07','Dans le quartier','Adresses recommandées aux voyageurs — recherche automatique autour du logement',`
-    ${l.recos.length?`<div style="display:flex;flex-direction:column;gap:10px">
+/* Liste des adresses retenues — isolée pour être rafraîchie seule, sans démonter
+   le conteneur .osm-res (qui porte, lui, sa propre position de défilement). */
+function recosListHTML(l){
+  if(!l.recos.length) return '';
+  return `<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:17px">
       ${l.recos.map((r,i)=>{ const c=catOf(r.cat); return `
       <div class="subcard">
         <div class="inline-row">
@@ -1418,7 +1680,11 @@ function renderQuartier(l){
         </div>
         <textarea class="textarea" rows="2" placeholder="Pourquoi cette adresse, distance à pied…" oninput="setArr('recos',${i},'desc',this.value)">${esc(r.desc)}</textarea>
       </div>`;}).join('')}
-    </div>`:''}
+    </div>`;
+}
+function renderQuartier(l){
+  return card('07','Dans le quartier','Adresses recommandées aux voyageurs — recherche automatique autour du logement',`
+    <div id="recos-list">${recosListHTML(l)}</div>
     <div class="inline-row" style="flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="pushArr('recos',{id:nid(),cat:'restaurant',nom:'',desc:'',dist:null,mapsUrl:''})">${I('plus',13)} Ajouter manuellement</button>
       ${l.recos.some(r=>r.nom)?`<button class="btn btn-ghost btn-sm" id="polish-recos" onclick="polishSection('recos')">${I('sparkles',13)} Rédiger les descriptions</button>`:''}
@@ -1428,14 +1694,14 @@ function renderQuartier(l){
       <div class="lbl">${I('compass',12)} Recherche automatique autour du logement</div>
       <p class="ai-note" style="margin-bottom:11px">OpenStreetMap — gratuit, sans clé API. Renseignez d'abord l'adresse du logement (fiche 01).</p>
       <div class="pill-group" style="margin-bottom:11px">
-        ${CATS.map(c=>`<button class="pill ${osmState.cats.includes(c.id)?'on':''}" onclick="toggleCat('${c.id}')">${I(c.icon,12)} ${c.label}</button>`).join('')}
+        ${CATS.map(c=>`<button class="pill ${osmState.cats.includes(c.id)?'on':''}" data-cat="${c.id}" onclick="toggleCat(this)">${I(c.icon,12)} ${c.label}</button>`).join('')}
       </div>
       <div class="inline-row" style="flex-wrap:wrap">
         <button class="btn btn-accent" id="osm-btn" onclick="searchOSM()" ${(!l.adresse&&!l.ville)?'disabled':''}>${I('compass',14)} Chercher</button>
         <select class="input" style="width:auto" onchange="osmState.radius=+this.value">
           ${[500,900,1500,3000].map(r=>`<option value="${r}" ${osmState.radius===r?'selected':''}>Rayon ${r>=1000?(r/1000)+' km':r+' m'}</option>`).join('')}
         </select>
-        ${osmState.results.length?`<button class="btn btn-ghost btn-sm" onclick="addAllOSM()">${I('plus',13)} Tout ajouter (${osmState.results.filter(r=>!l.recos.some(x=>x.osmId===r.osmId)).length})</button>`:''}
+        ${osmState.results.length?`<button class="btn btn-ghost btn-sm" id="osm-addall" onclick="addAllOSM()">${I('plus',13)} Tout ajouter (${osmState.results.filter(r=>!l.recos.some(x=>x.osmId===r.osmId)).length})</button>`:''}
         ${osmState.error?`<span class="err">${esc(osmState.error)}</span>`:''}
       </div>
       ${osmState.loading?`<div style="display:flex;flex-direction:column;gap:8px;margin-top:13px"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`:''}
@@ -1445,19 +1711,35 @@ function renderQuartier(l){
           <div class="osm-row">
             <div class="osm-ico">${I(c.icon,14)}</div>
             <div><div class="nm">${esc(r.nom)}</div><div class="ds">${c.label} · ${r.dist} m${r.detail?' · '+esc(r.detail):''}</div></div>
-            <button class="btn ${added?'btn-plain':'btn-ghost'} btn-sm add" ${added?'disabled':''} onclick="addOSM(${i})">${added?I('check',12)+' Ajouté':I('plus',12)+' Ajouter'}</button>
+            <button class="btn ${added?'btn-plain':'btn-ghost'} btn-sm add" ${added?'disabled':''} onclick="addOSM(${i},this)">${added?I('check',12)+' Ajouté':I('plus',12)+' Ajouter'}</button>
           </div>`;}).join('')}
         </div>`:''}
     </div>
   `);
 }
-function toggleCat(id){
-  osmState.cats = osmState.cats.includes(id) ? osmState.cats.filter(c=>c!==id) : [...osmState.cats,id];
-  render();
+/* Sélection d'une catégorie : simple bascule de classe sur la puce cliquée.
+   Rien n'est reconstruit, donc rien ne bouge. */
+function toggleCat(btn){
+  const id=btn.dataset.cat, on=!osmState.cats.includes(id);
+  osmState.cats = on ? [...osmState.cats,id] : osmState.cats.filter(c=>c!==id);
+  btn.classList.toggle('on', on);
+}
+function refreshRecos(){
+  const l=cur(), host=document.getElementById('recos-list');
+  if(l&&host) host.innerHTML=recosListHTML(l);
+  syncOsmAddAll(); refreshSidebar();
+}
+function syncOsmAddAll(){
+  const l=cur(), b=document.getElementById('osm-addall');
+  if(l&&b) b.innerHTML=`${I('plus',13)} Tout ajouter (${osmState.results.filter(r=>!l.recos.some(x=>x.osmId===r.osmId)).length})`;
+}
+function markOsmAdded(btn){
+  if(!btn) return;
+  btn.disabled=true; btn.className='btn btn-plain btn-sm add'; btn.innerHTML=I('check',12)+' Ajouté';
 }
 async function geocode(l){
   if(l.geo) return l.geo;
-  const q=encodeURIComponent([l.adresse,l.ville,'France'].filter(Boolean).join(', '));
+  const q=encodeURIComponent([l.adresse,l.codePostal,l.ville,'France'].filter(Boolean).join(', '));
   const res=await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,{headers:{'Accept':'application/json'}});
   const data=await res.json();
   if(!data.length){
@@ -1481,7 +1763,7 @@ function haversine(a,b,c,d){ const R=6371e3,p=Math.PI/180; const x=(c-a)*p/2,y=(
 async function searchOSM(){
   const l=cur();
   if(!osmState.cats.length){ toast('Choisissez au moins une catégorie', true); return; }
-  osmState.loading=true; osmState.error=''; osmState.results=[]; render();
+  osmState.loading=true; osmState.error=''; osmState.results=[]; renderCard();
   try{
     const g=await geocode(l);
     const RAD=osmState.radius;
@@ -1509,21 +1791,25 @@ async function searchOSM(){
     osmState.results=rows.slice(0,30);
     if(!rows.length) osmState.error='Rien trouvé dans ce rayon. Essayez plus large ou d\'autres catégories.';
   }catch(e){ osmState.error=e.message; }
-  osmState.loading=false; render();
+  osmState.loading=false; renderCard();
 }
 function osmReco(r){
   return { id:nid(), osmId:r.osmId, cat:r.cat, nom:r.nom,
     desc:`À ${r.dist<100?'moins de 2 min':'environ '+Math.max(1,Math.round(r.dist/80))+' min'} à pied${r.detail?' — '+r.detail:''}.`,
     dist:r.dist, mapsUrl:r.mapsUrl };
 }
-function addOSM(i){
+/* On met à jour la ligne cliquée et la liste retenue, jamais le conteneur de résultats :
+   le gérant peut enchaîner les ajouts sans que la liste ne se replace. */
+function addOSM(i, btn){
   const l=cur(); l.recos.push(osmReco(osmState.results[i]));
-  l.translations={}; touch(l); render();
+  l.translations={}; touch(l);
+  markOsmAdded(btn); refreshRecos();
 }
 function addAllOSM(){
   const l=cur(); let n=0;
   osmState.results.forEach(r=>{ if(!l.recos.some(x=>x.osmId===r.osmId)){ l.recos.push(osmReco(r)); n++; } });
-  l.translations={}; touch(l); render();
+  l.translations={}; touch(l);
+  document.querySelectorAll('.osm-res .add').forEach(markOsmAdded); refreshRecos();
   toast(n+' adresse'+(n>1?'s':'')+' ajoutée'+(n>1?'s':''));
 }
 
@@ -1578,7 +1864,7 @@ async function genAccroche(){
     const raw=await callClaude(`Tu écris pour un livret d'accueil de location courte durée en France. ${toneText(l)}\nInformations :\n${ctx}\n\nRédige :\n1) une accroche courte (une phrase, 12 mots max, sobre, sans superlatifs publicitaires)\n2) un mot de bienvenue (3 phrases max)\n\nRéponds UNIQUEMENT avec un objet JSON strict : {"accroche":"...","bienvenue":"..."}`,400);
     const p=parseJSONLoose(raw);
     l.accroche=p.accroche||l.accroche; l.bienvenue=p.bienvenue||l.bienvenue;
-    l.translations={}; touch(l); render(); toast('Accroche et mot de bienvenue rédigés');
+    l.translations={}; touch(l); renderCard(); toast('Accroche et mot de bienvenue rédigés');
   }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
 }
 
@@ -1601,7 +1887,7 @@ Extrais et rédige le contenu d'un livret d'accueil en français. ${toneText(l)}
 Réponds UNIQUEMENT avec cet objet JSON strict (aucun texte autour) :
 {
  "nom": "nom du logement (invente un nom élégant seulement si absent)",
- "ville": "", "adresse": "",
+ "ville": "", "adresse": "", "codePostal": "",
  "accroche": "une phrase, 12 mots max, sobre",
  "bienvenue": "2-3 phrases de bienvenue",
  "arrivee": {"heure":"HH:MM ou vide","codeAcces":"","instructions":"","parking":""},
@@ -1613,16 +1899,16 @@ Réponds UNIQUEMENT avec cet objet JSON strict (aucun texte autour) :
 }`, 3000);
     const p=parseJSONLoose(raw);
     const keep=(nv,old)=>nv&&String(nv).trim()?String(nv).trim():old;
-    l.nom=keep(p.nom,l.nom); l.ville=keep(p.ville,l.ville); l.adresse=keep(p.adresse,l.adresse);
+    l.nom=keep(p.nom,l.nom); l.ville=keep(p.ville,l.ville); l.adresse=keep(p.adresse,l.adresse); l.codePostal=keep(p.codePostal,l.codePostal);
     l.accroche=keep(p.accroche,l.accroche); l.bienvenue=keep(p.bienvenue,l.bienvenue);
     if(p.arrivee){ l.arrivee.heure=keep(p.arrivee.heure,l.arrivee.heure); l.arrivee.codeAcces=keep(p.arrivee.codeAcces,l.arrivee.codeAcces); l.arrivee.instructions=keep(p.arrivee.instructions,l.arrivee.instructions); l.arrivee.parking=keep(p.arrivee.parking,l.arrivee.parking); }
     if(p.depart){ l.depart.heure=keep(p.depart.heure,l.depart.heure);
       if(Array.isArray(p.depart.checklist)&&p.depart.checklist.filter(Boolean).length) l.depart.checklist=p.depart.checklist.filter(Boolean); }
     if(p.wifi){ l.wifi.ssid=keep(p.wifi.ssid,l.wifi.ssid); l.wifi.mdp=keep(p.wifi.mdp,l.wifi.mdp); }
-    if(Array.isArray(p.equipements)&&p.equipements.length) l.equipements=p.equipements.filter(e=>e&&e.nom).map(e=>({id:nid(),nom:e.nom,instructions:e.instructions||''}));
+    if(Array.isArray(p.equipements)&&p.equipements.length) l.equipements=p.equipements.filter(e=>e&&e.nom).map(e=>({id:nid(),nom:e.nom,cat:equipCatDuNom(e.nom),instructions:e.instructions||''}));
     if(Array.isArray(p.reglement)&&p.reglement.filter(Boolean).length) l.reglement=p.reglement.filter(Boolean);
     if(p.contacts){ l.contacts.hote=keep(p.contacts.hote,l.contacts.hote); l.contacts.tel=keep(p.contacts.tel,l.contacts.tel); l.contacts.email=keep(p.contacts.email,l.contacts.email); l.contacts.urgence=keep(p.contacts.urgence,l.contacts.urgence); }
-    l.geo=null; l.translations={}; touch(l); render();
+    l.geo=null; l.translations={}; touch(l); renderCard();
     toast('Livret généré — relisez chaque fiche puis passez à l\'aperçu');
   }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
 }
@@ -1646,7 +1932,7 @@ async function polishSection(sec){
     if(sec==='reglement'&&Array.isArray(p.items)){ const clean=l.reglement.filter(Boolean); p.items.forEach((v,i)=>{ if(v&&clean[i]!==undefined) clean[i]=v; }); l.reglement=clean; }
     if(sec==='recos'&&Array.isArray(p.items)) l.recos.forEach((r,i)=>{ if(p.items[i]?.desc) r.desc=p.items[i].desc; });
     if(sec==='depart'&&Array.isArray(p.items)){ const clean=l.depart.checklist.filter(Boolean); p.items.forEach((v,i)=>{ if(v&&clean[i]!==undefined) clean[i]=v; }); l.depart.checklist=clean; }
-    l.translations={}; touch(l); render(); toast('Rédaction améliorée');
+    l.translations={}; touch(l); renderCard(); toast('Rédaction améliorée');
   }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
 }
 
@@ -1669,7 +1955,7 @@ async function translateLivret(langId){
     const raw=await callClaude(`Traduis ce contenu de livret d'accueil du français vers ${lang.label} (${langId}). Traduction naturelle et idiomatique, adaptée à l'hôtellerie. Ne traduis PAS les noms propres, codes wifi, numéros de téléphone. Garde EXACTEMENT la même structure JSON et le même nombre d'éléments dans chaque tableau.\n\n${JSON.stringify(source)}\n\nRéponds UNIQUEMENT avec le JSON traduit.`, 3000);
     const p=parseJSONLoose(raw);
     l.translations[langId]=p; touch(l);
-    route.lang=langId; render(); toast('Livret traduit en '+lang.label);
+    route.lang=langId; renderLivret(); toast('Livret traduit en '+lang.label);
   }catch(e){ done(); toast(e.message==='NO_KEY'?'Clé API manquante':'IA : '+e.message, true); }
 }
 /* Vue du logement dans une langue donnée */
@@ -1729,9 +2015,26 @@ function hexA(hex, a){
   return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${Math.max(0,Math.min(1,a)).toFixed(3)})`;
 }
 
-/* ---------------- Livret voyageur ---------------- */
-function livretHTML(lRaw, guideId='complet', lang='fr'){
+/* ---------------- Livret voyageur ----------------
+   Les accordéons du livret sont des <details> natifs, et non le composant JS de
+   l'éditeur : le livret est aussi exporté en fichier HTML autonome, sans une
+   ligne de script. <details> y reste dépliable, et le lecteur d'écran annonce
+   l'état d'ouverture nativement. Pour l'impression / PDF on force `open`
+   (opts.deplie), sinon le contenu replié serait absent du papier. */
+const LIVRET_CSS=`<style>
+.lv .lvacc{border-radius:10px;overflow:hidden}
+.lv .lvacc+.lvacc{margin-top:8px}
+.lv .lvacc>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:11px;padding:12px 15px;-webkit-tap-highlight-color:transparent}
+.lv .lvacc>summary::-webkit-details-marker{display:none}
+.lv .lvacc>summary::marker{content:''}
+.lv .lvacc-chev{flex:none;line-height:0;transition:transform .2s ease;opacity:.5}
+.lv .lvacc[open]>summary .lvacc-chev{transform:rotate(180deg)}
+.lv .lvacc-body{padding:0 15px 14px;display:flex;flex-direction:column;gap:8px}
+@media(prefers-reduced-motion:reduce){.lv .lvacc-chev{transition:none}}
+</style>`;
+function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const l=locView(lRaw, lang);
+  const deplie=!!opts.deplie;
   const base=TEMPLATES.find(x=>x.id===l.templateId)||TEMPLATES[0];
   const t=l.accent ? {...base, accent:l.accent, accentSoft:mixHex(l.accent, base.paper, .82)} : base;
   const g=GUIDES.find(x=>x.id===guideId)||GUIDES[0];
@@ -1763,13 +2066,37 @@ function livretHTML(lRaw, guideId='complet', lang='fr'){
   const wpStyle = wpOn
     ? `background-image:linear-gradient(${hexA(t.bg,1-(l.wallpaperOpacity||18)/100)},${hexA(t.bg,1-(l.wallpaperOpacity||18)/100)}),url('${l.wallpaper}');background-size:auto,cover;background-position:center;background-attachment:scroll;background-color:${t.bg};`
     : `background:${t.bg};`;
-  let out=`<div class="lv" style="${wpStyle}color:${t.ink};padding-bottom:46px;font-family:'Inter',-apple-system,sans-serif">`;
+  /* Accordéon du livret. `ouvert` est le défaut ; l'impression force l'ouverture. */
+  const lvacc=(icon,titre,badge,corps,ouvert=false)=>`
+    <details class="lvacc" style="background:${t.paper};border:1px solid ${t.line}" ${(deplie||ouvert)?'open':''}>
+      <summary style="color:${t.ink}">
+        <span style="width:32px;height:32px;flex:none;border-radius:10px;background:${t.accentSoft};color:${t.accent};display:flex;align-items:center;justify-content:center">${I(icon,15)}</span>
+        <span style="flex:1;min-width:0;font-size:14px;font-weight:600">${esc(titre)}</span>
+        ${badge?`<span style="${mono};font-size:9.5px;letter-spacing:.08em;opacity:.5;flex:none">${esc(badge)}</span>`:''}
+        <span class="lvacc-chev">${I('chevron',16)}</span>
+      </summary>
+      <div class="lvacc-body">${corps}</div>
+    </details>`;
+
+  let out=LIVRET_CSS+`<div class="lv" style="${wpStyle}color:${t.ink};padding-bottom:46px;font-family:'Inter',-apple-system,sans-serif">`;
 
   /* ---- Couverture (3 styles) ---- */
   const coverLabel=guideLabelLang(g.id, lang);
   const kicker=`<p style="${mono};font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:${t.accent};margin-bottom:10px">${esc(coverLabel)}</p>`;
   const titleH=`<h1 style="${serif};font-size:34px;font-weight:500;line-height:1.1;margin-bottom:9px">${esc(l.nom||'Votre logement')}</h1>`;
-  const villeP=l.ville?`<p style="display:flex;align-items:center;gap:6px;font-size:13.5px;opacity:.7;margin-bottom:10px"><span style="line-height:0">${I('pin',13)}</span>${esc(l.ville)}</p>`:'';
+  /* Adresse complète, cliquable vers l'application de cartes du téléphone.
+     Chaque morceau est facultatif : un livret antérieur sans code postal
+     n'affiche ni virgule orpheline ni espace parasite. */
+  const adresseTxt=adresseComplete(l);
+  const adresseP=adresseTxt?`<p style="margin-bottom:10px"><a href="${mapsUrl(adresseTxt)}" target="_blank" rel="noopener noreferrer"
+      style="display:inline-flex;align-items:flex-start;gap:6px;font-size:13.5px;opacity:.7;color:inherit;text-decoration:none;border-bottom:1px solid ${t.line};padding-bottom:2px">
+      <span style="line-height:0;flex:none;margin-top:1px">${I('pin',13)}</span>${esc(adresseTxt)}</a></p>`:'';
+  /* Étage : texte libre (« RDC », « 3ème gauche »…), juste sous l'adresse.
+     Entièrement masqué — libellé compris — si le champ est vide ou absent. */
+  const etageTxt=String(l.etage||'').trim();
+  const etageP=etageTxt?`<p style="display:flex;align-items:baseline;gap:7px;font-size:13px;opacity:.72;margin-bottom:10px">
+      <span style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.62;flex:none">${esc(X.etage)}</span>${esc(etageTxt)}</p>`:'';
+  const lieuP=adresseP+etageP;
   const accP=l.accroche?`<p style="${serif};font-style:italic;font-size:15.5px;opacity:.85;line-height:1.45">${esc(l.accroche)}</p>`:'';
   const perfo=`<div style="height:1px;background-image:radial-gradient(circle,${t.bg} 2px,transparent 2.5px);background-size:12px 12px"></div>`;
 
@@ -1779,14 +2106,14 @@ function livretHTML(lRaw, guideId='complet', lang='fr'){
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">${logoSVG(22,t.accent)}<span style="flex:1;height:1px;background:${t.line}"></span></div>
         ${kicker}
         <h1 style="${serif};font-size:42px;font-weight:500;line-height:1.08;margin-bottom:12px;letter-spacing:-.01em">${esc(l.nom||'Votre logement')}</h1>
-        ${villeP}${accP}
+        ${lieuP}${accP}
         <div style="margin-top:24px">${perfo}</div>
         ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:22px;opacity:.92">${esc(l.bienvenue)}</p>`:''}
       </div>`;
     } else if(l.coverStyle==='cadre'&&cover){
       out+=`<div style="max-width:600px;margin:0 auto;padding:38px 30px 6px">
         <img src="${cover.dataUrl}" style="width:100%;height:250px;object-fit:cover;display:block;border-radius:14px;border:1px solid ${t.line};box-shadow:0 14px 40px rgba(0,0,0,.14)">
-        <div style="padding:26px 4px 0">${kicker}${titleH}${villeP}${accP}</div>
+        <div style="padding:26px 4px 0">${kicker}${titleH}${lieuP}${accP}</div>
         <div style="margin-top:22px">${perfo}</div>
         ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:22px;opacity:.92">${esc(l.bienvenue)}</p>`:''}
       </div>`;
@@ -1795,7 +2122,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr'){
         <div style="background:${t.paper};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
           ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:235px;object-fit:cover;display:block">`
             :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft}">${logoSVG(38,t.accent)}</div>`}
-          <div style="padding:27px 27px 24px">${kicker}${titleH}${villeP}${accP}</div>
+          <div style="padding:27px 27px 24px">${kicker}${titleH}${lieuP}${accP}</div>
           ${perfo}
         </div>
         ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:21px;opacity:.92;padding:0 4px">${esc(l.bienvenue)}</p>`:''}
@@ -1803,23 +2130,21 @@ function livretHTML(lRaw, guideId='complet', lang='fr'){
     }
   }
 
-  /* ---- Bandeau essentiels (livret complet) ---- */
+  /* ---- Bandeau essentiels (livret complet) ----
+     Horaires d'arrivée et de départ côte à côte, puis le wifi EN DESSOUS sur toute
+     la largeur — et non plus en troisième colonne à côté des horaires. */
   if(has('essentials')&&(l.arrivee.heure||l.depart.heure||l.wifi.ssid)){
-    out+=`<div style="max-width:600px;margin:0 auto;padding:20px 26px 0">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
-        <div style="background:${t.accentSoft};border-radius:10px;padding:11px 13px;text-align:center">
-          <p style="${mono};font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:2px">${X.arrivee}</p>
-          <p style="${serif};font-size:17px">${esc(l.arrivee.heure||'—')}</p>
-        </div>
-        <div style="background:${t.accentSoft};border-radius:10px;padding:11px 13px;text-align:center">
-          <p style="${mono};font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:2px">${lang==='fr'?'Départ':X.avant.split(' ')[0]}</p>
-          <p style="${serif};font-size:17px">${esc(l.depart.heure||'—')}</p>
-        </div>
+    const tuile=(label,valeur,taille=17)=>`
         <div style="background:${t.accentSoft};border-radius:10px;padding:11px 13px;text-align:center;overflow:hidden">
-          <p style="${mono};font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:2px">${X.wifi}</p>
-          <p style="${serif};font-size:13.5px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden">${esc(l.wifi.ssid||'—')}</p>
-        </div>
+          <p style="${mono};font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:2px">${label}</p>
+          <p style="${serif};font-size:${taille}px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden">${esc(valeur||'—')}</p>
+        </div>`;
+    out+=`<div style="max-width:600px;margin:0 auto;padding:20px 26px 0">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        ${tuile(X.arrivee, l.arrivee.heure)}
+        ${tuile(lang==='fr'?'Départ':X.avant.split(' ')[0], l.depart.heure)}
       </div>
+      ${l.wifi.ssid?`<div style="margin-top:9px">${tuile(X.wifi, l.wifi.ssid)}</div>`:''}
     </div>`;
   }
 
@@ -1853,15 +2178,21 @@ function livretHTML(lRaw, guideId='complet', lang='fr'){
     </div>
   </section>`;
 
-  if(has('equipements')&&l.equipements.some(e=>e.nom)) out+=`<section>${secTitle('sofa',X.equip)}
-    <div style="display:flex;flex-direction:column;gap:9px">
-      ${l.equipements.filter(e=>e.nom).map(e=>`
-      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
-        <p style="font-size:14px;font-weight:600;margin-bottom:2px">${esc(e.nom)}</p>
-        ${e.instructions?`<p style="font-size:13px;opacity:.72;line-height:1.65">${esc(e.instructions)}</p>`:''}
-      </div>`).join('')}
+  /* Un accordéon par catégorie. Une catégorie sans aucun équipement retenu
+     n'apparaît pas du tout — grouperParCat ne renvoie que les non vides. */
+  if(has('equipements')&&l.equipements.some(e=>e.nom)){
+    const grp=grouperParCat(l.equipements.filter(e=>e.nom), EQUIP_CATS, equipCatConnue);
+    out+=`<section>${secTitle('sofa',X.equip)}
+    <div>
+      ${grp.map(c=>lvacc(c.icon, catL10N(c.id,lang), String(c.entrees.length),
+        c.entrees.map(({item:e})=>`
+        <div>
+          <p style="font-size:14px;font-weight:600;margin-bottom:2px">${esc(e.nom)}</p>
+          ${e.instructions?`<p style="font-size:13px;opacity:.72;line-height:1.65">${esc(e.instructions)}</p>`:''}
+        </div>`).join(''))).join('')}
     </div>
   </section>`;
+  }
 
   if(has('reglement')&&l.reglement.some(Boolean)) out+=`<section>${secTitle('shield',X.regl)}
     <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:16px 18px">
@@ -1900,28 +2231,43 @@ function livretHTML(lRaw, guideId='complet', lang='fr'){
     </div>
   </section>`;
 
+  /* FAQ : un accordéon par question — c'est la forme naturelle d'une FAQ. */
   if(has('faq')&&l.faq.some(f=>f.q)) out+=`<section>${secTitle('book',X.faq)}
-    <div style="display:flex;flex-direction:column;gap:8px">
-      ${l.faq.filter(f=>f.q).map(f=>`
-      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
-        <p style="font-size:13.5px;font-weight:600;margin-bottom:3px">${esc(f.q)}</p>
-        ${f.r?`<p style="font-size:13px;opacity:.72;line-height:1.65">${esc(f.r)}</p>`:''}
-      </div>`).join('')}
+    <div>
+      ${l.faq.filter(f=>f.q).map(f=>lvacc('book', f.q, '',
+        f.r?`<p style="font-size:13px;opacity:.78;line-height:1.65">${esc(f.r)}</p>`
+           :`<p style="font-size:13px;opacity:.5;line-height:1.65">—</p>`)).join('')}
     </div>
   </section>`;
 
-  if(has('urgences')&&l.urgences.some(u=>u.label)) out+=`<section>${secTitle('shield',X.urgences)}
-    <div style="display:flex;flex-direction:column;gap:8px">
-      ${l.urgences.filter(u=>u.label).map(u=>`
+  if(has('urgences')&&l.urgences.some(u=>u.label)){
+    const grp=grouperParCat(l.urgences.filter(u=>u.label), URG_CATS, urgCatConnue);
+    const ligneUrg=u=>`
       <div style="display:flex;align-items:center;gap:12px;background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:12px 15px">
         <div style="flex:1;min-width:0">
           <p style="font-size:13.5px;font-weight:600">${esc(u.label)}</p>
           ${u.note?`<p style="font-size:12.5px;opacity:.7;line-height:1.55;margin-top:1px">${esc(u.note)}</p>`:''}
         </div>
         ${u.valeur?`<span style="${serif};font-size:18px;color:${t.accent};white-space:nowrap;font-weight:500">${esc(u.valeur)}</span>`:''}
-      </div>`).join('')}
+      </div>`;
+    out+=`<section>${secTitle('shield',X.urgences)}
+    <div style="display:flex;flex-direction:column;gap:9px">
+      ${grp.map(c=>{
+        const corps=c.entrees.map(({item:u})=>ligneUrg(u)).join('');
+        /* Les numéros d'urgence ne sont JAMAIS repliables : un voyageur avec une
+           fuite d'eau à 23h ne doit pas avoir à cliquer pour trouver un numéro.
+           C'est le seul endroit du produit où l'uniformité serait une faute. */
+        if(c.id===URG_NUMEROS) return `<div>
+          <p style="${mono};font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.55;margin-bottom:8px;display:flex;align-items:center;gap:7px">
+            <span style="line-height:0;color:${t.accent}">${I(c.icon,13)}</span>${esc(catL10N(c.id,lang))}</p>
+          <div style="display:flex;flex-direction:column;gap:8px">${corps}</div>
+        </div>`;
+        /* Les autres groupes sont dépliés par défaut, mais repliables. */
+        return lvacc(c.icon, catL10N(c.id,lang), String(c.entrees.length), corps, true);
+      }).join('')}
     </div>
   </section>`;
+  }
 
   const ct=l.contacts;
   if(has('contacts')&&(ct.hote||ct.tel||ct.email||ct.urgence)) out+=`<section>${secTitle('phone',X.contact)}
@@ -2063,7 +2409,7 @@ function drawAudit(l, st){
     </div>
   </div>`;
 }
-function gotoSection(sec){ closeModal(); route={...route, view:'edit', section:sec}; render(); }
+function gotoSection(sec){ closeModal(); route={...route, view:'edit', section:sec}; render(); scrollTop(); }
 
 /* ---------------- Affichettes à poser dans le logement ---------------- */
 const POSTERS = [
@@ -2189,12 +2535,12 @@ function drawPosters(){
       <div class="poster-layout">
         <div class="poster-list">
           ${POSTERS.map(p=>{ const ok=posterAvailable(l,p.id); return `
-          <button class="poster-item ${posterSel===p.id?'on':''} ${ok?'':'off'}" ${ok?'':'disabled'} onclick="posterSel='${p.id}';drawPosters()">
+          <button class="poster-item ${posterSel===p.id?'on':''} ${ok?'':'off'}" ${ok?'':'disabled'} data-poster="${p.id}" onclick="selectPoster(this)">
             <span class="pi-ico">${I(p.icon,15)}</span>
             <span><strong>${p.label}</strong><span>${ok?p.desc:'À compléter dans l\'éditeur'}</span></span>
           </button>`;}).join('')}
         </div>
-        <div class="poster-stage"><div class="poster-scale">${posterHTML(l, posterSel, route.lang)}</div></div>
+        <div class="poster-stage" id="poster-stage"><div class="poster-scale">${posterHTML(l, posterSel, route.lang)}</div></div>
       </div>
       <div class="modal-foot" style="border-top:1px solid var(--line-faint);padding-top:16px">
         <span class="ai-note" style="margin-right:auto">Astuce : imprimez en A5, ou en A4 « ajuster à la page » pour une affiche plus grande.</span>
@@ -2203,6 +2549,14 @@ function drawPosters(){
       </div>
     </div>
   </div>`;
+}
+/* Choix d'une affichette : on bascule la sélection et on remplace le seul aperçu.
+   La colonne de gauche n'est pas reconstruite. */
+function selectPoster(btn){
+  posterSel=btn.dataset.poster;
+  document.querySelectorAll('.poster-item').forEach(b=>b.classList.toggle('on', b.dataset.poster===posterSel));
+  const stage=document.getElementById('poster-stage');
+  if(stage) stage.innerHTML=`<div class="poster-scale">${posterHTML(cur(), posterSel, route.lang)}</div>`;
 }
 function printPoster(which){
   const l=cur();
@@ -2215,36 +2569,53 @@ function printPoster(which){
 }
 
 /* ---------------- Aperçu & export ---------------- */
-function renderPreview(){
-  const l=cur(); if(!l){ go('dash'); return; }
-  if(route.lang!=='fr'&&!l.translations[route.lang]) route.lang='fr';
+function previewBarHTML(l){
   const availLangs=['fr',...Object.keys(l.translations)];
-  app.innerHTML = topbar(`<button class="btn btn-ghost" onclick="go('edit')">${I('back',14)} Retour à l'atelier</button>`) + `
-  <div class="preview-bar no-print">
+  return `
     <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
       <div class="seg">
-        ${GUIDES.map(g=>`<button class="${route.guide===g.id?'on':''}" onclick="route.guide='${g.id}';render()">${g.label}</button>`).join('')}
+        ${GUIDES.map(g=>`<button class="${route.guide===g.id?'on':''}" onclick="route.guide='${g.id}';renderLivret()">${g.label}</button>`).join('')}
       </div>
       <div class="seg">
-        <button class="${route.device==='paper'?'on':''}" onclick="route.device='paper';render()" title="Vue papier / PDF">${I('filetext',13)} Papier</button>
-        <button class="${route.device==='phone'?'on':''}" onclick="route.device='phone';render()" title="Vue téléphone">${I('smartphone',13)} Mobile</button>
+        <button class="${route.device==='paper'?'on':''}" onclick="route.device='paper';renderLivret()" title="Vue papier / PDF">${I('filetext',13)} Papier</button>
+        <button class="${route.device==='phone'?'on':''}" onclick="route.device='phone';renderLivret()" title="Vue téléphone">${I('smartphone',13)} Mobile</button>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <div class="seg" title="Langue du livret">
-        ${availLangs.map(id=>`<button class="${route.lang===id?'on':''}" onclick="route.lang='${id}';render()">${(LANGS.find(x=>x.id===id)||{}).flag||id.toUpperCase()}</button>`).join('')}
+        ${availLangs.map(id=>`<button class="${route.lang===id?'on':''}" onclick="route.lang='${id}';renderLivret()">${(LANGS.find(x=>x.id===id)||{}).flag||id.toUpperCase()}</button>`).join('')}
         <button id="lang-btn" onclick="langMenu(event)" title="Traduire le livret">${I('lang',13)} +</button>
       </div>
-      <div class="seg">${TEMPLATES.map(t=>`<button title="${t.nom}" class="${l.templateId===t.id?'on':''}" onclick="setPath('templateId','${t.id}');render()"><span style="display:inline-block;width:12px;height:12px;border-radius:99px;background:${t.accent};vertical-align:-1.5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)"></span></button>`).join('')}</div>
+      <div class="seg">${TEMPLATES.map(t=>`<button title="${t.nom}" class="${l.templateId===t.id?'on':''}" onclick="setPath('templateId','${t.id}');renderLivret()"><span style="display:inline-block;width:12px;height:12px;border-radius:99px;background:${t.accent};vertical-align:-1.5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)"></span></button>`).join('')}</div>
       <button class="btn btn-ghost" onclick="runAudit()" id="audit-btn" title="L'IA relit votre livret">${I('shield',14)} Audit</button>
       <button class="btn btn-ghost" onclick="openPosters()">${I('printer',14)} Affichettes</button>
       <button class="btn btn-ghost" onclick="exportHTML()">${I('download',14)} Fichier</button>
       <button class="btn btn-dark" onclick="exportPDF()">${I('printer',14)} Imprimer / PDF</button>
-    </div>
-  </div>
+    </div>`;
+}
+function deviceHTML(l){
+  return (route.device==='phone'?'<div class="notch" style="background:'+(TEMPLATES.find(t=>t.id===l.templateId)||TEMPLATES[0]).bg+'"></div>':'')+livretHTML(l, route.guide, route.lang);
+}
+/* Aperçu : la barre d'outils et le livret sont rafraîchis séparément, sans démonter
+   .preview-wrap qui porte le défilement de l'aperçu. */
+function renderLivret(){
+  const l=cur(); const dev=document.getElementById('livret-host');
+  if(!l || !dev || route.view!=='preview'){ render(); return; }
+  if(route.lang!=='fr'&&!l.translations[route.lang]) route.lang='fr';
+  dev.className='device '+route.device;
+  dev.innerHTML=deviceHTML(l);
+  const bar=document.getElementById('pbar-host'); if(bar) bar.innerHTML=previewBarHTML(l);
+  const hint=document.getElementById('share-hint');
+  if(hint) hint.innerHTML=`${route.lang!=='fr'?'Version '+(LANGS.find(x=>x.id===route.lang)||{}).label+' — les exports utiliseront cette langue. ':''}Ce livret est aussi beau sur papier que sur téléphone.`;
+}
+function renderPreview(){
+  const l=cur(); if(!l){ go('dash'); return; }
+  if(route.lang!=='fr'&&!l.translations[route.lang]) route.lang='fr';
+  app.innerHTML = topbar(`<button class="btn btn-ghost" onclick="go('edit')">${I('back',14)} Retour à l'atelier</button>`) + `
+  <div class="preview-bar no-print" id="pbar-host">${previewBarHTML(l)}</div>
   <div class="preview-wrap view">
-    <div class="device ${route.device}">${route.device==='phone'?'<div class="notch" style="background:'+(TEMPLATES.find(t=>t.id===l.templateId)||TEMPLATES[0]).bg+'"></div>':''}${livretHTML(l, route.guide, route.lang)}</div>
-    <p class="share-hint">${route.lang!=='fr'?'Version '+(LANGS.find(x=>x.id===route.lang)||{}).label+' — les exports utiliseront cette langue. ':''}Ce livret est aussi beau sur papier que sur téléphone.</p>
+    <div class="device ${route.device}" id="livret-host">${deviceHTML(l)}</div>
+    <p class="share-hint" id="share-hint">${route.lang!=='fr'?'Version '+(LANGS.find(x=>x.id===route.lang)||{}).label+' — les exports utiliseront cette langue. ':''}Ce livret est aussi beau sur papier que sur téléphone.</p>
   </div>`;
 }
 function langMenu(ev){
@@ -2259,7 +2630,8 @@ function langMenu(ev){
 function exportPDF(){
   const l=cur();
   const pz=document.getElementById('print-zone');
-  pz.innerHTML=livretHTML(l, route.guide, route.lang);
+  // Sur papier, tout doit être visible : un accordéon replié serait du contenu perdu.
+  pz.innerHTML=livretHTML(l, route.guide, route.lang, {deplie:true});
   pz.style.display='block';
   const gl=guideLabelLang(route.guide, route.lang);
   document.title=`${gl} — ${l.nom||'Smart Guide'}`;
@@ -2434,8 +2806,9 @@ function createDemo(){
       {id:nid(),dataUrl:artImage(900,600,'#A6917A','#E5DACB','#8CA07A'),caption:''},
     ];
   }catch(e){ l.photos=[]; }
+  migrateLogement(l);           // pose les catégories des équipements et urgences de l'exemple
   S.logements.unshift(l); save();
-  route={...route, view:'preview', id:l.id, guide:'complet', lang:'fr'}; render();
+  route={...route, view:'preview', id:l.id, guide:'complet', lang:'fr'}; render(); scrollTop();
   toast('Exemple créé — explorez, modifiez, supprimez-le quand vous voulez');
 }
 
@@ -2457,6 +2830,8 @@ function createDemo(){
       S=saved;
       S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:''},S.settings);
       S.logements.forEach(migrateLogement);
+      // Les catégories devinées à la lecture sont réécrites une bonne fois en base.
+      if(migrationsAppliquees) save();
     }
   }catch(e){ console.warn('IndexedDB indisponible', e); }
   if(location.hash==='#exemple'&&!S.logements.some(x=>x.nom==="L'Escale Havraise")){ createDemo(); return; }
