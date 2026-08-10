@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;450;500;600;650&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="window.__noQR=true"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js" onerror="window.__noAuth=true"></script>
 <style>
 /* =====================================================
    SMART GUIDE V2 — Système visuel
@@ -406,6 +407,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 /* ---------- Réglages ---------- */
 .settings{max-width:660px;margin:0 auto;padding:46px 30px 90px;display:flex;flex-direction:column;gap:0}
 
+/* Compte */
+#btn-compte.connecte{color:var(--accent-dark);background:var(--accent-mist)}
+.auth-msg{font-size:13px;line-height:1.5;margin:12px 0 0;min-height:1px}
+.auth-msg.err{color:var(--danger)}
+.auth-msg.ok{color:var(--accent-dark)}
+
 /* Noms de guides : version longue par défaut, version courte sur téléphone. */
 .guide-court{display:none}
 
@@ -417,6 +424,8 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   padding:14px 18px;font-size:13.5px;line-height:1.55;box-shadow:var(--sh-lg)}
 .alerte-donnees strong{display:block;margin-bottom:3px;font-weight:600}
 .alerte-donnees.rappel{background:var(--ink);color:#F2EFE7}
+body.avec-alerte{padding-bottom:210px}
+@media(min-width:701px){ body.avec-alerte{padding-bottom:130px} }
 .alerte-donnees .actions{display:flex;gap:8px;margin-top:10px}
 .alerte-donnees .actions .btn{background:#F2EFE7;color:var(--ink);font-weight:550}
 .alerte-donnees .actions .btn.ghost{background:transparent;color:#F2EFE7;box-shadow:inset 0 0 0 1px rgba(242,239,231,.35)}
@@ -573,6 +582,7 @@ const I = (name, size=15) => {
     left:'<path d="m14 6-6 6 6 6"/>',
     right:'<path d="m10 6 6 6-6 6"/>',
     chevron:'<path d="m6 9 6 6 6-6"/>',
+    user:'<circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
     smartphone:'<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/>',
     filetext:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6"/><path d="M9 13h6M9 17h6"/>',
     lang:'<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
@@ -953,9 +963,14 @@ function verifierRappelExport(){
   el.innerHTML=`<strong>Pensez à sauvegarder vos livrets.</strong>
     ${dernier?`Dernière sauvegarde ${timeAgo(dernier)}.`:'Aucune sauvegarde à ce jour.'}
     Un fichier est la seule copie qui survit à un effacement du navigateur.
-    <span class="actions"><button class="btn btn-sm" onclick="backupData();this.closest('.alerte-donnees').remove()">Sauvegarder</button>
-    <button class="btn btn-sm ghost" onclick="this.closest('.alerte-donnees').remove()">Plus tard</button></span>`;
+    <span class="actions"><button class="btn btn-sm" onclick="backupData();fermerAlerte(this)">Sauvegarder</button>
+    <button class="btn btn-sm ghost" onclick="fermerAlerte(this)">Plus tard</button></span>`;
   document.body.appendChild(el);
+  document.body.classList.add('avec-alerte');   // libère la place, l'alerte ne doit rien recouvrir
+}
+function fermerAlerte(btn){
+  const a=btn.closest('.alerte-donnees'); if(a) a.remove();
+  if(!document.querySelector('.alerte-donnees')) document.body.classList.remove('avec-alerte');
 }
 
 /* Garde-fou anti-perte de données.
@@ -986,6 +1001,99 @@ function save(){
 }
 function touch(l){ l.updatedAt=Date.now(); save(); }
 const cur = () => S.logements.find(l=>l.id===route.id);
+
+/* ---------------- Compte ----------------
+   ÉTAPE 1 : connexion seule. Aucune donnée n'est encore envoyée ni lue à
+   distance — les livrets restent intégralement locaux. Le mode invité demeure
+   le mode par défaut : personne n'est obligé de créer un compte pour utiliser
+   l'application, ce qui compte pendant la phase de test chez le client.
+   L'authentification exige une origine web (https) : ouverte en fichier local,
+   l'app fonctionne exactement comme avant, sans compte. */
+const SUPABASE_URL='https://hpmthjaebbgmbljoyfgx.supabase.co';
+const SUPABASE_CLE_PUBLIQUE='sb_publishable_aW94eKqMkZF548HHwrhonw_Hrtq_n2j';
+let sb=null, compte=null, authEtat='indisponible';
+
+function initAuth(){
+  if(location.protocol==='file:'){ authEtat='fichier-local'; return; }
+  if(window.__noAuth||!window.supabase||!window.supabase.createClient){ authEtat='indisponible'; return; }
+  try{
+    sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_CLE_PUBLIQUE,{
+      auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    });
+    authEtat='pret';
+  }catch(e){ sb=null; authEtat='indisponible'; }
+}
+async function chargerSession(){
+  if(!sb) return null;
+  try{
+    const {data}=await sb.auth.getSession();
+    compte=data?.session?.user||null;
+    sb.auth.onAuthStateChange((_e,session)=>{
+      compte=session?.user||null;
+      if(route.view==='compte') renderCompte();
+      majBoutonCompte();
+    });
+    return compte;
+  }catch(e){ return null; }
+}
+const messageAuth = e => {
+  const m=String(e&&e.message||e||'');
+  if(/Invalid login credentials/i.test(m)) return 'Email ou mot de passe incorrect.';
+  if(/Email not confirmed/i.test(m))       return 'Vérifiez votre boîte mail : le compte doit être confirmé.';
+  if(/User already registered/i.test(m))   return 'Un compte existe déjà avec cet email — connectez-vous.';
+  if(/Password should be at least/i.test(m))return 'Le mot de passe doit faire au moins 6 caractères.';
+  if(/rate limit|too many/i.test(m))       return 'Trop de tentatives, patientez une minute.';
+  if(/fetch|network|Failed to/i.test(m))   return 'Pas de connexion au serveur — réessayez.';
+  return m||'Erreur inattendue.';
+};
+function majBoutonCompte(){
+  const b=document.getElementById('btn-compte');
+  if(!b) return;
+  b.classList.toggle('connecte', !!compte);
+  b.title = compte ? 'Compte — '+compte.email : 'Compte';
+}
+async function seConnecter(){
+  const email=document.getElementById('auth-email').value.trim();
+  const mdp=document.getElementById('auth-mdp').value;
+  if(!email||!mdp) return authMessage('Renseignez votre email et votre mot de passe.',true);
+  const fin=btnLoading('auth-btn','Connexion…');
+  const {error}=await sb.auth.signInWithPassword({email,password:mdp});
+  if(error){ fin(); authMessage(messageAuth(error),true); return; }
+  renderCompte(); toast('Connecté');
+}
+async function creerCompte(){
+  const email=document.getElementById('auth-email').value.trim();
+  const mdp=document.getElementById('auth-mdp').value;
+  if(!email||!mdp) return authMessage('Renseignez votre email et un mot de passe.',true);
+  const fin=btnLoading('auth-btn','Création…');
+  const {data,error}=await sb.auth.signUp({
+    email, password:mdp,
+    options:{ emailRedirectTo:location.origin+location.pathname,
+              data:{ conciergerie:S.settings.conciergerie||'' } }
+  });
+  fin();
+  if(error) return authMessage(messageAuth(error),true);
+  if(data.session){ renderCompte(); toast('Compte créé'); }
+  else authMessage('Compte créé. Ouvrez le mail de confirmation pour l\'activer, puis connectez-vous.',false);
+}
+async function lienMagique(){
+  const email=document.getElementById('auth-email').value.trim();
+  if(!email) return authMessage('Renseignez votre email.',true);
+  const fin=btnLoading('auth-lien','Envoi…');
+  const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});
+  fin();
+  authMessage(error?messageAuth(error):'Lien envoyé. Ouvrez le mail sur CET appareil pour vous connecter.', !!error);
+}
+async function seDeconnecter(){
+  /* Étape 1 : rien n'est synchronisé, donc la déconnexion ne touche à aucun
+     livret. Ils restent sur l'appareil, exactement comme avant. */
+  await sb.auth.signOut();
+  compte=null; renderCompte(); majBoutonCompte(); toast('Déconnecté — vos livrets restent sur cet appareil');
+}
+function authMessage(txt,erreur){
+  const el=document.getElementById('auth-msg');
+  if(el){ el.textContent=txt; el.className='auth-msg'+(erreur?' err':' ok'); }
+}
 
 /* ---------------- Toast & menus ---------------- */
 function toast(msg, isErr=false){
@@ -1019,6 +1127,7 @@ function render(){
   else if(route.view==='edit') renderEditor();
   else if(route.view==='preview') renderPreview();
   else if(route.view==='settings') renderSettings();
+  else if(route.view==='compte') renderCompte();
 }
 function scrollTop(){ window.scrollTo(0,0); }
 function go(view, extra={}){ route={...route, view, ...extra}; render(); scrollTop(); }
@@ -1048,7 +1157,8 @@ function topbar(inner=''){
     <div class="topbar-actions">
       <span class="savebadge ${chargementOK?'saved':'bloque'}" id="savebadge"><span class="pulse"></span><span class="txt">${chargementOK?'ENREGISTRÉ':'LECTURE IMPOSSIBLE'}</span></span>
       ${inner}
-      <button class="btn btn-plain" onclick="go('settings')" title="Réglages">${I('gear',17)}</button>
+      <button class="btn btn-plain" id="btn-compte" onclick="go('compte')" title="Compte" aria-label="Compte">${I('user',17)}</button>
+      <button class="btn btn-plain" onclick="go('settings')" title="Réglages" aria-label="Réglages">${I('gear',17)}</button>
     </div>
   </div>`;
 }
@@ -2813,6 +2923,64 @@ function exportHTML(){
   toast('Fichier téléchargé — envoyez-le à vos voyageurs ou hébergez-le en ligne');
 }
 
+/* ---------------- Écran Compte ---------------- */
+function renderCompte(){
+  const retour=`<button class="btn btn-ghost" onclick="go('dash')" title="Retour" aria-label="Retour">${I('back',14)} <span class="lbl">Retour</span></button>`;
+  let corps;
+
+  if(authEtat==='fichier-local'){
+    corps=`<p class="ai-note">Les comptes ne fonctionnent que depuis la version en ligne de Smart Guide.
+      Ce fichier est ouvert localement sur votre ordinateur : l'application marche normalement, mais sans compte.</p>
+      <p class="ai-note" style="margin-top:10px">Adresse de la version en ligne :
+      <a href="https://aven-ia.github.io/smart-guide/" target="_blank" rel="noopener" style="color:var(--accent-dark)">aven-ia.github.io/smart-guide</a></p>`;
+  } else if(authEtat!=='pret'){
+    corps=`<p class="ai-note">Le service de comptes n'a pas pu être joint — vous êtes peut-être hors ligne.
+      L'application fonctionne normalement, vos livrets sont sur cet appareil. Réessayez plus tard.</p>`;
+  } else if(compte){
+    corps=`
+      <div class="ai-box" style="display:flex;align-items:center;gap:13px">
+        <span class="acc-ico" style="width:40px;height:40px">${I('check',18)}</span>
+        <div style="flex:1;min-width:0">
+          <p style="font-weight:600;font-size:14px;word-break:break-all">${esc(compte.email||'')}</p>
+          <p class="ai-note" style="margin:0">Compte actif sur cet appareil</p>
+        </div>
+      </div>
+      <p class="ai-note" style="margin-top:14px">
+        <strong>À ce stade, aucun livret n'est encore envoyé en ligne.</strong>
+        Se connecter prépare la sauvegarde automatique, qui arrivera à la prochaine étape.
+        Vos livrets restent pour l'instant uniquement sur cet appareil — continuez à faire des sauvegardes fichier.</p>
+      <div class="inline-row" style="margin-top:14px">
+        <button class="btn btn-ghost" onclick="seDeconnecter()">${I('logout',14)} Se déconnecter</button>
+      </div>`;
+  } else {
+    corps=`
+      <p class="ai-note" style="margin-bottom:16px">Un compte servira à sauvegarder vos livrets en ligne et à les
+        retrouver sur vos autres appareils. <strong>Ce n'est pas obligatoire</strong> : sans compte,
+        l'application fonctionne exactement comme aujourd'hui.</p>
+      <div class="row-2">
+        <div class="field"><label>Email</label>
+          <input class="input" id="auth-email" type="email" autocomplete="email" placeholder="vous@conciergerie.fr"></div>
+        <div class="field"><label>Mot de passe<span class="hint">6 caractères minimum</span></label>
+          <input class="input" id="auth-mdp" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+      </div>
+      <p class="auth-msg" id="auth-msg"></p>
+      <div class="inline-row" style="flex-wrap:wrap;margin-top:6px">
+        <button class="btn btn-dark" id="auth-btn" onclick="seConnecter()">${I('key',14)} Se connecter</button>
+        <button class="btn btn-ghost" onclick="creerCompte()">${I('plus',14)} Créer un compte</button>
+        <button class="btn btn-plain btn-sm" id="auth-lien" onclick="lienMagique()">${I('mail',13)} Recevoir un lien par email</button>
+      </div>`;
+  }
+
+  app.innerHTML = topbar(retour) + `
+  <div class="view settings">
+    <div style="margin-bottom:26px">
+      <div class="kicker">Compte</div>
+      <h1 class="dash-title">${compte?'Vous êtes connecté':'Connexion'}</h1>
+    </div>
+    ${card('01','Compte Smart Guide','Sauvegarde en ligne et synchronisation entre vos appareils',corps)}
+  </div>`;
+}
+
 /* ---------------- Réglages ---------------- */
 function renderSettings(){
   app.innerHTML = topbar(`<button class="btn btn-ghost" onclick="go('dash')">${I('back',14)} Retour</button>`) + `
@@ -2983,6 +3151,7 @@ function createDemo(){
 /* ---------------- Démarrage ---------------- */
 (async function init(){
   demanderStockagePersistant();   // exempte l'app de la purge automatique de Safari
+  initAuth();                     // aucune donnée n'est lue ni envoyée à ce stade
 
   let saved=null, secours=null;
   try{
@@ -3012,6 +3181,7 @@ function createDemo(){
 
   if(location.hash==='#exemple'&&!S.logements.some(x=>x.nom==="L'Escale Havraise")){ createDemo(); return; }
   render();
+  chargerSession().then(majBoutonCompte);   // restaure la session sans bloquer l'affichage
   if(!chargementOK) return;
 
   /* Récupération : la clé principale est vide alors que la copie de secours
