@@ -897,7 +897,7 @@ function migrateLogement(l){
   return l;
 }
 
-let S = { settings:{ apiKey:'', model:'claude-haiku-4-5', conciergerie:'', derniereExport:0 }, logements:[] };
+let S = { settings:{ apiKey:'', model:'claude-haiku-4-5', conciergerie:'', derniereExport:0, derniereSynchro:0 }, logements:[] };
 let route = { view:'dash', id:null, section:'infos', guide:'complet', device:'paper', lang:'fr', search:'' };
 let saveTimer=null, saveBadgeTimer=null;
 function setSaveBadge(state){
@@ -947,7 +947,7 @@ function proposerRecuperation(secours){
     + ' Voulez-vous les restaurer ?',
     ()=>{
       S=secours.etat;
-      S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:'',derniereExport:0},S.settings);
+      S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:'',derniereExport:0,derniereSynchro:0},S.settings);
       S.logements.forEach(migrateLogement);
       save(); render();
       toast(n+' livret'+(n>1?'s':'')+' récupéré'+(n>1?'s':''));
@@ -996,7 +996,8 @@ function save(){
   if(!chargementOK){ bloquerEcriture(); return; }
   clearTimeout(saveTimer); setSaveBadge('saving');
   saveTimer=setTimeout(()=>{
-    dbSet('v1',S).then(()=>setSaveBadge('saved')).catch(e=>toast('Erreur de sauvegarde : '+e.message,true));
+    dbSet(CLE_PRINCIPALE,S).then(()=>{ setSaveBadge('saved'); planifierSync(); })
+      .catch(e=>toast('Erreur de sauvegarde : '+e.message,true));
   },350);
 }
 function touch(l){ l.updatedAt=Date.now(); save(); }
@@ -1029,10 +1030,15 @@ async function chargerSession(){
     const {data}=await sb.auth.getSession();
     compte=data?.session?.user||null;
     sb.auth.onAuthStateChange((_e,session)=>{
+      const avant=compte;
       compte=session?.user||null;
       if(route.view==='compte') renderCompte();
       majBoutonCompte();
+      // Connexion (ou reprise de session) : réconciliation complète.
+      if(compte && !avant) synchroniser();
+      if(!compte) syncEtat='inactif';
     });
+    if(compte) synchroniser();
     return compte;
   }catch(e){ return null; }
 }
@@ -1093,6 +1099,135 @@ async function seDeconnecter(){
 function authMessage(txt,erreur){
   const el=document.getElementById('auth-msg');
   if(el){ el.textContent=txt; el.className='auth-msg'+(erreur?' err':' ok'); }
+}
+
+/* ---------------- Synchronisation (étapes 2 à 4) ----------------
+   PRINCIPE DE CONCEPTION, pas une vérification ajoutée après coup :
+   la synchronisation ne SUPPRIME jamais une ligne distante. Elle ajoute et elle
+   met à jour, rien d'autre. Une suppression est toujours un geste explicite du
+   gérant, jamais la conséquence d'un état local jugé « à jour ».
+   Conséquence : un appareil dont le navigateur a purgé IndexedDB ne peut pas
+   détruire la copie en ligne — il la re-télécharge. La panne ne se propage pas.
+
+   Deux garde-fous complètent ce principe :
+   • local vide + cloud garni  → on ne remonte RIEN, on descend seulement ;
+   • livret local nettement plus pauvre que sa version en ligne → on s'arrête et
+     on demande, après avoir mis la version en ligne à l'abri dans livret_backups. */
+let syncEnCours=false, syncTimer=null, syncEtat='inactif';
+const snapshotFait=new Set();
+const SEUIL_APPAUVRI=0.7;   // sous 70 % de la taille distante, on parle d'appauvrissement
+
+const poidsLivret = o => { try{ return JSON.stringify(o).length; }catch(e){ return 0; } };
+
+/* --- Décision pure : ne touche à rien, donc entièrement testable isolément --- */
+function planSynchro(locaux, distants){
+  const parLocal=new Map(distants.filter(d=>d.local_id).map(d=>[d.local_id,d]));
+  const idsLocaux=new Set(locaux.map(l=>l.id));
+  const plan={ descendre:[], monter:[], majDistant:[], majLocal:[], appauvris:[], motifBlocage:null };
+
+  /* Règle absolue : un appareil vide ne remonte jamais rien. */
+  if(locaux.length===0 && distants.length>0){
+    plan.descendre=distants.slice();
+    plan.motifBlocage='local-vide';
+    return plan;
+  }
+  for(const d of distants) if(!idsLocaux.has(d.local_id)) plan.descendre.push(d);
+  for(const l of locaux){
+    const d=parLocal.get(l.id);
+    if(!d){ plan.monter.push(l); continue; }
+    const tLocal=l.updatedAt||0, tDistant=Date.parse(d.updated_at)||0;
+    if(tLocal>tDistant){
+      const pl=poidsLivret(l), pd=poidsLivret(d.data);
+      if(pd>0 && pl < pd*SEUIL_APPAUVRI) plan.appauvris.push({l,d,pl,pd});
+      else plan.majDistant.push({l,d});
+    } else if(tDistant>tLocal){
+      plan.majLocal.push(d);
+    }
+  }
+  return plan;
+}
+
+/* --- Accès distant --- */
+async function cloudLire(){
+  const {data,error}=await sb.from('livrets').select('id,local_id,nom,data,updated_at').is('deleted_at',null);
+  if(error) throw error;
+  return data||[];
+}
+async function cloudSnapshot(distant){
+  try{ await sb.from('livret_backups').insert({livret_id:distant.id, owner_id:compte.id, data:distant.data}); }catch(e){}
+}
+async function cloudInserer(l){
+  const {error}=await sb.from('livrets').insert({owner_id:compte.id, local_id:l.id, nom:l.nom||'', data:l});
+  if(error) throw error;
+}
+async function cloudMettreAJour(distant,l){
+  // Une copie de la version en ligne part TOUJOURS avant de l'écraser.
+  if(!snapshotFait.has(distant.id)){ await cloudSnapshot(distant); snapshotFait.add(distant.id); }
+  const {error}=await sb.from('livrets').update({nom:l.nom||'', data:l}).eq('id',distant.id);
+  if(error) throw error;
+}
+async function cloudSupprimer(localId){
+  if(!sb||!compte) return;
+  try{ await sb.from('livrets').update({deleted_at:new Date().toISOString()}).eq('local_id',localId).eq('owner_id',compte.id); }catch(e){}
+}
+
+/* --- Application du plan --- */
+function integrerLivretDistant(d){
+  const l=d.data||{};
+  l.id=d.local_id||l.id||nid();
+  migrateLogement(l);
+  const i=S.logements.findIndex(x=>x.id===l.id);
+  if(i>=0) S.logements[i]=l; else S.logements.unshift(l);
+}
+async function synchroniser({silencieux=false}={}){
+  if(!sb||!compte||syncEnCours||!chargementOK) return;
+  syncEnCours=true; syncEtat='en-cours'; majEtatSync();
+  try{
+    const distants=await cloudLire();
+    const plan=planSynchro(S.logements, distants);
+
+    plan.descendre.forEach(integrerLivretDistant);
+    plan.majLocal.forEach(integrerLivretDistant);
+
+    if(plan.motifBlocage!=='local-vide'){
+      for(const l of plan.monter)        await cloudInserer(l);
+      for(const {l,d} of plan.majDistant) await cloudMettreAJour(d,l);
+    }
+
+    if(plan.descendre.length||plan.majLocal.length){ save(); render(); }
+    S.settings.derniereSynchro=Date.now(); save();
+    syncEtat='ok'; majEtatSync();
+
+    if(plan.motifBlocage==='local-vide' && plan.descendre.length && !silencieux)
+      toast(plan.descendre.length+' livret'+(plan.descendre.length>1?'s':'')+' récupéré'+(plan.descendre.length>1?'s':'')+' depuis votre compte');
+    if(plan.appauvris.length) demanderArbitrage(plan.appauvris);
+  }catch(e){
+    syncEtat='erreur'; majEtatSync();
+    if(!silencieux) toast('Synchronisation impossible : '+messageAuth(e), true);
+  }finally{ syncEnCours=false; }
+}
+/* Un livret devenu nettement plus pauvre que sa version en ligne n'écrase rien
+   sans un accord explicite. La version en ligne est déjà à l'abri. */
+function demanderArbitrage(appauvris){
+  const x=appauvris[0];
+  cloudSnapshot(x.d);
+  confirmModal('Ce livret a beaucoup diminué',
+    `« ${esc(x.l.nom||'Sans nom')} » est nettement plus court sur cet appareil que dans votre compte `
+    +`(${Math.round(x.pl/1024)} Ko contre ${Math.round(x.pd/1024)} Ko). `
+    +`Que faut-il garder ? La version en ligne a été mise de côté dans tous les cas.`,
+    async ()=>{ await cloudMettreAJour(x.d,x.l); toast('Version de cet appareil envoyée'); },
+    'Garder celle de cet appareil');
+}
+function planifierSync(){
+  if(!sb||!compte) return;
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>synchroniser({silencieux:true}), 4000);
+}
+function majEtatSync(){
+  const el=document.getElementById('sync-etat');
+  if(!el) return;
+  const t={'inactif':'', 'en-cours':'Synchronisation…', 'ok':'Sauvegardé en ligne', 'erreur':'Synchronisation impossible'}[syncEtat]||'';
+  el.textContent=t; el.className='auth-msg'+(syncEtat==='erreur'?' err':' ok');
 }
 
 /* ---------------- Toast & menus ---------------- */
@@ -1258,6 +1393,9 @@ function duplicateLogement(id){
 function deleteLogement(id){
   const l=S.logements.find(x=>x.id===id);
   confirmModal(`Supprimer « ${esc(l?.nom||'ce logement')} » ?`,'Le logement, ses photos et ses traductions seront définitivement supprimés de cet ordinateur.',()=>{
+    // Suppression = geste explicite du gérant. C'est le SEUL chemin qui retire
+    // un livret du compte en ligne, et il pose un deleted_at, sans effacer la ligne.
+    cloudSupprimer(id);
     S.logements=S.logements.filter(x=>x.id!==id); save(); go('dash'); toast('Logement supprimé');
   });
 }
@@ -2945,12 +3083,12 @@ function renderCompte(){
           <p class="ai-note" style="margin:0">Compte actif sur cet appareil</p>
         </div>
       </div>
-      <p class="ai-note" style="margin-top:14px">
-        <strong>À ce stade, aucun livret n'est encore envoyé en ligne.</strong>
-        Se connecter prépare la sauvegarde automatique, qui arrivera à la prochaine étape.
-        Vos livrets restent pour l'instant uniquement sur cet appareil — continuez à faire des sauvegardes fichier.</p>
-      <div class="inline-row" style="margin-top:14px">
-        <button class="btn btn-ghost" onclick="seDeconnecter()">${I('logout',14)} Se déconnecter</button>
+      <p class="ai-note" style="margin-top:14px">Vos livrets sont sauvegardés dans votre compte et se retrouvent
+        sur vos autres appareils en vous y connectant. ${S.settings.derniereSynchro?'Dernière synchronisation '+timeAgo(S.settings.derniereSynchro)+'.':''}</p>
+      <p class="auth-msg ok" id="sync-etat"></p>
+      <div class="inline-row" style="flex-wrap:wrap;margin-top:12px">
+        <button class="btn btn-ghost" onclick="synchroniser()">${I('loader',14)} Synchroniser maintenant</button>
+        <button class="btn btn-plain" onclick="seDeconnecter()">${I('logout',14)} Se déconnecter</button>
       </div>`;
   } else {
     corps=`
@@ -3166,7 +3304,7 @@ function createDemo(){
   if(chargementOK && saved && saved.logements){
     try{
       S=saved;
-      S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:'',derniereExport:0},S.settings);
+      S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:'',derniereExport:0,derniereSynchro:0},S.settings);
       S.logements.forEach(migrateLogement);
       // Les catégories devinées à la lecture sont réécrites une bonne fois en base.
       if(migrationsAppliquees) save();
