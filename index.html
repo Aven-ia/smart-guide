@@ -416,6 +416,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   max-width:min(560px,calc(100vw - 24px));background:#7E3A28;color:#F7EDE9;border-radius:14px;
   padding:14px 18px;font-size:13.5px;line-height:1.55;box-shadow:var(--sh-lg)}
 .alerte-donnees strong{display:block;margin-bottom:3px;font-weight:600}
+.alerte-donnees.rappel{background:var(--ink);color:#F2EFE7}
+.alerte-donnees .actions{display:flex;gap:8px;margin-top:10px}
+.alerte-donnees .actions .btn{background:#F2EFE7;color:var(--ink);font-weight:550}
+.alerte-donnees .actions .btn.ghost{background:transparent;color:#F2EFE7;box-shadow:inset 0 0 0 1px rgba(242,239,231,.35)}
 
 /* ---------- Tablette : la sidebar garde ses libellés, seules les grilles se resserrent ---------- */
 @media(max-width:880px){
@@ -883,7 +887,7 @@ function migrateLogement(l){
   return l;
 }
 
-let S = { settings:{ apiKey:'', model:'claude-haiku-4-5', conciergerie:'' }, logements:[] };
+let S = { settings:{ apiKey:'', model:'claude-haiku-4-5', conciergerie:'', derniereExport:0 }, logements:[] };
 let route = { view:'dash', id:null, section:'infos', guide:'complet', device:'paper', lang:'fr', search:'' };
 let saveTimer=null, saveBadgeTimer=null;
 function setSaveBadge(state){
@@ -891,6 +895,69 @@ function setSaveBadge(state){
   if(state==='saving'){ b.className='savebadge saving'; b.innerHTML='<span class="pulse"></span><span class="txt">ENREGISTREMENT</span>'; }
   else { b.className='savebadge saved'; b.innerHTML='<span class="pulse"></span><span class="txt">ENREGISTRÉ</span>'; }
 }
+/* ---------------- Filet de sécurité des données ----------------
+   Trois protections, aucune ne dépend d'un serveur :
+   1. le navigateur est prié de rendre le stockage PERSISTANT — c'est ce qui
+      exempte l'app de la purge automatique de Safari après 7 jours ;
+   2. une copie de secours de l'état sain est écrite à chaque démarrage, sous une
+      clé distincte, et sert à récupérer si la clé principale est vidée ;
+   3. un rappel d'export apparaît quand la dernière sauvegarde fichier date trop —
+      seule copie qui survit à un effacement complet du navigateur. */
+const CLE_PRINCIPALE='v1', CLE_SECOURS='v1-secours';
+const JOURS_AVANT_RAPPEL=7;
+
+async function demanderStockagePersistant(){
+  try{
+    if(!navigator.storage||!navigator.storage.persist) return null;
+    if(await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  }catch(e){ return null; }
+}
+/* Retire les photos : utilisé seulement si le quota refuse la copie complète. */
+function sansPhotos(etat){
+  return {...etat, logements:(etat.logements||[]).map(l=>({...l, photos:[], wallpaper:null}))};
+}
+async function ecrireSecours(etat){
+  try{ await dbSet(CLE_SECOURS,{quand:Date.now(), etat}); return 'complet'; }
+  catch(e){
+    try{ await dbSet(CLE_SECOURS,{quand:Date.now(), etat:sansPhotos(etat), partiel:true}); return 'sans-photos'; }
+    catch(_){ return null; }
+  }
+}
+
+/* Propose de récupérer la copie de secours plutôt que de laisser le gérant
+   croire que tout est perdu. Rien n'est écrasé sans son accord. */
+function proposerRecuperation(secours){
+  const n=(secours.etat.logements||[]).length;
+  const quand=secours.quand?timeAgo(secours.quand):'une session précédente';
+  confirmModal(
+    `Récupérer ${n} livret${n>1?'s':''} ?`,
+    `Cette application est vide, mais une copie de secours enregistrée sur cet appareil ${quand} contient ${n} livret${n>1?'s':''}.`
+    + (secours.partiel?' Les photos n\'y figurent pas (place insuffisante au moment de la copie).':'')
+    + ' Voulez-vous les restaurer ?',
+    ()=>{
+      S=secours.etat;
+      S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:'',derniereExport:0},S.settings);
+      S.logements.forEach(migrateLogement);
+      save(); render();
+      toast(n+' livret'+(n>1?'s':'')+' récupéré'+(n>1?'s':''));
+    },'Récupérer');
+}
+/* Un fichier .json est la seule copie qui survit à un effacement du navigateur. */
+function verifierRappelExport(){
+  const dernier=S.settings.derniereExport||0;
+  const jours=(Date.now()-dernier)/86400000;
+  if(dernier && jours<JOURS_AVANT_RAPPEL) return;
+  const el=document.createElement('div');
+  el.className='alerte-donnees rappel';
+  el.innerHTML=`<strong>Pensez à sauvegarder vos livrets.</strong>
+    ${dernier?`Dernière sauvegarde ${timeAgo(dernier)}.`:'Aucune sauvegarde à ce jour.'}
+    Un fichier est la seule copie qui survit à un effacement du navigateur.
+    <span class="actions"><button class="btn btn-sm" onclick="backupData();this.closest('.alerte-donnees').remove()">Sauvegarder</button>
+    <button class="btn btn-sm ghost" onclick="this.closest('.alerte-donnees').remove()">Plus tard</button></span>`;
+  document.body.appendChild(el);
+}
+
 /* Garde-fou anti-perte de données.
    Tant que la lecture initiale d'IndexedDB n'a pas RÉUSSI, on n'écrit rien :
    sinon une simple lecture ratée (Safari en navigation privée, base
@@ -2825,7 +2892,8 @@ function backupData(){
   a.href=URL.createObjectURL(blob);
   a.download=`smart-guide-sauvegarde-${new Date().toISOString().slice(0,10)}.json`;
   a.click(); URL.revokeObjectURL(a.href);
-  toast('Sauvegarde téléchargée');
+  S.settings.derniereExport=Date.now(); save();
+  toast('Sauvegarde téléchargée — conservez ce fichier');
 }
 function restoreData(file){
   if(!file) return;
@@ -2914,19 +2982,22 @@ function createDemo(){
 
 /* ---------------- Démarrage ---------------- */
 (async function init(){
-  let saved=null;
+  demanderStockagePersistant();   // exempte l'app de la purge automatique de Safari
+
+  let saved=null, secours=null;
   try{
-    saved=await dbGet('v1');
-    // La lecture a abouti (avec ou sans données) : l'écriture est autorisée.
-    chargementOK=true;
+    saved=await dbGet(CLE_PRINCIPALE);
+    chargementOK=true;            // la lecture a abouti, avec ou sans données
   }catch(e){
     console.warn('Lecture IndexedDB impossible', e);
     chargementOK=false;
   }
+  if(chargementOK){ try{ secours=await dbGet(CLE_SECOURS); }catch(e){} }
+
   if(chargementOK && saved && saved.logements){
     try{
       S=saved;
-      S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:''},S.settings);
+      S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:'',derniereExport:0},S.settings);
       S.logements.forEach(migrateLogement);
       // Les catégories devinées à la lecture sont réécrites une bonne fois en base.
       if(migrationsAppliquees) save();
@@ -2938,8 +3009,20 @@ function createDemo(){
     }
   }
   if(!chargementOK) bloquerEcriture();
+
   if(location.hash==='#exemple'&&!S.logements.some(x=>x.nom==="L'Escale Havraise")){ createDemo(); return; }
   render();
+  if(!chargementOK) return;
+
+  /* Récupération : la clé principale est vide alors que la copie de secours
+     contient des livrets — on ne restaure jamais en douce, on propose. */
+  if(!S.logements.length && secours && secours.etat && (secours.etat.logements||[]).length){
+    proposerRecuperation(secours);
+  } else if(S.logements.length){
+    // On fige l'état sain de ce démarrage, AVANT toute modification de la session.
+    ecrireSecours(S);
+    verifierRappelExport();
+  }
 })();
 
 </script>
