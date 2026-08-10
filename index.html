@@ -409,6 +409,14 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 /* Noms de guides : version longue par défaut, version courte sur téléphone. */
 .guide-court{display:none}
 
+/* Alerte de lecture impossible — écriture bloquée pour ne rien écraser. */
+.savebadge.bloque{color:#7E3A28;border-color:#E7C5B8;background:#F8EAE5}
+.savebadge.bloque .pulse{background:#B0523B}
+.alerte-donnees{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:600;
+  max-width:min(560px,calc(100vw - 24px));background:#7E3A28;color:#F7EDE9;border-radius:14px;
+  padding:14px 18px;font-size:13.5px;line-height:1.55;box-shadow:var(--sh-lg)}
+.alerte-donnees strong{display:block;margin-bottom:3px;font-weight:600}
+
 /* ---------- Tablette : la sidebar garde ses libellés, seules les grilles se resserrent ---------- */
 @media(max-width:880px){
   .sidebar{width:196px;padding:18px 10px 26px}
@@ -883,7 +891,27 @@ function setSaveBadge(state){
   if(state==='saving'){ b.className='savebadge saving'; b.innerHTML='<span class="pulse"></span><span class="txt">ENREGISTREMENT</span>'; }
   else { b.className='savebadge saved'; b.innerHTML='<span class="pulse"></span><span class="txt">ENREGISTRÉ</span>'; }
 }
+/* Garde-fou anti-perte de données.
+   Tant que la lecture initiale d'IndexedDB n'a pas RÉUSSI, on n'écrit rien :
+   sinon une simple lecture ratée (Safari en navigation privée, base
+   temporairement verrouillée, quota) ferait démarrer l'app à vide, et le premier
+   enregistrement écraserait définitivement des livrets bien présents en base. */
+let chargementOK=false, alerteLectureAffichee=false;
+function bloquerEcriture(){
+  const b=document.getElementById('savebadge');
+  if(b){ b.className='savebadge bloque'; b.innerHTML='<span class="pulse"></span><span class="txt">LECTURE IMPOSSIBLE</span>'; }
+  if(alerteLectureAffichee) return;
+  alerteLectureAffichee=true;
+  const el=document.createElement('div');
+  el.className='alerte-donnees';
+  el.innerHTML=`<strong>Vos livrets n'ont pas pu être lus sur cet appareil.</strong>
+    L'enregistrement est désactivé pour ne rien écraser. Rechargez la page.
+    Si le message revient, ne saisissez rien et prévenez votre conciergerie —
+    vos données sont probablement intactes.`;
+  document.body.appendChild(el);
+}
 function save(){
+  if(!chargementOK){ bloquerEcriture(); return; }
   clearTimeout(saveTimer); setSaveBadge('saving');
   saveTimer=setTimeout(()=>{
     dbSet('v1',S).then(()=>setSaveBadge('saved')).catch(e=>toast('Erreur de sauvegarde : '+e.message,true));
@@ -951,7 +979,7 @@ function topbar(inner=''){
       <div><div class="brand-name">Smart Guide</div><div class="brand-sub">LIVRETS &amp; GUIDES</div></div>
     </div>
     <div class="topbar-actions">
-      <span class="savebadge saved" id="savebadge"><span class="pulse"></span><span class="txt">ENREGISTRÉ</span></span>
+      <span class="savebadge ${chargementOK?'saved':'bloque'}" id="savebadge"><span class="pulse"></span><span class="txt">${chargementOK?'ENREGISTRÉ':'LECTURE IMPOSSIBLE'}</span></span>
       ${inner}
       <button class="btn btn-plain" onclick="go('settings')" title="Réglages">${I('gear',17)}</button>
     </div>
@@ -2886,16 +2914,30 @@ function createDemo(){
 
 /* ---------------- Démarrage ---------------- */
 (async function init(){
+  let saved=null;
   try{
-    const saved=await dbGet('v1');
-    if(saved&&saved.logements){
+    saved=await dbGet('v1');
+    // La lecture a abouti (avec ou sans données) : l'écriture est autorisée.
+    chargementOK=true;
+  }catch(e){
+    console.warn('Lecture IndexedDB impossible', e);
+    chargementOK=false;
+  }
+  if(chargementOK && saved && saved.logements){
+    try{
       S=saved;
       S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:''},S.settings);
       S.logements.forEach(migrateLogement);
       // Les catégories devinées à la lecture sont réécrites une bonne fois en base.
       if(migrationsAppliquees) save();
+    }catch(e){
+      // Une donnée inattendue ne doit jamais faire repartir l'app à vide :
+      // on garde ce qui a été lu et on interdit l'écriture.
+      console.error('Migration interrompue', e);
+      chargementOK=false;
     }
-  }catch(e){ console.warn('IndexedDB indisponible', e); }
+  }
+  if(!chargementOK) bloquerEcriture();
   if(location.hash==='#exemple'&&!S.logements.some(x=>x.nom==="L'Escale Havraise")){ createDemo(); return; }
   render();
 })();
