@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Smart Guide — Livrets d'accueil</title>
 <meta name="theme-color" content="#F5F2EB">
 <meta name="description" content="Créez des livrets d'accueil premium et multilingues pour vos locations — remplissage par IA, QR wifi, recommandations de quartier, exports PDF.">
@@ -33,6 +33,13 @@
   --sh-lg:0 4px 10px rgba(34,37,30,.06),0 24px 60px rgba(34,37,30,.13);
   --sh-glow:0 0 0 3.5px rgba(102,121,90,.15);
   --ease:cubic-bezier(.22,.9,.35,1);
+  /* Hauteur de la barre du haut : sert d'ancrage aux éléments collants. */
+  --tb:59px;
+  /* Encoche et barre d'accueil iOS en mode app installée (viewport-fit=cover). */
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -61,7 +68,8 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 @keyframes viewIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
 /* ---------- Topbar ---------- */
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 26px;
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:calc(13px + var(--safe-t)) calc(26px + var(--safe-r)) 13px calc(26px + var(--safe-l));
   border-bottom:1px solid var(--line);position:sticky;top:0;z-index:80;
   background:rgba(245,242,235,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .brand{display:flex;align-items:center;gap:11px;cursor:pointer;user-select:none}
@@ -166,7 +174,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 /* ---------- Éditeur ---------- */
 .editor{display:flex;flex:1;min-height:0}
 .sidebar{width:242px;flex:none;border-right:1px solid var(--line);padding:20px 13px 26px;display:flex;flex-direction:column;gap:2px;
-  position:sticky;top:59px;height:calc(100vh - 59px);overflow-y:auto;background:rgba(245,242,235,.6)}
+  position:sticky;top:calc(var(--tb) + var(--safe-t));height:calc(100vh - var(--tb) - var(--safe-t));overflow-y:auto;background:rgba(245,242,235,.6)}
 .side-progress{display:flex;align-items:center;gap:11px;padding:4px 11px 16px}
 .ring{position:relative;width:38px;height:38px;flex:none}
 .ring svg{transform:rotate(-90deg)}
@@ -202,6 +210,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .subcard{border:1px solid var(--line);background:var(--paper-warm);border-radius:11px;padding:13px;display:flex;flex-direction:column;gap:10px;transition:border-color .18s}
 .subcard:hover{border-color:var(--line-soft)}
 .inline-row{display:flex;align-items:center;gap:9px}
+.cat-select{width:158px;flex:none}
 .nav-btns{display:flex;justify-content:space-between;margin-top:20px}
 .ai-note{font-size:12.5px;color:var(--muted);line-height:1.5}
 .err{font-size:12.5px;color:var(--danger)}
@@ -372,7 +381,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 
 /* ---------- Aperçu ---------- */
 .preview-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 26px;border-bottom:1px solid var(--line);
-  background:rgba(245,242,235,.86);backdrop-filter:blur(14px);position:sticky;top:59px;z-index:70;flex-wrap:wrap}
+  background:rgba(245,242,235,.86);backdrop-filter:blur(14px);position:sticky;top:calc(var(--tb) + var(--safe-t));z-index:70;flex-wrap:wrap}
 .seg{display:inline-flex;background:var(--bg-deep);border-radius:10px;padding:3px;gap:2px}
 .seg button{font-size:12.5px;padding:6.5px 13px;border-radius:8px;color:var(--ink-soft);font-weight:500;transition:all .16s;display:inline-flex;align-items:center;gap:6px}
 .seg button:hover{color:var(--ink)}
@@ -397,20 +406,73 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 /* ---------- Réglages ---------- */
 .settings{max-width:660px;margin:0 auto;padding:46px 30px 90px;display:flex;flex-direction:column;gap:0}
 
+/* Noms de guides : version longue par défaut, version courte sur téléphone. */
+.guide-court{display:none}
+
+/* ---------- Tablette : la sidebar garde ses libellés, seules les grilles se resserrent ---------- */
 @media(max-width:880px){
-  .sidebar{width:62px;padding:16px 8px}
-  .side-item span.lb,.side-num,.side-progress .txts{display:none}
-  .side-progress{justify-content:center;padding:2px 0 14px}
-  .side-item{justify-content:center;padding:9px 0}
-  .side-item .dot{position:absolute;top:6px;right:8px;margin:0}
-  .editor-main{padding:22px 16px 90px}
+  .sidebar{width:196px;padding:18px 10px 26px}
+  .side-item{padding:8px 9px;font-size:13px;gap:8px}
+  .editor-main{padding:26px 20px 90px}
   .row-2,.tpl-grid{grid-template-columns:1fr}
   .photo-grid,.cover-styles{grid-template-columns:repeat(2,1fr)}
-  .dash{padding:30px 18px 70px}
+  .dash{padding:34px 22px 80px}
+}
+
+/* ---------- Téléphone ----------
+   La sidebar verticale devient une barre d'onglets horizontale défilable :
+   sur 375px une colonne d'icônes muettes ne dit pas au gérant où il se trouve.
+   Les libellés des boutons cèdent la place aux icônes seules, titrées. */
+@media(max-width:700px){
+  :root{ --tb:56px }
+
+  .topbar{padding:calc(8px + var(--safe-t)) calc(12px + var(--safe-r)) 8px calc(12px + var(--safe-l));gap:8px;min-height:calc(56px + var(--safe-t))}
+  .brand-name,.brand-sub{display:none}
+  .savebadge{padding:6px;gap:0}
+  .savebadge .txt{display:none}
+  .topbar-actions{gap:5px}
+  .topbar-actions .btn{padding:9px 10px}
+  .btn .lbl{display:none}
+
+  .editor{flex-direction:column}
+  .sidebar{width:100%;height:auto;flex-direction:row;align-items:center;gap:6px;
+    padding:8px calc(12px + var(--safe-r)) 8px calc(12px + var(--safe-l));
+    border-right:none;border-bottom:1px solid var(--line);
+    overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    background:rgba(245,242,235,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .sidebar::-webkit-scrollbar{display:none}
+  .side-progress{display:none}
+  .side-num{display:none}
+  .side-item{flex:none;width:auto;padding:0 14px;min-height:38px;border-radius:99px;gap:7px;font-size:12.5px;white-space:nowrap}
+  .side-item .dot{margin-left:1px;width:5px;height:5px}
+  .editor-main{padding:20px 14px calc(80px + var(--safe-b))}
+
+  .preview-bar{padding:9px calc(12px + var(--safe-r)) 9px calc(12px + var(--safe-l));gap:8px}
+  .preview-bar>div{max-width:100%;overflow-x:auto;scrollbar-width:none}
+  .preview-bar>div::-webkit-scrollbar{display:none}
+  /* Cibles tactiles : 44px de haut minimum, recommandation Apple comme Google. */
+  .preview-bar .btn{padding:0 13px;min-height:44px}
+  .seg button{padding:0 11px;min-height:38px;font-size:12px}
+  .topbar-actions .btn{padding:0 11px;min-height:44px}
+  .guide-long{display:none}
+  .guide-court{display:inline}
+
+  .dash{padding:26px calc(16px + var(--safe-l)) calc(70px + var(--safe-b))}
+  .preview-wrap{padding-bottom:calc(60px + var(--safe-b))}
+  .modal{padding:22px 18px}
+  .lib-modal{max-height:90vh}
+
   /* Zone de tap confortable au pouce : l'en-tête reste à ~56px de haut. */
   .acc-head{gap:10px;padding:12px 12px}
   .acc-ico{width:32px;height:32px;border-radius:10px}
   .acc-body{padding:3px 12px 13px}
+
+  /* Sur 375px, un sélecteur et une zone de texte côte à côte s'écrasent
+     mutuellement : les lignes de saisie passent en colonne. */
+  .inline-row{flex-wrap:wrap}
+  .cat-select{width:100%}
+  .subcard .inline-row>.input:not(.cat-select){min-width:0;flex:1 1 140px}
+  .subcard .textarea{flex:1 1 100%}
 }
 
 /* ---------- Impression ---------- */
@@ -661,10 +723,10 @@ const CATS = [
 ];
 const catOf = id => CATS.find(c=>c.id===id) || CATS[0];
 const GUIDES = [
-  { id:'complet', label:'Livret complet',   sections:['cover','essentials','arrivee','wifi','equipements','reglement','quartier','galerie','depart','faq','urgences','contacts'] },
-  { id:'arrivee', label:"Guide d'arrivée",  sections:['cover','arrivee','wifi','contacts'] },
-  { id:'depart',  label:'Guide de départ',  sections:['cover','depart','contacts'] },
-  { id:'maison',  label:'Guide maison',     sections:['cover','wifi','equipements','reglement','faq','urgences','contacts'] },
+  { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','essentials','arrivee','wifi','equipements','reglement','quartier','galerie','depart','faq','urgences','contacts'] },
+  { id:'arrivee', label:"Guide d'arrivée",  court:'Arrivée', sections:['cover','arrivee','wifi','contacts'] },
+  { id:'depart',  label:'Guide de départ',  court:'Départ',  sections:['cover','depart','contacts'] },
+  { id:'maison',  label:'Guide maison',     court:'Maison',  sections:['cover','wifi','equipements','reglement','faq','urgences','contacts'] },
 ];
 const MODELS = [
   { id:'claude-haiku-4-5',  label:'Claude Haiku — rapide & très économique (recommandé)' },
@@ -818,8 +880,8 @@ let route = { view:'dash', id:null, section:'infos', guide:'complet', device:'pa
 let saveTimer=null, saveBadgeTimer=null;
 function setSaveBadge(state){
   const b=document.getElementById('savebadge'); if(!b) return;
-  if(state==='saving'){ b.className='savebadge saving'; b.innerHTML='<span class="pulse"></span>ENREGISTREMENT'; }
-  else { b.className='savebadge saved'; b.innerHTML='<span class="pulse"></span>ENREGISTRÉ'; }
+  if(state==='saving'){ b.className='savebadge saving'; b.innerHTML='<span class="pulse"></span><span class="txt">ENREGISTREMENT</span>'; }
+  else { b.className='savebadge saved'; b.innerHTML='<span class="pulse"></span><span class="txt">ENREGISTRÉ</span>'; }
 }
 function save(){
   clearTimeout(saveTimer); setSaveBadge('saving');
@@ -889,7 +951,7 @@ function topbar(inner=''){
       <div><div class="brand-name">Smart Guide</div><div class="brand-sub">LIVRETS &amp; GUIDES</div></div>
     </div>
     <div class="topbar-actions">
-      <span class="savebadge saved" id="savebadge"><span class="pulse"></span>ENREGISTRÉ</span>
+      <span class="savebadge saved" id="savebadge"><span class="pulse"></span><span class="txt">ENREGISTRÉ</span></span>
       ${inner}
       <button class="btn btn-plain" onclick="go('settings')" title="Réglages">${I('gear',17)}</button>
     </div>
@@ -1038,9 +1100,9 @@ function renderEditor(){
   const l=cur(); if(!l){ go('dash'); return; }
   const idx=SECTIONS.findIndex(s=>s.id===route.section);
   app.innerHTML = topbar(`
-    <button class="btn btn-plain" onclick="logementMenuTop(event)" title="Options">${I('dots',16)}</button>
-    <button class="btn btn-ghost" onclick="go('dash')">${I('back',14)} Mes logements</button>
-    <button class="btn btn-dark" onclick="go('preview')">${I('eye',14)} Aperçu &amp; export</button>
+    <button class="btn btn-plain" onclick="logementMenuTop(event)" title="Options" aria-label="Options">${I('dots',16)}</button>
+    <button class="btn btn-ghost" onclick="go('dash')" title="Mes logements" aria-label="Mes logements">${I('back',14)} <span class="lbl">Mes logements</span></button>
+    <button class="btn btn-dark" onclick="go('preview')" title="Aperçu et export" aria-label="Aperçu et export">${I('eye',14)} <span class="lbl">Aperçu &amp; export</span></button>
   `) + `
   <div class="editor">
     <div class="sidebar no-print" id="side-host">${sidebarHTML(l)}</div>
@@ -1350,7 +1412,7 @@ function changerCat(arrPath, i, cle, valeur){
   renderCard();
 }
 const selectCat = (arrPath, i, valeurCourante, cats, cle) => `
-  <select class="input" style="width:158px;flex:none" title="Catégorie" onchange="changerCat('${arrPath}',${i},'${cle}',this.value)">
+  <select class="input cat-select" title="Catégorie" onchange="changerCat('${arrPath}',${i},'${cle}',this.value)">
     ${cats.map(c=>`<option value="${esc(c.id)}" ${valeurCourante===c.id?'selected':''}>${esc(c.id)}</option>`).join('')}
   </select>`;
 
@@ -2574,11 +2636,11 @@ function previewBarHTML(l){
   return `
     <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
       <div class="seg">
-        ${GUIDES.map(g=>`<button class="${route.guide===g.id?'on':''}" onclick="route.guide='${g.id}';renderLivret()">${g.label}</button>`).join('')}
+        ${GUIDES.map(g=>`<button class="${route.guide===g.id?'on':''}" onclick="route.guide='${g.id}';renderLivret()" title="${esc(g.label)}"><span class="guide-long">${g.label}</span><span class="guide-court">${g.court}</span></button>`).join('')}
       </div>
       <div class="seg">
-        <button class="${route.device==='paper'?'on':''}" onclick="route.device='paper';renderLivret()" title="Vue papier / PDF">${I('filetext',13)} Papier</button>
-        <button class="${route.device==='phone'?'on':''}" onclick="route.device='phone';renderLivret()" title="Vue téléphone">${I('smartphone',13)} Mobile</button>
+        <button class="${route.device==='paper'?'on':''}" onclick="route.device='paper';renderLivret()" title="Vue papier / PDF" aria-label="Vue papier">${I('filetext',13)} <span class="lbl">Papier</span></button>
+        <button class="${route.device==='phone'?'on':''}" onclick="route.device='phone';renderLivret()" title="Vue téléphone" aria-label="Vue téléphone">${I('smartphone',13)} <span class="lbl">Mobile</span></button>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -2587,10 +2649,10 @@ function previewBarHTML(l){
         <button id="lang-btn" onclick="langMenu(event)" title="Traduire le livret">${I('lang',13)} +</button>
       </div>
       <div class="seg">${TEMPLATES.map(t=>`<button title="${t.nom}" class="${l.templateId===t.id?'on':''}" onclick="setPath('templateId','${t.id}');renderLivret()"><span style="display:inline-block;width:12px;height:12px;border-radius:99px;background:${t.accent};vertical-align:-1.5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)"></span></button>`).join('')}</div>
-      <button class="btn btn-ghost" onclick="runAudit()" id="audit-btn" title="L'IA relit votre livret">${I('shield',14)} Audit</button>
-      <button class="btn btn-ghost" onclick="openPosters()">${I('printer',14)} Affichettes</button>
-      <button class="btn btn-ghost" onclick="exportHTML()">${I('download',14)} Fichier</button>
-      <button class="btn btn-dark" onclick="exportPDF()">${I('printer',14)} Imprimer / PDF</button>
+      <button class="btn btn-ghost" onclick="runAudit()" id="audit-btn" title="L'IA relit votre livret" aria-label="Audit du livret">${I('shield',14)} <span class="lbl">Audit</span></button>
+      <button class="btn btn-ghost" onclick="openPosters()" title="Affichettes à poser" aria-label="Affichettes">${I('printer',14)} <span class="lbl">Affichettes</span></button>
+      <button class="btn btn-ghost" onclick="exportHTML()" title="Exporter en fichier HTML" aria-label="Exporter en fichier">${I('download',14)} <span class="lbl">Fichier</span></button>
+      <button class="btn btn-dark" onclick="exportPDF()" title="Imprimer ou enregistrer en PDF" aria-label="Imprimer ou PDF">${I('printer',14)} <span class="lbl">Imprimer / PDF</span></button>
     </div>`;
 }
 function deviceHTML(l){
@@ -2611,7 +2673,7 @@ function renderLivret(){
 function renderPreview(){
   const l=cur(); if(!l){ go('dash'); return; }
   if(route.lang!=='fr'&&!l.translations[route.lang]) route.lang='fr';
-  app.innerHTML = topbar(`<button class="btn btn-ghost" onclick="go('edit')">${I('back',14)} Retour à l'atelier</button>`) + `
+  app.innerHTML = topbar(`<button class="btn btn-ghost" onclick="go('edit')" title="Retour à l'atelier" aria-label="Retour à l'atelier">${I('back',14)} <span class="lbl">Retour à l'atelier</span></button>`) + `
   <div class="preview-bar no-print" id="pbar-host">${previewBarHTML(l)}</div>
   <div class="preview-wrap view">
     <div class="device ${route.device}" id="livret-host">${deviceHTML(l)}</div>
