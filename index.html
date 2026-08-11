@@ -735,15 +735,25 @@ const urgCatDuLabel  = lab => URG_INDEX.get(norm(lab))   || URG_AUTRES;
 const equipCatConnue = c => EQUIP_CATS.some(x=>x.id===c) ? c : EQUIP_AUTRES;
 const urgCatConnue   = c => URG_CATS.some(x=>x.id===c)   ? c : URG_AUTRES;
 
+/* Catégories du quartier. Les identifiants d'origine sont CONSERVÉS pour que
+   les adresses déjà enregistrées restent valides : « cafe » devient
+   « Café / Bar » et « activite » devient « Lieux touristiques » — le libellé
+   change, la donnée non. Seuls « musee » et « autre » sont nouveaux. */
 const CATS = [
-  { id:'restaurant', label:'Restaurant', icon:'food' },
-  { id:'cafe',       label:'Café',       icon:'coffee' },
-  { id:'commerce',   label:'Commerce',   icon:'bag' },
-  { id:'transport',  label:'Transport',  icon:'train' },
-  { id:'sante',      label:'Santé',      icon:'med' },
-  { id:'activite',   label:'Activité',   icon:'leaf' },
+  { id:'restaurant', label:'Restaurant',         icon:'food' },
+  { id:'cafe',       label:'Café / Bar',         icon:'coffee' },
+  { id:'commerce',   label:'Commerce',           icon:'bag' },
+  { id:'transport',  label:'Transport',          icon:'train' },
+  { id:'sante',      label:'Santé',              icon:'med' },
+  { id:'musee',      label:'Musée / Culture',    icon:'book' },
+  { id:'activite',   label:'Lieux touristiques', icon:'leaf' },
+  { id:'autre',      label:'Autres',             icon:'pin' },
 ];
-const catOf = id => CATS.find(c=>c.id===id) || CATS[0];
+const RECO_AUTRE='autre';
+/* Une catégorie inconnue retombe sur « Autres », jamais sur la première de la
+   liste : une adresse mal étiquetée ne doit pas se retrouver en « Restaurant ». */
+const recoCatConnue = c => CATS.some(x=>x.id===c) ? c : RECO_AUTRE;
+const catOf = id => CATS.find(c=>c.id===id) || CATS.find(c=>c.id===RECO_AUTRE);
 const GUIDES = [
   { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','essentials','arrivee','wifi','equipements','reglement','quartier','galerie','depart','faq','urgences','contacts'] },
   { id:'arrivee', label:"Guide d'arrivée",  court:'Arrivée', sections:['cover','arrivee','wifi','contacts'] },
@@ -800,6 +810,13 @@ const CAT_L10N = {
   'Extérieur':                  { en:'Outdoor', es:'Exterior', de:'Außenbereich', it:'Esterno' },
   'Pratique':                   { en:'Practical', es:'Práctico', de:'Praktisches', it:'Pratico' },
   'Autres équipements':         { en:'Other amenities', es:'Otros equipamientos', de:'Weitere Ausstattung', it:'Altre dotazioni' },
+  'Restaurant':                 { en:'Restaurants', es:'Restaurantes', de:'Restaurants', it:'Ristoranti' },
+  'Café / Bar':                 { en:'Cafés & bars', es:'Cafés y bares', de:'Cafés & Bars', it:'Caffè e bar' },
+  'Commerce':                   { en:'Shops', es:'Comercios', de:'Geschäfte', it:'Negozi' },
+  'Transport':                  { en:'Transport', es:'Transporte', de:'Verkehr', it:'Trasporti' },
+  'Santé':                      { en:'Health', es:'Salud', de:'Gesundheit', it:'Salute' },
+  'Musée / Culture':            { en:'Museums & culture', es:'Museos y cultura', de:'Museen & Kultur', it:'Musei e cultura' },
+  'Lieux touristiques':         { en:'Sights', es:'Lugares turísticos', de:'Sehenswürdigkeiten', it:'Luoghi turistici' },
   'Numéros d\'urgence':         { en:'Emergency numbers', es:'Números de emergencia', de:'Notrufnummern', it:'Numeri di emergenza' },
   'Incidents dans le logement': { en:'Issues in the flat', es:'Incidencias en el alojamiento', de:'Probleme in der Unterkunft', it:'Problemi nell\'alloggio' },
   'Autres':                     { en:'Other', es:'Otros', de:'Sonstiges', it:'Altro' },
@@ -883,6 +900,13 @@ function migrateLogement(l){
   if(Array.isArray(l.urgences)) l.urgences.forEach(u=>{
     const c=u.cat?urgCatConnue(u.cat):urgCatDuLabel(u.label);
     if(u.cat!==c){ u.cat=c; migrationsAppliquees++; }
+  });
+  // v4 : les catégories du quartier gagnent « Musée / Culture » et « Autres ».
+  // Les identifiants existants restent valides, donc aucune adresse ne bouge ;
+  // seule une valeur inconnue serait ramenée sur « Autres ».
+  if(Array.isArray(l.recos)) l.recos.forEach(r=>{
+    const c=recoCatConnue(r.cat);
+    if(r.cat!==c){ r.cat=c; migrationsAppliquees++; }
   });
   // v2.1 : les instructions de départ faisaient doublon avec la check-list → fusion
   if(l.depart && l.depart.instructions){
@@ -1844,7 +1868,7 @@ function addFromLib(){
   l.translations={}; touch(l); closeModal(); renderCard();
   toast(n+' équipement'+(n>1?'s':'')+' ajouté'+(n>1?'s':'')+' — relisez les instructions');
 }
-const PREFIXE_ACC={ equipements:'eq:', urgences:'urg:' };
+const PREFIXE_ACC={ equipements:'eq:', urgences:'urg:', recos:'reco:' };
 function pushArr(arrPath,item){
   const l=cur(); const arr=arrPath.split('.').reduce((o,k)=>o[k],l); arr.push(item);
   // Ajout manuel dans une section groupée : on déplie la catégorie d'arrivée.
@@ -1886,7 +1910,7 @@ function changerCat(arrPath, i, cle, valeur){
 }
 const selectCat = (arrPath, i, valeurCourante, cats, cle) => `
   <select class="input cat-select" title="Catégorie" onchange="changerCat('${arrPath}',${i},'${cle}',this.value)">
-    ${cats.map(c=>`<option value="${esc(c.id)}" ${valeurCourante===c.id?'selected':''}>${esc(c.id)}</option>`).join('')}
+    ${cats.map(c=>`<option value="${esc(c.id)}" ${valeurCourante===c.id?'selected':''}>${esc(c.label||c.id)}</option>`).join('')}
   </select>`;
 
 function equipementsParCategorie(l){
@@ -2200,22 +2224,29 @@ let osmState={ loading:false, results:[], cats:['restaurant','transport'], radiu
 
 /* Liste des adresses retenues — isolée pour être rafraîchie seule, sans démonter
    le conteneur .osm-res (qui porte, lui, sa propre position de défilement). */
+/* Les adresses retenues, regroupées par catégorie en accordéons. Le regroupement
+   se fait sur le champ `cat` PERSISTÉ, jamais sur une déduction d'affichage :
+   renommer une adresse ne la déplace pas. Une catégorie sans adresse n'apparaît
+   pas — « Autres » comprise. */
 function recosListHTML(l){
   if(!l.recos.length) return '';
-  return `<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:17px">
-      ${l.recos.map((r,i)=>{ const c=catOf(r.cat); return `
-      <div class="subcard">
-        <div class="inline-row">
-          <div class="osm-ico">${I(c.icon,14)}</div>
-          <input class="input" placeholder="Nom de l'adresse" value="${esc(r.nom)}" oninput="setArr('recos',${i},'nom',this.value)">
-          <select class="input" style="width:132px;flex:none" onchange="setArr('recos',${i},'cat',this.value)">
-            ${CATS.map(cc=>`<option value="${cc.id}" ${r.cat===cc.id?'selected':''}>${cc.label}</option>`).join('')}
-          </select>
-          <button class="icon-x" onclick="rmArr('recos',${i})">${I('x',15)}</button>
-        </div>
-        <textarea class="textarea" rows="2" placeholder="Pourquoi cette adresse, distance à pied…" oninput="setArr('recos',${i},'desc',this.value)">${esc(r.desc)}</textarea>
-      </div>`;}).join('')}
-    </div>`;
+  return `<div style="margin-bottom:17px">${
+    grouperParCat(l.recos, CATS, recoCatConnue).map(c=>accordeon({
+      cle:'reco:'+c.id, icon:c.icon, titre:c.label, badge:String(c.entrees.length),
+      corps:`<div style="display:flex;flex-direction:column;gap:10px">
+        ${c.entrees.map(({item:r,i})=>`
+        <div class="subcard">
+          <div class="inline-row">
+            <input class="input" placeholder="Nom de l'adresse" value="${esc(r.nom)}" oninput="setArr('recos',${i},'nom',this.value)">
+            <button class="icon-x" onclick="rmArr('recos',${i})">${I('x',15)}</button>
+          </div>
+          <div class="inline-row">
+            ${selectCat('recos',i,recoCatConnue(r.cat),CATS.map(x=>({id:x.id,label:x.label})),'reco:')}
+            <textarea class="textarea" rows="2" placeholder="Pourquoi cette adresse, distance à pied…" oninput="setArr('recos',${i},'desc',this.value)">${esc(r.desc)}</textarea>
+          </div>
+        </div>`).join('')}
+      </div>`
+    })).join('')}</div>`;
 }
 function renderQuartier(l){
   return card('07','Dans le quartier','Adresses recommandées aux voyageurs — recherche automatique autour du logement',`
@@ -2291,7 +2322,8 @@ const OSM_FILTERS = {
   commerce:['["shop"~"supermarket|bakery|convenience|greengrocer|butcher"]'],
   transport:['["highway"="bus_stop"]','["railway"~"station|tram_stop|subway_entrance"]'],
   sante:['["amenity"~"pharmacy|doctors|hospital"]'],
-  activite:['["tourism"~"attraction|museum|viewpoint"]','["leisure"~"park|beach_resort"]'],
+  musee:['["tourism"~"museum|gallery"]','["amenity"~"theatre|arts_centre"]'],
+  activite:['["tourism"~"attraction|viewpoint"]','["leisure"~"park|beach_resort"]'],
 };
 function haversine(a,b,c,d){ const R=6371e3,p=Math.PI/180; const x=(c-a)*p/2,y=(d-b)*p/2;
   const h=Math.sin(x)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y)**2; return Math.round(2*R*Math.asin(Math.sqrt(h))); }
@@ -2316,6 +2348,7 @@ async function searchOSM(){
       else if(t.shop) cat='commerce';
       else if(t.highway==='bus_stop'||t.railway) cat='transport';
       else if(/pharmacy|doctors|hospital/.test(t.amenity||'')) cat='sante';
+      else if(/museum|gallery/.test(t.tourism||'')||/theatre|arts_centre/.test(t.amenity||'')) cat='musee';
       const lat=e.lat??e.center?.lat, lon=e.lon??e.center?.lon;
       const dist=haversine(g.lat,g.lon,lat,lon);
       let detail=t.cuisine?t.cuisine.split(';')[0].replace(/_/g,' '):(t.railway?'gare / arrêt':(t.shop||''));
@@ -2336,13 +2369,16 @@ function osmReco(r){
 /* On met à jour la ligne cliquée et la liste retenue, jamais le conteneur de résultats :
    le gérant peut enchaîner les ajouts sans que la liste ne se replace. */
 function addOSM(i, btn){
-  const l=cur(); l.recos.push(osmReco(osmState.results[i]));
+  const l=cur(); const reco=osmReco(osmState.results[i]);
+  l.recos.push(reco);
+  accSet('reco:'+recoCatConnue(reco.cat), true);   // le gérant voit où l'adresse est rangée
   l.translations={}; touch(l);
   markOsmAdded(btn); refreshRecos();
 }
 function addAllOSM(){
   const l=cur(); let n=0;
-  osmState.results.forEach(r=>{ if(!l.recos.some(x=>x.osmId===r.osmId)){ l.recos.push(osmReco(r)); n++; } });
+  osmState.results.forEach(r=>{ if(!l.recos.some(x=>x.osmId===r.osmId)){
+    const reco=osmReco(r); l.recos.push(reco); accSet('reco:'+recoCatConnue(reco.cat), true); n++; } });
   l.translations={}; touch(l);
   document.querySelectorAll('.osm-res .add').forEach(markOsmAdded); refreshRecos();
   toast(n+' adresse'+(n>1?'s':'')+' ajoutée'+(n>1?'s':''));
@@ -2736,19 +2772,25 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </ul></div>
   </section>`;
 
-  if(has('quartier')&&l.recos.length) out+=`<section>${secTitle('compass',X.quartier)}
-    <div style="display:flex;flex-direction:column;gap:9px">
-      ${l.recos.filter(r=>r.nom).map(r=>{ const c=catOf(r.cat); return `
-      <div style="display:flex;gap:13px;background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
-        <div style="width:34px;height:34px;border-radius:10px;background:${t.accentSoft};color:${t.accent};display:flex;align-items:center;justify-content:center;flex:none">${I(c.icon,15)}</div>
+  /* Un accordéon par catégorie. Le libellé de catégorie porte désormais
+     l'information, il n'est plus répété sur chaque ligne. */
+  if(has('quartier')&&l.recos.some(r=>r.nom)){
+    const ligneReco=r=>`
+      <div style="display:flex;gap:13px">
         <div style="flex:1;min-width:0">
-          <p style="font-size:14px;font-weight:600">${esc(r.nom)} <span style="${mono};font-size:9px;letter-spacing:.07em;text-transform:uppercase;opacity:.45;margin-left:4px">${c.label}</span></p>
+          <p style="font-size:14px;font-weight:600">${esc(r.nom)}</p>
           ${r.desc?`<p style="font-size:13px;opacity:.72;line-height:1.6;margin-top:1px">${esc(r.desc)}</p>`:''}
-          ${r.mapsUrl?`<a href="${esc(r.mapsUrl)}" target="_blank" style="font-size:12px;color:${t.accent};text-decoration:none;display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-weight:500"><span style="line-height:0">${I('pin',11)}</span>${X.itineraire}</a>`:''}
+          ${r.mapsUrl?`<a href="${esc(r.mapsUrl)}" target="_blank" rel="noopener" style="font-size:12px;color:${t.accent};text-decoration:none;display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-weight:500"><span style="line-height:0">${I('pin',11)}</span>${X.itineraire}</a>`:''}
         </div>
-      </div>`;}).join('')}
+      </div>`;
+    out+=`<section>${secTitle('compass',X.quartier)}
+    <div>
+      ${grouperParCat(l.recos.filter(r=>r.nom), CATS, recoCatConnue).map(c=>
+        lvacc(c.icon, catL10N(c.label,lang), String(c.entrees.length),
+              c.entrees.map(({item:r})=>ligneReco(r)).join(''))).join('')}
     </div>
   </section>`;
+  }
 
   if(has('galerie')&&gallery.length) out+=`<section>${secTitle('image',X.images)}
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
