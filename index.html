@@ -1114,13 +1114,42 @@ function authMessage(txt,erreur){
    • livret local nettement plus pauvre que sa version en ligne → on s'arrête et
      on demande, après avoir mis la version en ligne à l'abri dans livret_backups. */
 let syncEnCours=false, syncTimer=null, syncEtat='inactif';
-const snapshotFait=new Set();
-const SEUIL_APPAUVRI=0.7;   // sous 70 % de la taille distante, on parle d'appauvrissement
+const dernierSnapshot=new Map();          // livret distant → dernier instantané (ms)
+const SEUIL_APPAUVRI=0.7;                 // sous 70 % du poids distant : appauvrissement
+const DELAI_SNAPSHOT=10*60*1000;          // au plus un instantané toutes les 10 min par livret
+const GRACE_SAISIE=6000;                  // on ne touche à rien pendant 6 s après la dernière frappe
 
 const poidsLivret = o => { try{ return JSON.stringify(o).length; }catch(e){ return 0; } };
 
+/* --- Détection de saisie ---------------------------------------------------
+   Une donnée qu'on est en train d'écrire n'est jamais périmée. Tant que le
+   gérant a le curseur dans un champ, ou qu'il vient de frapper, aucune
+   modification descendante n'est appliquée : elle est REPORTÉE. */
+let derniereFrappe=0;
+function champEditable(el){
+  return !!el && (el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT'||el.isContentEditable);
+}
+function saisieEnCours(){
+  return champEditable(document.activeElement) || (Date.now()-derniereFrappe < GRACE_SAISIE);
+}
+document.addEventListener('input', ()=>{ derniereFrappe=Date.now(); }, true);
+document.addEventListener('focusin', e=>{ if(champEditable(e.target)) derniereFrappe=Date.now(); }, true);
+
+/* --- Référence de comparaison ----------------------------------------------
+   On ne compare JAMAIS une heure serveur à une heure client. Le serveur
+   horodate le moment de l'ÉCRITURE, forcément postérieur à la frappe qui l'a
+   déclenchée — le distant paraîtrait donc toujours plus récent, et le contenu
+   qu'on vient de pousser redescendrait en écrasant la saisie en cours.
+   On mémorise à la place, pour chaque livret : l'updated_at renvoyé par le
+   serveur après NOTRE écriture, et l'updatedAt local qui a été poussé. */
+function metaSync(){ S.sync=S.sync||{}; return S.sync; }
+function noterMeta(localId, updatedAtDistant, updatedAtLocal){
+  metaSync()[localId]={ distant:updatedAtDistant||null, pousse:updatedAtLocal||0 };
+}
+
 /* --- Décision pure : ne touche à rien, donc entièrement testable isolément --- */
-function planSynchro(locaux, distants){
+function planSynchro(locaux, distants, meta){
+  meta=meta||{};
   const parLocal=new Map(distants.filter(d=>d.local_id).map(d=>[d.local_id,d]));
   const idsLocaux=new Set(locaux.map(l=>l.id));
   const plan={ descendre:[], monter:[], majDistant:[], majLocal:[], appauvris:[], motifBlocage:null };
@@ -1135,12 +1164,16 @@ function planSynchro(locaux, distants){
   for(const l of locaux){
     const d=parLocal.get(l.id);
     if(!d){ plan.monter.push(l); continue; }
-    const tLocal=l.updatedAt||0, tDistant=Date.parse(d.updated_at)||0;
-    if(tLocal>tDistant){
+    const m=meta[l.id]||{distant:null,pousse:0};
+    const localModifie   = (l.updatedAt||0) > (m.pousse||0);
+    const distantModifie = d.updated_at !== m.distant;
+    if(localModifie){
+      /* Le gérant est prioritaire sur sa propre saisie, même si le distant a
+         bougé : on pousse, après avoir mis la version distante à l'abri. */
       const pl=poidsLivret(l), pd=poidsLivret(d.data);
       if(pd>0 && pl < pd*SEUIL_APPAUVRI) plan.appauvris.push({l,d,pl,pd});
       else plan.majDistant.push({l,d});
-    } else if(tDistant>tLocal){
+    } else if(distantModifie){
       plan.majLocal.push(d);
     }
   }
@@ -1157,14 +1190,22 @@ async function cloudSnapshot(distant){
   try{ await sb.from('livret_backups').insert({livret_id:distant.id, owner_id:compte.id, data:distant.data}); }catch(e){}
 }
 async function cloudInserer(l){
-  const {error}=await sb.from('livrets').insert({owner_id:compte.id, local_id:l.id, nom:l.nom||'', data:l});
+  const {data,error}=await sb.from('livrets')
+    .insert({owner_id:compte.id, local_id:l.id, nom:l.nom||'', data:l})
+    .select('updated_at').single();
   if(error) throw error;
+  noterMeta(l.id, data.updated_at, l.updatedAt||0);
 }
 async function cloudMettreAJour(distant,l){
-  // Une copie de la version en ligne part TOUJOURS avant de l'écraser.
-  if(!snapshotFait.has(distant.id)){ await cloudSnapshot(distant); snapshotFait.add(distant.id); }
-  const {error}=await sb.from('livrets').update({nom:l.nom||'', data:l}).eq('id',distant.id);
+  // Une copie de la version en ligne part avant de l'écraser, au plus une fois
+  // par tranche de 10 minutes pour ne pas saturer l'historique.
+  const vu=dernierSnapshot.get(distant.id)||0;
+  if(Date.now()-vu > DELAI_SNAPSHOT){ await cloudSnapshot(distant); dernierSnapshot.set(distant.id, Date.now()); }
+  const {data,error}=await sb.from('livrets')
+    .update({nom:l.nom||'', data:l}).eq('id',distant.id)
+    .select('updated_at').single();
   if(error) throw error;
+  noterMeta(l.id, data.updated_at, l.updatedAt||0);
 }
 async function cloudSupprimer(localId){
   if(!sb||!compte) return;
@@ -1178,28 +1219,71 @@ function integrerLivretDistant(d){
   migrateLogement(l);
   const i=S.logements.findIndex(x=>x.id===l.id);
   if(i>=0) S.logements[i]=l; else S.logements.unshift(l);
+  noterMeta(l.id, d.updated_at, l.updatedAt||0);   // évite de le repousser aussitôt
+  return l.id;
 }
+/* Écriture locale qui ne relance PAS la synchro : sans ça, save() replanifie une
+   synchro qui rappelle save(), et l'app boucle toutes les 4 secondes. */
+function persisterSansSync(){ try{ dbSet(CLE_PRINCIPALE,S); }catch(e){} }
+
+/* Rendu ciblé après une descente. Jamais render() : c'est le rendu global qui
+   réécrit app.innerHTML, détruit le champ en cours d'édition et fait perdre le
+   focus — exactement le défaut corrigé au lot 1. */
+function rafraichirApresSync(idsTouches){
+  avecFocusPreserve(()=>{
+    if(route.view==='dash'){ renderDash(); return; }
+    if(route.view==='edit'){
+      if(idsTouches.has(route.id)) renderCard(); else refreshSidebar();
+      return;
+    }
+    if(route.view==='preview' && idsTouches.has(route.id)) renderLivret();
+  });
+}
+function avecFocusPreserve(fn){
+  const a=document.activeElement;
+  const marque=champEditable(a) ? (a.id || a.getAttribute('oninput') || a.getAttribute('placeholder') || null) : null;
+  const deb=marque?a.selectionStart:null, fin=marque?a.selectionEnd:null;
+  fn();
+  if(!marque) return;
+  const n=document.getElementById(marque)
+      || [...document.querySelectorAll('input,textarea,select')]
+           .find(x=>x.getAttribute('oninput')===marque||x.getAttribute('placeholder')===marque);
+  if(!n) return;
+  try{ n.focus({preventScroll:true}); if(deb!=null&&n.setSelectionRange) n.setSelectionRange(deb,fin); }catch(e){}
+}
+
 async function synchroniser({silencieux=false}={}){
   if(!sb||!compte||syncEnCours||!chargementOK) return;
   syncEnCours=true; syncEtat='en-cours'; majEtatSync();
   try{
     const distants=await cloudLire();
-    const plan=planSynchro(S.logements, distants);
+    const plan=planSynchro(S.logements, distants, metaSync());
 
-    plan.descendre.forEach(integrerLivretDistant);
-    plan.majLocal.forEach(integrerLivretDistant);
-
+    /* MONTANT — n'écrit rien à l'écran, donc jamais bloqué par la saisie. */
     if(plan.motifBlocage!=='local-vide'){
-      for(const l of plan.monter)        await cloudInserer(l);
+      for(const l of plan.monter)         await cloudInserer(l);
       for(const {l,d} of plan.majDistant) await cloudMettreAJour(d,l);
     }
 
-    if(plan.descendre.length||plan.majLocal.length){ save(); render(); }
-    S.settings.derniereSynchro=Date.now(); save();
-    syncEtat='ok'; majEtatSync();
+    /* DESCENDANT — jamais pendant que le gérant écrit : on reporte. */
+    const aAppliquer=plan.descendre.concat(plan.majLocal);
+    if(aAppliquer.length){
+      if(saisieEnCours()){
+        syncEtat='ok'; majEtatSync();
+        clearTimeout(syncTimer);
+        syncTimer=setTimeout(()=>synchroniser({silencieux:true}), GRACE_SAISIE);
+        return;                                   // rien n'est appliqué, rien n'est perdu
+      }
+      const touches=new Set(aAppliquer.map(integrerLivretDistant));
+      persisterSansSync();
+      rafraichirApresSync(touches);
+      if(plan.motifBlocage==='local-vide' && !silencieux)
+        toast(plan.descendre.length+' livret'+(plan.descendre.length>1?'s':'')+' récupéré'+(plan.descendre.length>1?'s':'')+' depuis votre compte');
+    }
 
-    if(plan.motifBlocage==='local-vide' && plan.descendre.length && !silencieux)
-      toast(plan.descendre.length+' livret'+(plan.descendre.length>1?'s':'')+' récupéré'+(plan.descendre.length>1?'s':'')+' depuis votre compte');
+    S.settings.derniereSynchro=Date.now();
+    persisterSansSync();
+    syncEtat='ok'; majEtatSync();
     if(plan.appauvris.length) demanderArbitrage(plan.appauvris);
   }catch(e){
     syncEtat='erreur'; majEtatSync();
@@ -1223,6 +1307,7 @@ function planifierSync(){
   clearTimeout(syncTimer);
   syncTimer=setTimeout(()=>synchroniser({silencieux:true}), 4000);
 }
+function metaOublier(localId){ const m=metaSync(); delete m[localId]; }
 function majEtatSync(){
   const el=document.getElementById('sync-etat');
   if(!el) return;
@@ -1395,7 +1480,7 @@ function deleteLogement(id){
   confirmModal(`Supprimer « ${esc(l?.nom||'ce logement')} » ?`,'Le logement, ses photos et ses traductions seront définitivement supprimés de cet ordinateur.',()=>{
     // Suppression = geste explicite du gérant. C'est le SEUL chemin qui retire
     // un livret du compte en ligne, et il pose un deleted_at, sans effacer la ligne.
-    cloudSupprimer(id);
+    cloudSupprimer(id); metaOublier(id);
     S.logements=S.logements.filter(x=>x.id!==id); save(); go('dash'); toast('Logement supprimé');
   });
 }
