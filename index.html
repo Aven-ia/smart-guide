@@ -1081,7 +1081,7 @@ async function rechargerVersion(){
    l'app fonctionne exactement comme avant, sans compte. */
 const SUPABASE_URL='https://hpmthjaebbgmbljoyfgx.supabase.co';
 const SUPABASE_CLE_PUBLIQUE='sb_publishable_aW94eKqMkZF548HHwrhonw_Hrtq_n2j';
-let sb=null, compte=null, authEtat='indisponible';
+let sb=null, compte=null, authEtat='indisponible', modeRecuperation=false;
 
 function initAuth(){
   if(location.protocol==='file:'){ authEtat='fichier-local'; return; }
@@ -1098,9 +1098,13 @@ async function chargerSession(){
   try{
     const {data}=await sb.auth.getSession();
     compte=data?.session?.user||null;
-    sb.auth.onAuthStateChange((_e,session)=>{
+    sb.auth.onAuthStateChange((evenement,session)=>{
       const avant=compte;
       compte=session?.user||null;
+      /* Arrivée par le lien de réinitialisation : on présente immédiatement le
+         choix d'un nouveau mot de passe, sinon le gérant est juste connecté et
+         n'a toujours pas de mot de passe utilisable. */
+      if(evenement==='PASSWORD_RECOVERY'){ modeRecuperation=true; go('compte'); return; }
       if(route.view==='compte') renderCompte();
       majBoutonCompte();
       // Connexion (ou reprise de session) : réconciliation complète.
@@ -1158,6 +1162,33 @@ async function lienMagique(){
   const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname}});
   fin();
   authMessage(error?messageAuth(error):'Lien envoyé. Ouvrez le mail sur CET appareil pour vous connecter.', !!error);
+}
+/* Le lien magique dépanne mais ne remplace pas une vraie réinitialisation :
+   il connecte sans jamais permettre de choisir un nouveau mot de passe. */
+async function motDePasseOublie(){
+  const email=document.getElementById('auth-email').value.trim();
+  if(!email) return authMessage('Renseignez d\'abord votre email, puis relancez.',true);
+  const fin=btnLoading('auth-oubli','Envoi…');
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+  fin();
+  if(!error) return authMessage('Email envoyé. Ouvrez-le sur CET appareil pour choisir un nouveau mot de passe.',false);
+  /* L'offre gratuite plafonne à 2 emails par heure : on le dit, plutôt que
+     de laisser croire à une panne. */
+  const m=String(error.message||'');
+  if(/rate limit|too many|429/i.test(m) || error.status===429)
+    return authMessage('Trop d\'emails envoyés dans l\'heure (limite de l\'offre gratuite). Réessayez dans une heure, ou connectez-vous par lien magique.',true);
+  authMessage(messageAuth(error),true);
+}
+async function definirNouveauMotDePasse(){
+  const mdp=document.getElementById('auth-nouveau').value;
+  const conf=document.getElementById('auth-nouveau2').value;
+  if(!mdp||mdp.length<6) return authMessage('Le mot de passe doit faire au moins 6 caractères.',true);
+  if(mdp!==conf)         return authMessage('Les deux mots de passe ne correspondent pas.',true);
+  const fin=btnLoading('auth-btn','Enregistrement…');
+  const {error}=await sb.auth.updateUser({password:mdp});
+  fin();
+  if(error) return authMessage(messageAuth(error),true);
+  modeRecuperation=false; renderCompte(); toast('Mot de passe modifié');
 }
 async function seDeconnecter(){
   /* Étape 1 : rien n'est synchronisé, donc la déconnexion ne touche à aucun
@@ -1384,6 +1415,132 @@ function majEtatSync(){
   el.textContent=t; el.className='auth-msg'+(syncEtat==='erreur'?' err':' ok');
 }
 
+/* ---------------- Versions précédentes (étape 5) ----------------
+   Les sauvegardes étaient écrites mais jamais relues : un coffre sans porte.
+   Restaurer n'est jamais une opération qui perd quelque chose — l'état actuel
+   part d'abord dans le coffre, ENSUITE seulement il est remplacé. */
+let versions={ chargement:false, liste:[], erreur:null, uuid:null };
+
+const compteurs = d => ({
+  equipements:(d&&d.equipements||[]).filter(e=>e&&e.nom).length,
+  adresses:(d&&d.recos||[]).filter(r=>r&&r.nom).length,
+  photos:(d&&d.photos||[]).length,
+  octets:poidsLivret(d||{}),
+});
+const koLisible = o => o>=1048576 ? (o/1048576).toFixed(1)+' Mo' : Math.max(1,Math.round(o/1024))+' Ko';
+const dateLisible = iso => { const d=new Date(iso);
+  return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); };
+
+async function chargerVersions(){
+  const l=cur();
+  if(!sb||!compte||!l){ versions={chargement:false,liste:[],erreur:'hors-ligne',uuid:null}; majVersions(); return; }
+  versions={chargement:true,liste:[],erreur:null,uuid:null}; majVersions();
+  try{
+    const {data:liv,error:e1}=await sb.from('livrets').select('id').eq('local_id',l.id).is('deleted_at',null).maybeSingle();
+    if(e1) throw e1;
+    if(!liv){ versions={chargement:false,liste:[],erreur:'pas-en-ligne',uuid:null}; majVersions(); return; }
+    const {data,error}=await sb.from('livret_backups')
+      .select('id,created_at,data').eq('livret_id',liv.id).order('created_at',{ascending:false});
+    if(error) throw error;
+    versions={chargement:false, liste:data||[], erreur:null, uuid:liv.id};
+  }catch(e){ versions={chargement:false,liste:[],erreur:messageAuth(e),uuid:null}; }
+  majVersions();
+}
+function majVersions(){ if(route.view==='versions') renderVersions(); }
+
+/* Aperçu AVANT restauration : le gérant voit ce qu'il récupérerait. */
+function apercuVersion(i){
+  const v=versions.liste[i]; if(!v) return;
+  const d=v.data||{};
+  document.getElementById('modal-root').innerHTML=`
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal wide lib-modal" style="max-width:760px">
+      <div class="lib-head">
+        <div><h3>Aperçu de la version</h3><p class="sub" style="margin:0">${esc(dateLisible(v.created_at))} — rien n'est modifié tant que vous ne restaurez pas.</p></div>
+        <button class="icon-x" onclick="closeModal()">${I('x',18)}</button>
+      </div>
+      <div class="lib-body" style="background:var(--bg-deep);border-radius:12px;padding:10px">
+        ${livretHTML(d,'complet','fr',{deplie:true})}
+      </div>
+      <div class="modal-foot" style="border-top:1px solid var(--line-faint);padding-top:16px">
+        <button class="btn btn-plain" onclick="closeModal()">Fermer</button>
+        <button class="btn btn-dark" onclick="closeModal();restaurerVersion(${i})">${I('back',14)} Restaurer cette version</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function restaurerVersion(i){
+  const v=versions.liste[i], l=cur(); if(!v||!l) return;
+  const c=compteurs(v.data), a=compteurs(l);
+  confirmModal('Restaurer cette version ?',
+    `Le livret reviendra à son état du ${esc(dateLisible(v.created_at))} `
+    +`(${c.equipements} équipements, ${c.adresses} adresses). `
+    +`L'état actuel (${a.equipements} équipements, ${a.adresses} adresses) sera d'abord `
+    +`enregistré comme nouvelle version : vous pourrez y revenir.`,
+    async ()=>{
+      try{
+        // 1. l'état actuel part dans le coffre AVANT toute modification
+        await sb.from('livret_backups').insert({livret_id:versions.uuid, owner_id:compte.id, data:l});
+        // 2. seulement ensuite, on remplace — en conservant l'identifiant local
+        const restaure=JSON.parse(JSON.stringify(v.data||{}));
+        restaure.id=l.id;
+        migrateLogement(restaure);
+        const idx=S.logements.findIndex(x=>x.id===l.id);
+        S.logements[idx]=restaure;
+        touch(restaure);
+        toast('Version du '+dateLisible(v.created_at)+' restaurée');
+        chargerVersions();
+        go('edit');
+      }catch(e){ toast('Restauration impossible : '+messageAuth(e), true); }
+    },'Restaurer');
+}
+function renderVersions(){
+  const l=cur(); if(!l){ go('dash'); return; }
+  const retour=`<button class="btn btn-ghost" onclick="go('edit')" title="Retour" aria-label="Retour">${I('back',14)} <span class="lbl">Retour au livret</span></button>`;
+  let corps;
+  if(versions.chargement){
+    corps=`<p class="ai-note" style="display:flex;align-items:center;gap:9px"><span class="spin">${I('loader',14)}</span> Lecture des versions…</p>`;
+  } else if(versions.erreur==='hors-ligne'){
+    corps=`<p class="ai-note">Les versions précédentes sont conservées dans votre compte.
+      <a href="#" onclick="go('compte');return false" style="color:var(--accent-dark)">Connectez-vous</a> pour y accéder.</p>`;
+  } else if(versions.erreur==='pas-en-ligne'){
+    corps=`<p class="ai-note">Ce livret n'a pas encore été envoyé dans votre compte — il n'a donc pas d'historique.
+      Il partira à la prochaine synchronisation.</p>`;
+  } else if(versions.erreur){
+    corps=`<p class="auth-msg err">${esc(versions.erreur)}</p>`;
+  } else if(!versions.liste.length){
+    corps=`<p class="ai-note">Aucune version antérieure pour l'instant. Une copie est mise de côté
+      automatiquement avant chaque modification importante envoyée en ligne.</p>`;
+  } else {
+    const actuel=compteurs(l);
+    corps=`
+      <p class="ai-note" style="margin-bottom:14px">${versions.liste.length} version${versions.liste.length>1?'s':''} conservée${versions.liste.length>1?'s':''},
+        la plus récente en premier. État actuel : ${actuel.equipements} équipements, ${actuel.adresses} adresses, ${koLisible(actuel.octets)}.</p>
+      <div style="display:flex;flex-direction:column;gap:9px">
+      ${versions.liste.map((v,i)=>{ const c=compteurs(v.data); return `
+        <div class="subcard">
+          <div class="inline-row" style="flex-wrap:wrap;gap:10px">
+            <div style="flex:1;min-width:170px">
+              <p style="font-size:13.5px;font-weight:600">${esc(dateLisible(v.created_at))}</p>
+              <p class="ai-note" style="margin:2px 0 0">${c.equipements} équipement${c.equipements>1?'s':''} ·
+                ${c.adresses} adresse${c.adresses>1?'s':''} · ${c.photos} photo${c.photos>1?'s':''} · ${koLisible(c.octets)}</p>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="apercuVersion(${i})">${I('eye',13)} Aperçu</button>
+            <button class="btn btn-plain btn-sm" onclick="restaurerVersion(${i})">${I('back',13)} Restaurer</button>
+          </div>
+        </div>`;}).join('')}
+      </div>`;
+  }
+  app.innerHTML = topbar(retour) + `
+  <div class="view settings">
+    <div style="margin-bottom:26px">
+      <div class="kicker">Historique</div>
+      <h1 class="dash-title">Versions précédentes</h1>
+    </div>
+    ${card('01', esc(l.nom||'Ce livret'),'Restaurer ne perd rien : l\'état actuel est enregistré avant d\'être remplacé',corps)}
+  </div>`;
+}
+
 /* ---------------- Toast & menus ---------------- */
 function toast(msg, isErr=false){
   const el=document.createElement('div');
@@ -1417,6 +1574,7 @@ function render(){
   else if(route.view==='preview') renderPreview();
   else if(route.view==='settings') renderSettings();
   else if(route.view==='compte') renderCompte();
+  else if(route.view==='versions') renderVersions();
 }
 function scrollTop(){ window.scrollTo(0,0); }
 function go(view, extra={}){ route={...route, view, ...extra}; render(); scrollTop(); }
@@ -1618,6 +1776,7 @@ function renderEditor(){
 function logementMenuTop(ev){
   const l=cur();
   openCtxMenu(ev,[
+    { icon:'book', label:'Versions précédentes', fn:()=>{ route={...route, view:'versions'}; render(); scrollTop(); chargerVersions(); } },
     { icon:'duplicate', label:'Dupliquer ce logement', fn:()=>duplicateLogement(l.id) },
     'sep',
     { icon:'trash', label:'Supprimer', danger:true, fn:()=>deleteLogement(l.id) },
@@ -3286,6 +3445,20 @@ function renderCompte(){
   } else if(authEtat!=='pret'){
     corps=`<p class="ai-note">Le service de comptes n'a pas pu être joint — vous êtes peut-être hors ligne.
       L'application fonctionne normalement, vos livrets sont sur cet appareil. Réessayez plus tard.</p>`;
+  } else if(modeRecuperation){
+    corps=`
+      <p class="ai-note" style="margin-bottom:16px">Choisissez un nouveau mot de passe pour
+        <strong>${esc(compte?.email||'votre compte')}</strong>.</p>
+      <div class="row-2">
+        <div class="field"><label>Nouveau mot de passe<span class="hint">6 caractères minimum</span></label>
+          <input class="input" id="auth-nouveau" type="password" autocomplete="new-password" placeholder="••••••••"></div>
+        <div class="field"><label>Confirmer</label>
+          <input class="input" id="auth-nouveau2" type="password" autocomplete="new-password" placeholder="••••••••"></div>
+      </div>
+      <p class="auth-msg" id="auth-msg"></p>
+      <div class="inline-row" style="margin-top:6px">
+        <button class="btn btn-dark" id="auth-btn" onclick="definirNouveauMotDePasse()">${I('check',14)} Enregistrer</button>
+      </div>`;
   } else if(compte){
     corps=`
       <div class="ai-box" style="display:flex;align-items:center;gap:13px">
@@ -3318,6 +3491,7 @@ function renderCompte(){
         <button class="btn btn-dark" id="auth-btn" onclick="seConnecter()">${I('key',14)} Se connecter</button>
         <button class="btn btn-ghost" onclick="creerCompte()">${I('plus',14)} Créer un compte</button>
         <button class="btn btn-plain btn-sm" id="auth-lien" onclick="lienMagique()">${I('mail',13)} Recevoir un lien par email</button>
+        <button class="btn btn-plain btn-sm" id="auth-oubli" onclick="motDePasseOublie()">Mot de passe oublié ?</button>
       </div>`;
   }
 
