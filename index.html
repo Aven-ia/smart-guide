@@ -396,7 +396,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .share-hint{max-width:680px;margin:0 auto;text-align:center;font-size:12.5px;color:var(--muted)}
 
 /* ---------- Toast ---------- */
-#toasts{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;gap:9px;align-items:center}
+/* Les toasts sont purement informatifs : ils ne doivent JAMAIS intercepter un
+   clic. Ils flottent au-dessus du contenu et rendaient inatteignables les
+   boutons situés derrière eux pendant leurs 3 secondes d'affichage. */
+#toasts{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;gap:9px;align-items:center;pointer-events:none}
 .toast{background:var(--ink);color:#F2EFE7;font-size:13.5px;padding:12px 19px;border-radius:12px;box-shadow:var(--sh-lg);display:flex;align-items:center;gap:10px;animation:toastIn .3s var(--ease);max-width:90vw}
 .toast .tico{color:#A9BC96;line-height:0;flex:none}
 .toast.error{background:#7E3A28}.toast.error .tico{color:#F0B9A8}
@@ -422,6 +425,13 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .alerte-donnees{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:600;
   max-width:min(560px,calc(100vw - 24px));background:#7E3A28;color:#F7EDE9;border-radius:14px;
   padding:14px 18px;font-size:13.5px;line-height:1.55;box-shadow:var(--sh-lg)}
+/* La bannière ne capte AUCUN clic : seuls ses boutons le font. Une bannière
+   en position fixe recouvre forcément ce qui défile dessous — réserver de la
+   place ne protège que la fin du contenu, jamais les lignes du milieu. Rendre
+   le conteneur transparent aux clics supprime la classe entière de défaut au
+   lieu d'entretenir une valeur qui finit toujours par être fausse. */
+.alerte-donnees{pointer-events:none}
+.alerte-donnees .btn{pointer-events:auto}
 .alerte-donnees strong{display:block;margin-bottom:3px;font-weight:600}
 .alerte-donnees.rappel{background:var(--ink);color:#F2EFE7}
 /* La réserve de place est posée par ajusterPlaceAlerte(), qui MESURE la
