@@ -1003,6 +1003,51 @@ function save(){
 function touch(l){ l.updatedAt=Date.now(); save(); }
 const cur = () => S.logements.find(l=>l.id===route.id);
 
+/* ---------------- Détection de nouvelle version ----------------
+   Une PWA installée sur iOS reprend la page en mémoire et peut rester des jours
+   sur un vieux build : le gérant signale alors des défauts déjà corrigés.
+   On compare l'empreinte HTTP (ETag, à défaut Last-Modified) du fichier servi
+   avec celle relevée au chargement. Aucune version à incrémenter à la main :
+   l'empreinte change d'elle-même à chaque publication. */
+let empreinteVersion=null, banniereVersionAffichee=false;
+async function empreinteEnLigne(){
+  try{
+    const r=await fetch('./index.html?v='+Date.now(), {method:'HEAD', cache:'no-store'});
+    if(!r.ok) return null;
+    return r.headers.get('etag')||r.headers.get('last-modified')||null;
+  }catch(e){ return null; }
+}
+async function surveillerVersion(){
+  if(location.protocol==='file:') return;
+  empreinteVersion=await empreinteEnLigne();
+  const verifier=async()=>{
+    if(banniereVersionAffichee||document.hidden) return;
+    const e=await empreinteEnLigne();
+    if(e && empreinteVersion && e!==empreinteVersion) annoncerNouvelleVersion();
+  };
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) verifier(); });
+  setInterval(verifier, 15*60*1000);
+  // Le service worker est aussi invité à se mettre à jour, sans en dépendre.
+  try{ navigator.serviceWorker?.getRegistration().then(r=>r&&r.update()); }catch(e){}
+}
+function annoncerNouvelleVersion(){
+  if(banniereVersionAffichee) return;
+  banniereVersionAffichee=true;
+  const el=document.createElement('div');
+  el.className='alerte-donnees rappel maj';
+  el.innerHTML=`<strong>Une nouvelle version est disponible.</strong>
+    Rechargez pour en profiter — vos livrets ne bougent pas.
+    <span class="actions"><button class="btn btn-sm" onclick="rechargerVersion()">Recharger</button>
+    <button class="btn btn-sm ghost" onclick="fermerAlerte(this)">Plus tard</button></span>`;
+  document.body.appendChild(el);
+  document.body.classList.add('avec-alerte');
+}
+async function rechargerVersion(){
+  // On retire la page du cache du service worker, sinon il resservirait l'ancienne.
+  try{ const c=await caches.open('smart-guide-v4.0.0'); await c.delete('./index.html'); }catch(e){}
+  location.reload();
+}
+
 /* ---------------- Compte ----------------
    ÉTAPE 1 : connexion seule. Aucune donnée n'est encore envoyée ni lue à
    distance — les livrets restent intégralement locaux. Le mode invité demeure
@@ -3079,8 +3124,9 @@ function previewBarHTML(l){
       <div class="seg">${TEMPLATES.map(t=>`<button title="${t.nom}" class="${l.templateId===t.id?'on':''}" onclick="setPath('templateId','${t.id}');renderLivret()"><span style="display:inline-block;width:12px;height:12px;border-radius:99px;background:${t.accent};vertical-align:-1.5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)"></span></button>`).join('')}</div>
       <button class="btn btn-ghost" onclick="runAudit()" id="audit-btn" title="L'IA relit votre livret" aria-label="Audit du livret">${I('shield',14)} <span class="lbl">Audit</span></button>
       <button class="btn btn-ghost" onclick="openPosters()" title="Affichettes à poser" aria-label="Affichettes">${I('printer',14)} <span class="lbl">Affichettes</span></button>
-      <button class="btn btn-ghost" onclick="exportHTML()" title="Exporter en fichier HTML" aria-label="Exporter en fichier">${I('download',14)} <span class="lbl">Fichier</span></button>
-      <button class="btn btn-dark" onclick="exportPDF()" title="Imprimer ou enregistrer en PDF" aria-label="Imprimer ou PDF">${I('printer',14)} <span class="lbl">Imprimer / PDF</span></button>
+      <button class="btn btn-ghost" onclick="exportHTML()" title="Télécharger le fichier du livret" aria-label="Télécharger le fichier">${I('download',14)} <span class="lbl">Fichier</span></button>
+      <button class="btn btn-ghost" onclick="exportPDF()" title="Imprimer ou enregistrer en PDF" aria-label="Imprimer ou PDF">${I('printer',14)} <span class="lbl">Imprimer / PDF</span></button>
+      <button class="btn btn-dark" onclick="partagerLivret()" title="Envoyer le livret au voyageur" aria-label="Partager le livret">${I('share',14)} <span class="lbl">Partager</span></button>
     </div>`;
 }
 function deviceHTML(l){
@@ -3096,7 +3142,16 @@ function renderLivret(){
   dev.innerHTML=deviceHTML(l);
   const bar=document.getElementById('pbar-host'); if(bar) bar.innerHTML=previewBarHTML(l);
   const hint=document.getElementById('share-hint');
-  if(hint) hint.innerHTML=`${route.lang!=='fr'?'Version '+(LANGS.find(x=>x.id===route.lang)||{}).label+' — les exports utiliseront cette langue. ':''}Ce livret est aussi beau sur papier que sur téléphone.`;
+  if(hint) hint.innerHTML=texteAidePartage();
+}
+/* Lève le malentendu : le gérant a partagé le SIGNET de son navigateur, donc
+   l'adresse de l'application — chez le destinataire elle s'ouvre vide, puisque
+   les livrets vivent sur l'appareil de chacun. */
+function texteAidePartage(){
+  const lang=route.lang!=='fr'?`Version ${(LANGS.find(x=>x.id===route.lang)||{}).label} — les exports utiliseront cette langue. `:'';
+  return `${lang}<strong>« Partager » envoie le livret lui-même</strong>, en un fichier qui s'ouvre
+    sans internet et sans Smart Guide. Ne transmettez pas l'adresse de l'application :
+    votre voyageur y trouverait sa propre page, vide.`;
 }
 function renderPreview(){
   const l=cur(); if(!l){ go('dash'); return; }
@@ -3105,7 +3160,7 @@ function renderPreview(){
   <div class="preview-bar no-print" id="pbar-host">${previewBarHTML(l)}</div>
   <div class="preview-wrap view">
     <div class="device ${route.device}" id="livret-host">${deviceHTML(l)}</div>
-    <p class="share-hint" id="share-hint">${route.lang!=='fr'?'Version '+(LANGS.find(x=>x.id===route.lang)||{}).label+' — les exports utiliseront cette langue. ':''}Ce livret est aussi beau sur papier que sur téléphone.</p>
+    <p class="share-hint" id="share-hint">${texteAidePartage()}</p>
   </div>`;
 }
 function langMenu(ev){
@@ -3128,22 +3183,52 @@ function exportPDF(){
   setTimeout(()=>{ window.print(); setTimeout(()=>{ pz.style.display='none'; pz.innerHTML=''; document.title='Smart Guide — Livrets d\'accueil'; },500); },90);
 }
 
-function exportHTML(){
-  const l=cur();
+/* Le livret autonome : un fichier HTML complet, photos comprises, qui s'ouvre
+   sans internet et sans Smart Guide. C'est CE fichier qu'on donne au voyageur. */
+function documentLivretAutonome(l){
   const gl=guideLabelLang(route.guide, route.lang);
   const body=livretHTML(l, route.guide, route.lang);
-  const doc=`<!DOCTYPE html><html lang="${route.lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  return `<!DOCTYPE html><html lang="${route.lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(gl)} — ${esc(l.nom||'')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',-apple-system,sans-serif}.lv{min-height:100vh}section{break-inside:avoid}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
 </head><body>${body}</body></html>`;
-  const blob=new Blob([doc],{type:'text/html'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
+}
+function nomFichierLivret(l){
+  const gl=guideLabelLang(route.guide, route.lang);
   const suffix=route.lang!=='fr'?' ('+route.lang.toUpperCase()+')':'';
-  a.download=`${gl}${suffix} - ${(l.nom||'logement').replace(/[\/\\:*?"<>|]/g,'')}.html`;
-  a.click(); URL.revokeObjectURL(a.href);
-  toast('Fichier téléchargé — envoyez-le à vos voyageurs ou hébergez-le en ligne');
+  return `${gl}${suffix} - ${(l.nom||'logement').replace(/[\/\\:*?"<>|]/g,'')}.html`;
+}
+function telechargerFichier(doc, nom){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([doc],{type:'text/html'}));
+  a.download=nom; a.click(); URL.revokeObjectURL(a.href);
+}
+function exportHTML(){
+  const l=cur();
+  telechargerFichier(documentLivretAutonome(l), nomFichierLivret(l));
+  toast('Fichier téléchargé — envoyez-le à vos voyageurs');
+}
+/* Partage du livret lui-même. Sur téléphone et tablette, la feuille de partage
+   du système reçoit le FICHIER : le voyageur reçoit son livret, pas un lien vers
+   l'application. Partout ailleurs, repli sur le téléchargement. */
+async function partagerLivret(){
+  const l=cur(); if(!l) return;
+  const nom=nomFichierLivret(l);
+  const doc=documentLivretAutonome(l);
+  const gl=guideLabelLang(route.guide, route.lang);
+  try{
+    const fichier=new File([doc], nom, {type:'text/html'});
+    if(navigator.canShare && navigator.canShare({files:[fichier]})){
+      await navigator.share({ files:[fichier], title:`${gl} — ${l.nom||''}`,
+        text:`Voici votre livret d'accueil pour ${l.nom||'votre séjour'}.` });
+      return;
+    }
+  }catch(e){
+    if(e && e.name==='AbortError') return;      // partage annulé par le gérant
+  }
+  telechargerFichier(doc, nom);
+  toast('Le livret a été téléchargé — envoyez ce fichier par mail ou WhatsApp');
 }
 
 /* ---------------- Écran Compte ---------------- */
@@ -3405,6 +3490,7 @@ function createDemo(){
   if(location.hash==='#exemple'&&!S.logements.some(x=>x.nom==="L'Escale Havraise")){ createDemo(); return; }
   render();
   chargerSession().then(majBoutonCompte);   // restaure la session sans bloquer l'affichage
+  surveillerVersion();                      // prévient quand un nouveau build est publié
   if(!chargementOK) return;
 
   /* Récupération : la clé principale est vide alors que la copie de secours
