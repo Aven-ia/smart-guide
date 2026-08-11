@@ -1214,7 +1214,11 @@ function authMessage(txt,erreur){
    • livret local nettement plus pauvre que sa version en ligne → on s'arrête et
      on demande, après avoir mis la version en ligne à l'abri dans livret_backups. */
 let syncEnCours=false, syncTimer=null, syncEtat='inactif';
-const dernierSnapshot=new Map();          // livret distant → dernier instantané (ms)
+const dernierSnapshot=new Map();
+/* Livrets dont l'appauvrissement est VOULU et déjà confirmé à l'écran
+   (restauration, ou arbitrage tranché). Le garde-fou les laisse passer sans
+   reposer la question, et sans refaire une sauvegarde déjà faite. */
+const restaurationsVoulues=new Set();          // livret distant → dernier instantané (ms)
 const SEUIL_APPAUVRI=0.7;                 // sous 70 % du poids distant : appauvrissement
 const DELAI_SNAPSHOT=10*60*1000;          // au plus un instantané toutes les 10 min par livret
 const GRACE_SAISIE=6000;                  // on ne touche à rien pendant 6 s après la dernière frappe
@@ -1248,8 +1252,8 @@ function noterMeta(localId, updatedAtDistant, updatedAtLocal){
 }
 
 /* --- Décision pure : ne touche à rien, donc entièrement testable isolément --- */
-function planSynchro(locaux, distants, meta){
-  meta=meta||{};
+function planSynchro(locaux, distants, meta, voulues){
+  meta=meta||{}; voulues=voulues||new Set();
   const parLocal=new Map(distants.filter(d=>d.local_id).map(d=>[d.local_id,d]));
   const idsLocaux=new Set(locaux.map(l=>l.id));
   const plan={ descendre:[], monter:[], majDistant:[], majLocal:[], appauvris:[], motifBlocage:null };
@@ -1271,7 +1275,10 @@ function planSynchro(locaux, distants, meta){
       /* Le gérant est prioritaire sur sa propre saisie, même si le distant a
          bougé : on pousse, après avoir mis la version distante à l'abri. */
       const pl=poidsLivret(l), pd=poidsLivret(d.data);
-      if(pd>0 && pl < pd*SEUIL_APPAUVRI) plan.appauvris.push({l,d,pl,pd});
+      /* Un appauvrissement SUBI se questionne. Un appauvrissement VOULU — le
+         gérant vient de cliquer Restaurer et de confirmer — ne se requestionne
+         pas : l'intention est déjà connue. */
+      if(pd>0 && pl < pd*SEUIL_APPAUVRI && !voulues.has(l.id)) plan.appauvris.push({l,d,pl,pd});
       else plan.majDistant.push({l,d});
     } else if(distantModifie){
       plan.majLocal.push(d);
@@ -1299,13 +1306,17 @@ async function cloudInserer(l){
 async function cloudMettreAJour(distant,l){
   // Une copie de la version en ligne part avant de l'écraser, au plus une fois
   // par tranche de 10 minutes pour ne pas saturer l'historique.
+  // Exception : une restauration a DÉJÀ sauvegardé l'état précédent — en
+  // refaire une ici créerait un doublon et grignoterait le quota de 30.
+  const voulue=restaurationsVoulues.has(l.id);
   const vu=dernierSnapshot.get(distant.id)||0;
-  if(Date.now()-vu > DELAI_SNAPSHOT){ await cloudSnapshot(distant); dernierSnapshot.set(distant.id, Date.now()); }
+  if(!voulue && Date.now()-vu > DELAI_SNAPSHOT){ await cloudSnapshot(distant); dernierSnapshot.set(distant.id, Date.now()); }
   const {data,error}=await sb.from('livrets')
     .update({nom:l.nom||'', data:l}).eq('id',distant.id)
     .select('updated_at').single();
   if(error) throw error;
   noterMeta(l.id, data.updated_at, l.updatedAt||0);
+  restaurationsVoulues.delete(l.id);   // l'intention est consommée, une seule fois
 }
 async function cloudSupprimer(localId){
   if(!sb||!compte) return;
@@ -1357,7 +1368,7 @@ async function synchroniser({silencieux=false}={}){
   syncEnCours=true; syncEtat='en-cours'; majEtatSync();
   try{
     const distants=await cloudLire();
-    const plan=planSynchro(S.logements, distants, metaSync());
+    const plan=planSynchro(S.logements, distants, metaSync(), restaurationsVoulues);
 
     /* MONTANT — n'écrit rien à l'écran, donc jamais bloqué par la saisie. */
     if(plan.motifBlocage!=='local-vide'){
@@ -1391,16 +1402,43 @@ async function synchroniser({silencieux=false}={}){
   }finally{ syncEnCours=false; }
 }
 /* Un livret devenu nettement plus pauvre que sa version en ligne n'écrase rien
-   sans un accord explicite. La version en ligne est déjà à l'abri. */
+   sans un accord explicite. Deux issues franches, pour que la question ne se
+   repose pas toutes les 4 secondes — et UNE seule sauvegarde, posée à
+   l'ouverture : la reposer à chaque passage de synchro polluait l'historique. */
+let arbitrageEnCours=null;
 function demanderArbitrage(appauvris){
   const x=appauvris[0];
+  if(arbitrageEnCours) return;               // la question est déjà posée
+  arbitrageEnCours={l:x.l, d:x.d};
   cloudSnapshot(x.d);
-  confirmModal('Ce livret a beaucoup diminué',
-    `« ${esc(x.l.nom||'Sans nom')} » est nettement plus court sur cet appareil que dans votre compte `
-    +`(${Math.round(x.pl/1024)} Ko contre ${Math.round(x.pd/1024)} Ko). `
-    +`Que faut-il garder ? La version en ligne a été mise de côté dans tous les cas.`,
-    async ()=>{ await cloudMettreAJour(x.d,x.l); toast('Version de cet appareil envoyée'); },
-    'Garder celle de cet appareil');
+  document.getElementById('modal-root').innerHTML=`
+  <div class="overlay">
+    <div class="modal">
+      <h3>Ce livret a beaucoup diminué</h3>
+      <p class="sub">« ${esc(x.l.nom||'Sans nom')} » est nettement plus court sur cet appareil
+        (${koLisible(x.pl)}) que dans votre compte (${koLisible(x.pd)}).
+        Quelle version faut-il garder ? La version en ligne est déjà mise de côté dans les deux cas.</p>
+      <div class="modal-foot" style="flex-wrap:wrap">
+        <button class="btn btn-plain" onclick="arbitrer('en-ligne')">Reprendre celle de mon compte</button>
+        <button class="btn btn-dark" onclick="arbitrer('appareil')">Garder celle de cet appareil</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function arbitrer(choix){
+  const a=arbitrageEnCours; if(!a) return;
+  arbitrageEnCours=null; closeModal();
+  try{
+    if(choix==='appareil'){
+      restaurationsVoulues.add(a.l.id);       // décision prise : on ne la repose pas
+      await cloudMettreAJour(a.d, a.l);
+      toast('Version de cet appareil envoyée');
+    }else{
+      integrerLivretDistant(a.d);
+      save(); rafraichirApresSync(new Set([a.d.local_id]));
+      toast('Version de votre compte reprise');
+    }
+  }catch(e){ toast('Impossible d\'appliquer ce choix : '+messageAuth(e), true); }
 }
 function planifierSync(){
   if(!sb||!compte) return;
@@ -1487,6 +1525,10 @@ async function restaurerVersion(i){
         migrateLogement(restaure);
         const idx=S.logements.findIndex(x=>x.id===l.id);
         S.logements[idx]=restaure;
+        /* L'intention est posée AVANT la synchro déclenchée par touch() :
+           le garde-fou anti-appauvrissement ne repose pas la question, et
+           aucune seconde sauvegarde n'est créée. */
+        restaurationsVoulues.add(l.id);
         touch(restaure);
         toast('Version du '+dateLisible(v.created_at)+' restaurée');
         chargerVersions();
