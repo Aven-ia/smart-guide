@@ -2211,14 +2211,14 @@ function renderSection(l){
   switch(route.section){
     case 'infos': return card('01','Le logement','Ce qui apparaît en couverture du livret',`
       <div class="row-2">
-        <div style="grid-column:1/-1">${F('nom','Nom du logement',l.nom,"Ex. L'Escale Havraise")}</div>
+        <div style="grid-column:1/-1">${F('nom','Nom du logement',l.nom,"Ex. L'Escale Havraise",'Titre affiché en couverture du livret')}</div>
         <div style="grid-column:1/-1">${F('adresse','Adresse',l.adresse,'92 rue Frédéric Bellanger','Affichée en couverture du livret, cliquable vers les cartes')}</div>
-        <div class="field"><label>Code postal</label>
+        <div class="field"><label>Code postal<span class="hint">Complète l'adresse en couverture</span></label>
           <input class="input" value="${esc(l.codePostal)}" placeholder="76600" oninput="setPath('codePostal',this.value);hintCP(this.value)">
           <span class="hint" id="cp-hint" style="display:block;margin-top:5px">${cpInhabituel(l.codePostal)?'Format inhabituel — 5 chiffres en France. La saisie est conservée telle quelle.':''}</span>
         </div>
-        ${F('ville','Ville',l.ville,'Le Havre')}
-        <div style="grid-column:1/-1">${F('etage','Étage',l.etage,'RDC, 3ème gauche, Dernier étage…','Texte libre — masqué sur le livret si vous le laissez vide')}</div>
+        ${F('ville','Ville',l.ville,'Le Havre','Complète l\'adresse en couverture')}
+        <div style="grid-column:1/-1">${F('etage','Étage',l.etage,'Ex. 1er étage, gauche','Affiché en couverture, juste sous l\'adresse — ne le mettez pas dans les instructions d\'accès')}</div>
       </div>
       ${FT('notes','Description / notes',l.notes,'Quelques notes sur le logement, son ambiance, ce qui le distingue…',4,"Notes libres — l'IA peut en tirer une accroche et un mot de bienvenue")}
       <div class="inline-row">
@@ -2232,8 +2232,8 @@ function renderSection(l){
         <div class="field"><label>Arrivée à partir de</label><input type="time" class="input" value="${esc(l.arrivee.heure)}" oninput="setPath('arrivee.heure',this.value)"></div>
         ${F('arrivee.parking','Stationnement',l.arrivee.parking,'Ex. place gratuite rue Bellanger après 19h')}
       </div>
-      ${F('arrivee.codeAcces',"Code d'accès / boîte à clés",l.arrivee.codeAcces,'Ex. 4821 — boîtier à gauche de la porte')}
-      ${FT('arrivee.instructions',"Instructions d'accès",l.arrivee.instructions,"Comment trouver l'entrée, monter les étages, etc.",3)}
+      ${F('arrivee.codeAcces',"Code d'accès / boîte à clés",l.arrivee.codeAcces,'Ex. 4821 — boîtier à gauche de la porte','Affiché en couverture du livret, sous l\'étage')}
+      ${FT('arrivee.instructions',"Instructions d'accès",l.arrivee.instructions,"Comment trouver l'entrée, où est la boîte à clés…",3,"Pour l'étage, utilisez le champ « Étage » de la fiche 01 : il s'affiche en couverture")}
       ${l.arrivee.instructions?aiPolishBtn('arrivee'):''}
     `);
     case 'depart': return card('03','Départ','Une seule check-list, claire et actionnable — c\'est tout ce que le voyageur doit faire',`
@@ -2970,23 +2970,11 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </div>`;
   }
 
-  /* ---- Bandeau essentiels (livret complet) ----
-     Horaires d'arrivée et de départ côte à côte, puis le wifi EN DESSOUS sur toute
-     la largeur — et non plus en troisième colonne à côté des horaires. */
-  if(has('essentials')&&(l.arrivee.heure||l.depart.heure||l.wifi.ssid)){
-    const tuile=(label,valeur,taille=17)=>`
-        <div style="background:${t.accentSoft};border-radius:10px;padding:11px 13px;text-align:center;overflow:hidden">
-          <p style="${mono};font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:2px">${label}</p>
-          <p style="${serif};font-size:${taille}px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden">${esc(valeur||'—')}</p>
-        </div>`;
-    out+=`<div style="max-width:600px;margin:0 auto;padding:20px 26px 0">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
-        ${tuile(X.arrivee, l.arrivee.heure)}
-        ${tuile(lang==='fr'?'Départ':X.avant.split(' ')[0], l.depart.heure)}
-      </div>
-      ${l.wifi.ssid?`<div style="margin-top:9px">${tuile(X.wifi, l.wifi.ssid)}</div>`:''}
-    </div>`;
-  }
+  /* Le bandeau « essentiels » a été retiré : il répétait les horaires affichés
+     juste en dessous dans la section « Horaires », et sa tuile wifi ne montrait
+     que le nom du réseau. Le wifi n'est pas déplacé pour autant — sa section
+     complète, avec mot de passe et QR code, arrive immédiatement après les
+     horaires. Rien n'est perdu, et le wifi n'est plus à côté des horaires. */
 
   out+=`<div style="max-width:600px;margin:0 auto;padding:30px 26px 0;display:flex;flex-direction:column;gap:36px">`;
 
