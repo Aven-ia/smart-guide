@@ -704,6 +704,7 @@ const SECTIONS_LIVRET = [
   { id:'equipements', label:'Équipements',          icon:'sofa' },
   { id:'reglement',   label:'Règlement',            icon:'scroll' },
   { id:'quartier',    label:'Dans le quartier',     icon:'compass' },
+  { id:'services',    label:'Nos services',         icon:'bag' },
   { id:'galerie',     label:'Le logement en images',icon:'image' },
   { id:'depart',      label:'Avant de partir',      icon:'logout' },
   { id:'faq',         label:'Questions fréquentes', icon:'book' },
@@ -755,6 +756,7 @@ const SECTIONS = [
   { id:'quartier',   label:'Dans le quartier', icon:'compass' },
   { id:'urgences',   label:'Urgences & FAQ',   icon:'shield' },
   { id:'contacts',   label:'Contacts',         icon:'phone' },
+  { id:'services',   label:'Nos services',     icon:'bag' },
   { id:'photos',     label:'Photos',           icon:'image' },
   { id:'style',      label:'Habillage',        icon:'palette' },
 ];
@@ -884,10 +886,10 @@ const RECO_AUTRE='autre';
 const recoCatConnue = c => CATS.some(x=>x.id===c) ? c : RECO_AUTRE;
 const catOf = id => CATS.find(c=>c.id===id) || CATS.find(c=>c.id===RECO_AUTRE);
 const GUIDES = [
-  { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','bienvenue','arrivee','wifi','equipements','reglement','quartier','galerie','depart','faq','urgences','contacts'] },
+  { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','bienvenue','arrivee','wifi','equipements','reglement','quartier','services','galerie','depart','faq','urgences','contacts'] },
   { id:'arrivee', label:"Guide d'arrivée",  court:'Arrivée', sections:['cover','bienvenue','arrivee','wifi','contacts'] },
   { id:'depart',  label:'Guide de départ',  court:'Départ',  sections:['cover','bienvenue','depart','contacts'] },
-  { id:'maison',  label:'Guide maison',     court:'Maison',  sections:['cover','bienvenue','wifi','equipements','reglement','faq','urgences','contacts'] },
+  { id:'maison',  label:'Guide maison',     court:'Maison',  sections:['cover','bienvenue','wifi','equipements','reglement','services','faq','urgences','contacts'] },
 ];
 const MODELS = [
   { id:'claude-haiku-4-5',  label:'Claude Haiku — rapide & très économique (recommandé)' },
@@ -902,27 +904,27 @@ const LANGS = [
 ];
 /* Libellés statiques du livret, par langue */
 const L10N = {
-  fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', horaires:'Horaires', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès",
+  fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', horaires:'Horaires', services:'Nos services', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès",
        wifi:'Wifi', reseau:'Réseau', mdp:'Mot de passe', scan:'Scanner pour se connecter', equip:'Équipements',
        regl:'Règlement', quartier:'Dans le quartier', images:'Le logement en images', avantpartir:'Avant de partir',
        checklist:'Check-list', contact:'Nous contacter', urgence:'Urgence hors horaires', itineraire:'Itinéraire Google Maps', parking:'Stationnement', faq:'Questions fréquentes', urgences:'En cas de problème',
        etage:'Étage', guideArr:"Guide d'arrivée", guideDep:'Guide de départ', guideMai:'Guide de la maison', bienvenue:'Bienvenue' },
-  en:{ livret:'Welcome guide', arrivee:'Check-in', horaires:'Times', depuis:'Check-in from', avant:'Check-out before', code:'Access code',
+  en:{ livret:'Welcome guide', arrivee:'Check-in', horaires:'Times', services:'Our services', depuis:'Check-in from', avant:'Check-out before', code:'Access code',
        wifi:'Wifi', reseau:'Network', mdp:'Password', scan:'Scan to connect', equip:'Amenities',
        regl:'House rules', quartier:'In the neighbourhood', images:'The place in pictures', avantpartir:'Before you leave',
        checklist:'Checklist', contact:'Contact us', urgence:'After-hours emergency', itineraire:'Google Maps directions', parking:'Parking', faq:'Frequently asked questions', urgences:'If something goes wrong',
        etage:'Floor', guideArr:'Arrival guide', guideDep:'Departure guide', guideMai:'House guide', bienvenue:'Welcome' },
-  es:{ livret:'Guía de bienvenida', arrivee:'Llegada', horaires:'Horarios', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso',
+  es:{ livret:'Guía de bienvenida', arrivee:'Llegada', horaires:'Horarios', services:'Nuestros servicios', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso',
        wifi:'Wifi', reseau:'Red', mdp:'Contraseña', scan:'Escanear para conectarse', equip:'Equipamiento',
        regl:'Normas de la casa', quartier:'En el barrio', images:'El alojamiento en imágenes', avantpartir:'Antes de salir',
        checklist:'Lista', contact:'Contáctenos', urgence:'Emergencia fuera de horario', itineraire:'Ruta en Google Maps', parking:'Aparcamiento', faq:'Preguntas frecuentes', urgences:'En caso de problema',
        etage:'Planta', guideArr:'Guía de llegada', guideDep:'Guía de salida', guideMai:'Guía de la casa', bienvenue:'Bienvenido' },
-  de:{ livret:'Willkommensmappe', arrivee:'Anreise', horaires:'Zeiten', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode',
+  de:{ livret:'Willkommensmappe', arrivee:'Anreise', horaires:'Zeiten', services:'Unsere Leistungen', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode',
        wifi:'WLAN', reseau:'Netzwerk', mdp:'Passwort', scan:'Zum Verbinden scannen', equip:'Ausstattung',
        regl:'Hausregeln', quartier:'In der Nachbarschaft', images:'Die Unterkunft in Bildern', avantpartir:'Vor der Abreise',
        checklist:'Checkliste', contact:'Kontakt', urgence:'Notfall außerhalb der Zeiten', itineraire:'Google Maps Route', parking:'Parkplatz', faq:'Häufige Fragen', urgences:'Im Problemfall',
        etage:'Etage', guideArr:'Anreise-Guide', guideDep:'Abreise-Guide', guideMai:'Haus-Guide', bienvenue:'Willkommen' },
-  it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', horaires:'Orari', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso',
+  it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', horaires:'Orari', services:'I nostri servizi', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso',
        wifi:'Wifi', reseau:'Rete', mdp:'Password', scan:'Scansiona per connetterti', equip:'Dotazioni',
        regl:'Regole della casa', quartier:'Nel quartiere', images:"L'alloggio in immagini", avantpartir:'Prima di partire',
        checklist:'Checklist', contact:'Contattaci', urgence:'Emergenza fuori orario', itineraire:'Percorso Google Maps', parking:'Parcheggio', faq:'Domande frequenti', urgences:'In caso di problemi',
@@ -986,6 +988,27 @@ function hintCP(v){
   const el=document.getElementById('cp-hint');
   if(el) el.textContent = cpInhabituel(v) ? 'Format inhabituel — 5 chiffres en France. La saisie est conservée telle quelle.' : '';
 }
+/* Normalise une adresse de site saisie par le gérant : préfixe https:// s'il
+   l'a oublié, et n'accepte QUE http/https — un « javascript: » collé ici
+   finirait dans un fichier HTML remis au voyageur. */
+function urlPropre(v){
+  const s=String(v||'').trim();
+  if(!s) return '';
+  const complet=/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : 'https://'+s;
+  try{
+    const u=new URL(complet);
+    if(u.protocol!=='http:' && u.protocol!=='https:') return '';
+    // Un nom de domaine porte au moins un point et jamais d'espace : sans ça
+    // « pas une url » deviendrait un lien mort dans le livret du voyageur.
+    if(!/^[^\s]+\.[a-z]{2,}$/i.test(u.hostname)) return '';
+    return u.href;
+  }catch(e){ return ''; }
+}
+const urlInvalide = v => { const s=String(v||'').trim(); return !!s && !urlPropre(s); };
+function domaineLisible(url){
+  try{ return new URL(url).hostname.replace(/^www\./,''); }catch(e){ return url; }
+}
+
 /* Lien de cartes universel : ouvre l'app Plans/Maps sur iOS comme sur Android,
    et retombe sur le navigateur ailleurs. */
 function mapsUrl(adresse){
@@ -1012,7 +1035,7 @@ const defaultLogement = () => ({
   contacts:{ hote:'', tel:'', email:'', urgence:'' },
   photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun',
   wallpaper:null, wallpaperOpacity:18, accent:null, intensite:'standard', ordreSections:null,
-  urgences:[], faq:[], publicUrl:'',
+  urgences:[], faq:[], services:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
 let migrationsAppliquees=0;
@@ -1943,6 +1966,7 @@ function sectionDone(l,id){
     case 'quartier': return l.recos.length>0;
     case 'urgences': return l.urgences.length>0||l.faq.length>0;
     case 'contacts': return !!(l.contacts.hote||l.contacts.tel);
+    case 'services': return (l.services||[]).some(s=>s.titre);
     case 'photos': return l.photos.length>0;
     case 'style': return true;
   }
@@ -2527,6 +2551,31 @@ function renderSection(l){
         ${F('contacts.urgence','Urgence (hors horaires)',l.contacts.urgence,'')}
       </div>
     `);
+    case 'services': return card(numFiche('services'),'Nos services','Vos prestations et partenaires, avec un lien vers votre site',`
+      ${(l.services||[]).length?`<div style="display:flex;flex-direction:column;gap:11px">
+      ${l.services.map((s,i)=>`
+        <div class="subcard">
+          <div class="inline-row">
+            ${i>0?`<button class="icon-x" title="Monter" onclick="moveArr('services',${i},-1)">${I('left',14)}</button>`:''}
+            <input class="input" placeholder="Ex. Dépôt de bagages ByeBag" value="${esc(s.titre)}" oninput="setArr('services',${i},'titre',this.value)">
+            <button class="icon-x" onclick="rmArr('services',${i})">${I('x',15)}</button>
+          </div>
+          <textarea class="textarea" rows="2" placeholder="En quoi ça aide le voyageur, en une phrase" oninput="setArr('services',${i},'desc',this.value)">${esc(s.desc||'')}</textarea>
+          <div class="inline-row">
+            <input class="input" placeholder="byebag.fr" value="${esc(s.url||'')}"
+              oninput="setArr('services',${i},'url',this.value);hintURL(${i},this.value)">
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('svc-img-${i}').click()">${I('upload',13)} ${s.image?'Changer':'Image'}</button>
+            ${s.image?`<img src="${s.image}" alt="" style="width:36px;height:36px;border-radius:8px;object-fit:cover;border:1px solid var(--line)">`:''}
+            <input type="file" id="svc-img-${i}" accept="image/*" style="display:none" onchange="importerImageService(${i},this.files[0]);this.value=''">
+          </div>
+          <span class="hint" id="url-hint-${i}" style="display:block">${urlInvalide(s.url)?'Adresse incomplète — elle ne sera pas cliquable dans le livret.':(s.url?'Lien : '+esc(urlPropre(s.url)):'')}</span>
+        </div>`).join('')}
+      </div>`:`<p class="ai-note">Aucun service pour l'instant. Ajoutez vos prestations ou celles de vos partenaires — elles apparaîtront dans le livret avec un lien cliquable.</p>`}
+      <div class="inline-row" style="flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="pushArr('services',{id:nid(),titre:'',desc:'',url:'',image:''})">${I('plus',13)} Ajouter un service</button>
+      </div>
+      <p class="ai-note">Le lien reste cliquable dans le fichier envoyé au voyageur. Sur papier, l'adresse du site est imprimée en clair.</p>
+    `);
     case 'photos': return card(numFiche('photos'),'Photos','Couverture et galerie du livret',`
       <div class="drop" id="dropzone" onclick="document.getElementById('photo-input').click()">
         <span class="dico">${I('upload',18)}</span><br>
@@ -2689,6 +2738,23 @@ async function addWallpaper(file){
     touch(l); renderCard(); toast('Fond appliqué — ajustez l\'intensité puis vérifiez l\'aperçu');
   }catch(e){ toast('Image illisible', true); }
 }
+/* Indication d'URL mise à jour sans re-rendu : la saisie garde son focus. */
+function hintURL(i,v){
+  const el=document.getElementById('url-hint-'+i);
+  if(!el) return;
+  el.textContent = urlInvalide(v) ? 'Adresse incomplète — elle ne sera pas cliquable dans le livret.'
+                 : (String(v||'').trim() ? 'Lien : '+urlPropre(v) : '');
+}
+async function importerImageService(i,file){
+  if(!file) return;
+  try{
+    const png=/png|svg/i.test(file.type);
+    const img=await compressImage(file, 600, 0.82, png);
+    setArr('services',i,'image',img); renderCard();
+    toast('Image ajoutée');
+  }catch(e){ toast('Image illisible, réessayez avec un PNG ou un JPEG', true); }
+}
+
 /* Import du logo depuis la fiche Habillage. Redimensionné à 400 px de large :
    il ne dépasse jamais 62 px à l'écran et ~2 cm à l'impression, donc au-delà
    c'est du poids pur — et le livret entier part en JSONB dans Supabase. */
@@ -3309,6 +3375,26 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   </section>`;
   }
 
+  /* Les liens doivent survivre à l'export : ce sont de vraies balises <a>, sans
+     script. Le domaine est aussi imprimé en clair — sur papier, un lien ne se
+     clique pas, et le voyageur doit pouvoir le recopier. */
+  if(has('services')&&(l.services||[]).some(s=>s.titre)) frag.services=`<section>${secTitle('bag',X.services)}
+    <div style="display:flex;flex-direction:column;gap:9px">
+      ${(l.services||[]).filter(s=>s.titre).map(s=>{
+        const lien=urlPropre(s.url);
+        return `<div style="display:flex;gap:13px;background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
+        ${s.image?`<img src="${s.image}" alt="" style="width:62px;height:62px;flex:none;border-radius:9px;object-fit:cover;border:1px solid ${t.line}">`:''}
+        <div style="flex:1;min-width:0">
+          <p style="font-size:14px;font-weight:600">${esc(s.titre)}</p>
+          ${s.desc?`<p style="font-size:13px;opacity:.72;line-height:1.6;margin-top:1px">${esc(s.desc)}</p>`:''}
+          ${lien?`<a href="${esc(lien)}" target="_blank" rel="noopener noreferrer"
+              style="font-size:12.5px;color:${t.accent};text-decoration:none;display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-weight:550">
+              <span style="line-height:0">${I('share',11)}</span>${esc(domaineLisible(lien))}</a>`:''}
+        </div>
+      </div>`;}).join('')}
+    </div>
+  </section>`;
+
   if(has('galerie')&&gallery.length) frag.galerie=`<section>${secTitle('image',X.images)}
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
       ${gallery.map(p=>`<img src="${p.dataUrl}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px;border:1px solid ${t.line}">`).join('')}
@@ -3396,7 +3482,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
 }
 /* ---------------- Audit IA du livret ---------------- */
 const AUDIT_SECTIONS = { infos:'Le logement', arrivee:'Arrivée', depart:'Départ', wifi:'Wifi', equipements:'Équipements',
-  reglement:'Règlement', quartier:'Dans le quartier', urgences:'Urgences & FAQ', contacts:'Contacts', photos:'Photos', style:'Habillage' };
+  reglement:'Règlement', quartier:'Dans le quartier', urgences:'Urgences & FAQ', contacts:'Contacts', services:'Nos services', photos:'Photos', style:'Habillage' };
 
 /* Contrôles déterministes, sans IA — toujours disponibles */
 function auditLocal(l){
