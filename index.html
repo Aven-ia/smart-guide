@@ -784,27 +784,27 @@ const LANGS = [
 ];
 /* Libellés statiques du livret, par langue */
 const L10N = {
-  fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès",
+  fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', horaires:'Horaires', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès",
        wifi:'Wifi', reseau:'Réseau', mdp:'Mot de passe', scan:'Scanner pour se connecter', equip:'Équipements',
        regl:'Règlement', quartier:'Dans le quartier', images:'Le logement en images', avantpartir:'Avant de partir',
        checklist:'Check-list', contact:'Nous contacter', urgence:'Urgence hors horaires', itineraire:'Itinéraire Google Maps', parking:'Stationnement', faq:'Questions fréquentes', urgences:'En cas de problème',
        etage:'Étage', guideArr:"Guide d'arrivée", guideDep:'Guide de départ', guideMai:'Guide de la maison', bienvenue:'Bienvenue' },
-  en:{ livret:'Welcome guide', arrivee:'Check-in', depuis:'Check-in from', avant:'Check-out before', code:'Access code',
+  en:{ livret:'Welcome guide', arrivee:'Check-in', horaires:'Times', depuis:'Check-in from', avant:'Check-out before', code:'Access code',
        wifi:'Wifi', reseau:'Network', mdp:'Password', scan:'Scan to connect', equip:'Amenities',
        regl:'House rules', quartier:'In the neighbourhood', images:'The place in pictures', avantpartir:'Before you leave',
        checklist:'Checklist', contact:'Contact us', urgence:'After-hours emergency', itineraire:'Google Maps directions', parking:'Parking', faq:'Frequently asked questions', urgences:'If something goes wrong',
        etage:'Floor', guideArr:'Arrival guide', guideDep:'Departure guide', guideMai:'House guide', bienvenue:'Welcome' },
-  es:{ livret:'Guía de bienvenida', arrivee:'Llegada', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso',
+  es:{ livret:'Guía de bienvenida', arrivee:'Llegada', horaires:'Horarios', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso',
        wifi:'Wifi', reseau:'Red', mdp:'Contraseña', scan:'Escanear para conectarse', equip:'Equipamiento',
        regl:'Normas de la casa', quartier:'En el barrio', images:'El alojamiento en imágenes', avantpartir:'Antes de salir',
        checklist:'Lista', contact:'Contáctenos', urgence:'Emergencia fuera de horario', itineraire:'Ruta en Google Maps', parking:'Aparcamiento', faq:'Preguntas frecuentes', urgences:'En caso de problema',
        etage:'Planta', guideArr:'Guía de llegada', guideDep:'Guía de salida', guideMai:'Guía de la casa', bienvenue:'Bienvenido' },
-  de:{ livret:'Willkommensmappe', arrivee:'Anreise', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode',
+  de:{ livret:'Willkommensmappe', arrivee:'Anreise', horaires:'Zeiten', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode',
        wifi:'WLAN', reseau:'Netzwerk', mdp:'Passwort', scan:'Zum Verbinden scannen', equip:'Ausstattung',
        regl:'Hausregeln', quartier:'In der Nachbarschaft', images:'Die Unterkunft in Bildern', avantpartir:'Vor der Abreise',
        checklist:'Checkliste', contact:'Kontakt', urgence:'Notfall außerhalb der Zeiten', itineraire:'Google Maps Route', parking:'Parkplatz', faq:'Häufige Fragen', urgences:'Im Problemfall',
        etage:'Etage', guideArr:'Anreise-Guide', guideDep:'Abreise-Guide', guideMai:'Haus-Guide', bienvenue:'Willkommen' },
-  it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso',
+  it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', horaires:'Orari', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso',
        wifi:'Wifi', reseau:'Rete', mdp:'Password', scan:'Scansiona per connetterti', equip:'Dotazioni',
        regl:'Regole della casa', quartier:'Nel quartiere', images:"L'alloggio in immagini", avantpartir:'Prima di partire',
        checklist:'Checklist', contact:'Contattaci', urgence:'Emergenza fuori orario', itineraire:'Percorso Google Maps', parking:'Parcheggio', faq:'Domande frequenti', urgences:'In caso di problemi',
@@ -2917,10 +2917,16 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       <span style="line-height:0;flex:none;margin-top:1px">${I('pin',13)}</span>${esc(adresseTxt)}</a></p>`:'';
   /* Étage : texte libre (« RDC », « 3ème gauche »…), juste sous l'adresse.
      Entièrement masqué — libellé compris — si le champ est vide ou absent. */
+  const ligneIdentite=(libelle,valeur)=>`<p style="display:flex;align-items:baseline;gap:7px;font-size:13px;opacity:.72;margin-bottom:10px">
+      <span style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.62;flex:none">${esc(libelle)}</span>${esc(valeur)}</p>`;
   const etageTxt=String(l.etage||'').trim();
-  const etageP=etageTxt?`<p style="display:flex;align-items:baseline;gap:7px;font-size:13px;opacity:.72;margin-bottom:10px">
-      <span style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.62;flex:none">${esc(X.etage)}</span>${esc(etageTxt)}</p>`:'';
-  const lieuP=adresseP+etageP;
+  const etageP=etageTxt?ligneIdentite(X.etage, etageTxt):'';
+  /* Le code d'accès rejoint le bloc d'identité : le voyageur trouve où aller et
+     comment entrer au même endroit, sans faire défiler. Il n'est plus répété
+     dans la section « Horaires ». */
+  const codeTxt=String((l.arrivee&&l.arrivee.codeAcces)||'').trim();
+  const codeP=codeTxt?ligneIdentite(X.code, codeTxt):'';
+  const lieuP=adresseP+etageP+codeP;
   const accP=l.accroche?`<p style="${serif};font-style:italic;font-size:15.5px;opacity:.85;line-height:1.45">${esc(l.accroche)}</p>`:'';
   const perfo=`<div style="height:1px;background-image:radial-gradient(circle,${t.bg} 2px,transparent 2.5px);background-size:12px 12px"></div>`;
 
@@ -2932,14 +2938,12 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
         <h1 style="${serif};font-size:42px;font-weight:500;line-height:1.08;margin-bottom:12px;letter-spacing:-.01em">${esc(l.nom||'Votre logement')}</h1>
         ${lieuP}${accP}
         <div style="margin-top:24px">${perfo}</div>
-        ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:22px;opacity:.92">${esc(l.bienvenue)}</p>`:''}
       </div>`;
     } else if(l.coverStyle==='cadre'&&cover){
       out+=`<div style="max-width:600px;margin:0 auto;padding:38px 30px 6px">
         <img src="${cover.dataUrl}" style="width:100%;height:250px;object-fit:cover;display:block;border-radius:14px;border:1px solid ${t.line};box-shadow:0 14px 40px rgba(0,0,0,.14)">
         <div style="padding:26px 4px 0">${kicker}${titleH}${lieuP}${accP}</div>
         <div style="margin-top:22px">${perfo}</div>
-        ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:22px;opacity:.92">${esc(l.bienvenue)}</p>`:''}
       </div>`;
     } else {
       out+=`<div style="max-width:600px;margin:0 auto;padding:36px 26px 6px">
@@ -2949,9 +2953,21 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
           <div style="padding:27px 27px 24px">${kicker}${titleH}${lieuP}${accP}</div>
           ${perfo}
         </div>
-        ${l.bienvenue?`<p style="font-size:14.5px;line-height:1.7;margin-top:21px;opacity:.92;padding:0 4px">${esc(l.bienvenue)}</p>`:''}
       </div>`;
     }
+  }
+
+  /* ---- Mot de bienvenue ----
+     Sorti de la couverture pour devenir un bloc à part entière, juste sous
+     l'en-tête. Le champ existe déjà (`bienvenue`), il est saisissable en fiche 01
+     et rédigeable par l'IA. Bloc entièrement masqué si le message est vide. */
+  if(has('cover') && String(l.bienvenue||'').trim()){
+    out+=`<div style="max-width:600px;margin:0 auto;padding:22px 26px 0">
+      <div style="background:${t.accentSoft};border-radius:14px;padding:18px 20px">
+        <p style="${mono};font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:${t.accent};margin-bottom:7px">${esc(X.bienvenue)}</p>
+        <p style="font-size:14.5px;line-height:1.7;opacity:.92">${esc(l.bienvenue)}</p>
+      </div>
+    </div>`;
   }
 
   /* ---- Bandeau essentiels (livret complet) ----
@@ -2974,11 +2990,11 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
 
   out+=`<div style="max-width:600px;margin:0 auto;padding:30px 26px 0;display:flex;flex-direction:column;gap:36px">`;
 
-  if(has('arrivee')) out+=`<section>${secTitle('key',X.arrivee)}
+  /* « Horaires » et non « Arrivée » : la section contient l'arrivée ET le départ. */
+  if(has('arrivee')) out+=`<section>${secTitle('clock',X.horaires)}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       ${block(X.depuis, l.arrivee.heure)}
       ${block(X.avant, l.depart.heure)}
-      ${l.arrivee.codeAcces?block(X.code, l.arrivee.codeAcces, true):''}
     </div>
     ${l.arrivee.instructions?`<p style="font-size:14px;line-height:1.7;opacity:.88">${esc(l.arrivee.instructions)}</p>`:''}
     ${l.arrivee.parking?`
