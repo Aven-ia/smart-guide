@@ -892,7 +892,7 @@ const defaultLogement = () => ({
   reglement:['Non-fumeur à l\'intérieur','Pas de fêtes ni d\'événements','Merci de respecter le voisinage après 22h'],
   recos:[],
   contacts:{ hote:'', tel:'', email:'', urgence:'' },
-  photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux',
+  photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun',
   wallpaper:null, wallpaperOpacity:18, accent:null,
   urgences:[], faq:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
@@ -2409,6 +2409,28 @@ function renderSection(l){
         </div>`}
         <input type="file" id="wp-input" accept="image/*" style="display:none" onchange="addWallpaper(this.files[0]);this.value=''">
       </div>
+      <div class="field"><label>Logo de la conciergerie en tête du livret<span class="hint">Le logo est celui de vos réglages, commun à tous vos livrets. Seule sa taille se règle ici.</span></label>
+        ${S.settings.logo?`<div class="wp-panel" style="align-items:center">
+          <div class="logo-prev" style="background:var(--paper-warm);border:1px solid var(--line);border-radius:11px;padding:12px;display:flex;align-items:center;justify-content:center">
+            <img src="${S.settings.logo}" alt="Logo" style="max-height:${({aucun:34,petit:30,moyen:44,grand:62})[l.logoHaut]||34}px;max-width:100%;object-fit:contain">
+          </div>
+          <div class="wp-ctrl">
+            <div class="pill-group">
+              ${[['aucun','Masqué'],['petit','Petit'],['moyen','Moyen'],['grand','Grand']].map(([id,lab])=>
+                `<button class="pill ${l.logoHaut===id?'on':''}" onclick="setPath('logoHaut','${id}');renderCard()">${lab}</button>`).join('')}
+            </div>
+            <div class="inline-row" style="margin-top:11px">
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('logo-input').click()">${I('upload',13)} Remplacer</button>
+            </div>
+          </div>
+        </div>`:`
+        <div class="drop" onclick="document.getElementById('logo-input').click()">
+          <span class="dico">${I('upload',18)}</span><br>
+          <strong style="font-weight:550">Importer votre logo</strong> — il apparaîtra en haut du livret<br>
+          <span style="font-size:11.5px;color:var(--muted-2)">Redimensionné automatiquement, PNG transparent conservé</span>
+        </div>`}
+        <input type="file" id="logo-input" accept="image/*" style="display:none" onchange="importerLogo(this.files[0]);this.value=''">
+      </div>
       <div class="field"><label>Ton de la rédaction IA</label>
       <div class="pill-group">
         ${TONES.map(t=>`<button class="pill ${l.tone===t.id?'on':''}" onclick="setPath('tone','${t.id}');renderCard()">${t.label}</button>`).join('')}
@@ -2458,6 +2480,20 @@ async function addWallpaper(file){
     if(!l.wallpaperOpacity) l.wallpaperOpacity=18;
     touch(l); renderCard(); toast('Fond appliqué — ajustez l\'intensité puis vérifiez l\'aperçu');
   }catch(e){ toast('Image illisible', true); }
+}
+/* Import du logo depuis la fiche Habillage. Redimensionné à 400 px de large :
+   il ne dépasse jamais 62 px à l'écran et ~2 cm à l'impression, donc au-delà
+   c'est du poids pur — et le livret entier part en JSONB dans Supabase. */
+async function importerLogo(file){
+  if(!file) return;
+  try{
+    const png=/png|svg/i.test(file.type);
+    S.settings.logo=await compressImage(file, 400, 0.92, png);
+    const l=cur();
+    if(l && l.logoHaut==='aucun'){ l.logoHaut='moyen'; }   // importer, c'est vouloir l'afficher
+    save(); renderCard();
+    toast('Logo importé — ajustez sa taille si besoin');
+  }catch(e){ toast('Image illisible, réessayez avec un PNG ou un JPEG', true); }
 }
 function renderAccentPreview(v){ const el=document.getElementById('accent-lbl'); if(el) el.textContent='Accent personnalisé '+v; }
 function liveWallpaper(v){
@@ -2845,6 +2881,11 @@ function hexA(hex, a){
    ligne de script. <details> y reste dépliable, et le lecteur d'écran annonce
    l'état d'ouverture nativement. Pour l'impression / PDF on force `open`
    (opts.deplie), sinon le contenu replié serait absent du papier. */
+/* Marque blanche assumée : le livret appartient visuellement à la conciergerie.
+   Seule une mention discrète en pied rappelle l'outil. Passer à false la retire
+   partout — destiné à devenir une option d'offre supérieure. */
+const MENTION_SMART_GUIDE=true;
+
 const LIVRET_CSS=`<style>
 .lv .lvacc{border-radius:10px;overflow:hidden}
 .lv .lvacc+.lvacc{margin-top:8px}
@@ -2917,6 +2958,14 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       <span style="line-height:0;flex:none;margin-top:1px">${I('pin',13)}</span>${esc(adresseTxt)}</a></p>`:'';
   /* Étage : texte libre (« RDC », « 3ème gauche »…), juste sous l'adresse.
      Entièrement masqué — libellé compris — si le champ est vide ou absent. */
+  /* Logo de la conciergerie en tête. L'image est celle des Réglages, partagée
+     par tous les livrets ; seule la taille d'affichage se règle par livret.
+     Rien n'est rendu si aucun logo n'est chargé ou si la taille vaut « aucun ». */
+  const TAILLES_LOGO={ petit:30, moyen:44, grand:62 };
+  const hLogo=TAILLES_LOGO[l.logoHaut];
+  const logoP=(hLogo && S.settings.logo)
+    ? `<img src="${S.settings.logo}" alt="" style="max-height:${hLogo}px;max-width:62%;object-fit:contain;display:block;margin-bottom:14px">`
+    : '';
   const ligneIdentite=(libelle,valeur)=>`<p style="display:flex;align-items:baseline;gap:7px;font-size:13px;opacity:.72;margin-bottom:10px">
       <span style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.62;flex:none">${esc(libelle)}</span>${esc(valeur)}</p>`;
   const etageTxt=String(l.etage||'').trim();
@@ -2933,7 +2982,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   if(has('cover')){
     if(l.coverStyle==='minimal'||(!cover&&l.coverStyle!=='photo')){
       out+=`<div style="max-width:600px;margin:0 auto;padding:52px 30px 6px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">${logoSVG(22,t.accent)}<span style="flex:1;height:1px;background:${t.line}"></span></div>
+        ${logoP || `<div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">${logoSVG(22,t.accent)}<span style="flex:1;height:1px;background:${t.line}"></span></div>`}
         ${kicker}
         <h1 style="${serif};font-size:42px;font-weight:500;line-height:1.08;margin-bottom:12px;letter-spacing:-.01em">${esc(l.nom||'Votre logement')}</h1>
         ${lieuP}${accP}
@@ -2942,7 +2991,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     } else if(l.coverStyle==='cadre'&&cover){
       out+=`<div style="max-width:600px;margin:0 auto;padding:38px 30px 6px">
         <img src="${cover.dataUrl}" style="width:100%;height:250px;object-fit:cover;display:block;border-radius:14px;border:1px solid ${t.line};box-shadow:0 14px 40px rgba(0,0,0,.14)">
-        <div style="padding:26px 4px 0">${kicker}${titleH}${lieuP}${accP}</div>
+        <div style="padding:26px 4px 0">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
         <div style="margin-top:22px">${perfo}</div>
       </div>`;
     } else {
@@ -2950,7 +2999,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
         <div style="background:${t.paper};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
           ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:235px;object-fit:cover;display:block">`
             :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft}">${logoSVG(38,t.accent)}</div>`}
-          <div style="padding:27px 27px 24px">${kicker}${titleH}${lieuP}${accP}</div>
+          <div style="padding:27px 27px 24px">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
           ${perfo}
         </div>
       </div>`;
@@ -3122,6 +3171,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       ? `<img src="${S.settings.logo}" style="max-height:38px;max-width:150px;object-fit:contain;opacity:.9">`
       : logoSVG(20,t.accent)}
     <p style="${mono};font-size:9px;letter-spacing:.16em;text-transform:uppercase;opacity:.42">${esc(S.settings.conciergerie||'Smart Guide')}</p>
+    ${MENTION_SMART_GUIDE?`<p style="${mono};font-size:7.5px;letter-spacing:.1em;opacity:.28;margin-top:2px">Créé avec Smart Guide</p>`:''}
   </div></div>`;
   return out;
 }
