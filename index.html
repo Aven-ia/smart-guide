@@ -3055,8 +3055,11 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </div>
   </section>`;
 
+  /* L'heure de départ vit dans « Horaires ». On ne la répète ici QUE si cette
+     section est absente du guide — c'est le cas du « Guide de départ », qui est
+     remis seul au voyageur et perdrait sinon son information principale. */
   if(has('depart')&&l.depart.checklist.some(Boolean)) out+=`<section>${secTitle('logout',X.avantpartir)}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">${block(X.avant, l.depart.heure)}</div>
+    ${(!has('arrivee') && l.depart.heure)?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">${block(X.avant, l.depart.heure)}</div>`:''}
     <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:15px 17px">
       <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:10px">${X.checklist}</p>
       ${l.depart.checklist.filter(Boolean).map(c=>`
