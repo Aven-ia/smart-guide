@@ -689,6 +689,52 @@ function paletteLivret(l){
   return p;
 }
 
+/* ---------------- Registre des sections du livret ----------------
+   AJOUTER UNE SECTION = AJOUTER UNE ENTRÉE ICI, rien d'autre. L'ordre, le
+   filtrage par guide, le masquage des sections vides, le réglage par livret et
+   l'écran de réorganisation lisent tous ce registre. Aucun code ne nomme une
+   section en particulier.
+   `fixe` : bloc d'en-tête, non déplaçable — un livret qui commencerait par
+   « Nous contacter » n'aurait pas de sens. */
+const SECTIONS_LIVRET = [
+  { id:'cover',       label:'Couverture',           icon:'home',    fixe:true },
+  { id:'bienvenue',   label:'Mot de bienvenue',     icon:'sparkles',fixe:true },
+  { id:'arrivee',     label:'Horaires',             icon:'clock' },
+  { id:'wifi',        label:'Wifi',                 icon:'wifi' },
+  { id:'equipements', label:'Équipements',          icon:'sofa' },
+  { id:'reglement',   label:'Règlement',            icon:'scroll' },
+  { id:'quartier',    label:'Dans le quartier',     icon:'compass' },
+  { id:'galerie',     label:'Le logement en images',icon:'image' },
+  { id:'depart',      label:'Avant de partir',      icon:'logout' },
+  { id:'faq',         label:'Questions fréquentes', icon:'book' },
+  { id:'urgences',    label:'En cas de problème',   icon:'shield' },
+  { id:'contacts',    label:'Nous contacter',       icon:'phone' },
+];
+/* Ordre par défaut = l'ordre du registre, blocs fixes exclus. */
+const ordreParDefaut = () => SECTIONS_LIVRET.filter(s=>!s.fixe).map(s=>s.id);
+/* Réconciliation à CHAQUE lecture : les ids ajoutés au registre depuis le
+   dernier enregistrement sont insérés à leur position par défaut, les ids
+   inconnus sont retirés. Sans ça, une section nouvelle serait invisible sur
+   tous les livrets déjà enregistrés. */
+function ordreSections(l){
+  const defaut=ordreParDefaut();
+  const connus=new Set(defaut);
+  const garde=(Array.isArray(l.ordreSections)?l.ordreSections:[]).filter(id=>connus.has(id));
+  const vus=new Set(garde);
+  const manquants=defaut.filter(id=>!vus.has(id));
+  if(!garde.length) return defaut;
+  if(!manquants.length) return garde;
+  /* Un id manquant se glisse JUSTE AVANT la première section qui le suit dans
+     l'ordre par défaut. L'ordre déjà choisi par le gérant n'est pas bousculé. */
+  const sortie=garde.slice();
+  for(const id of manquants){
+    const rang=defaut.indexOf(id);
+    let pos=sortie.findIndex(x=>defaut.indexOf(x)>rang);
+    sortie.splice(pos<0?sortie.length:pos, 0, id);
+  }
+  return sortie;
+}
+
 const COVER_STYLES = [
   { id:'photo',   label:'Immersive',  desc:'Photo pleine largeur' },
   { id:'cadre',   label:'Galerie',    desc:'Photo encadrée, marges' },
@@ -838,10 +884,10 @@ const RECO_AUTRE='autre';
 const recoCatConnue = c => CATS.some(x=>x.id===c) ? c : RECO_AUTRE;
 const catOf = id => CATS.find(c=>c.id===id) || CATS.find(c=>c.id===RECO_AUTRE);
 const GUIDES = [
-  { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','essentials','arrivee','wifi','equipements','reglement','quartier','galerie','depart','faq','urgences','contacts'] },
-  { id:'arrivee', label:"Guide d'arrivée",  court:'Arrivée', sections:['cover','arrivee','wifi','contacts'] },
-  { id:'depart',  label:'Guide de départ',  court:'Départ',  sections:['cover','depart','contacts'] },
-  { id:'maison',  label:'Guide maison',     court:'Maison',  sections:['cover','wifi','equipements','reglement','faq','urgences','contacts'] },
+  { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','bienvenue','arrivee','wifi','equipements','reglement','quartier','galerie','depart','faq','urgences','contacts'] },
+  { id:'arrivee', label:"Guide d'arrivée",  court:'Arrivée', sections:['cover','bienvenue','arrivee','wifi','contacts'] },
+  { id:'depart',  label:'Guide de départ',  court:'Départ',  sections:['cover','bienvenue','depart','contacts'] },
+  { id:'maison',  label:'Guide maison',     court:'Maison',  sections:['cover','bienvenue','wifi','equipements','reglement','faq','urgences','contacts'] },
 ];
 const MODELS = [
   { id:'claude-haiku-4-5',  label:'Claude Haiku — rapide & très économique (recommandé)' },
@@ -965,7 +1011,7 @@ const defaultLogement = () => ({
   recos:[],
   contacts:{ hote:'', tel:'', email:'', urgence:'' },
   photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun',
-  wallpaper:null, wallpaperOpacity:18, accent:null, intensite:'standard',
+  wallpaper:null, wallpaperOpacity:18, accent:null, intensite:'standard', ordreSections:null,
   urgences:[], faq:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
@@ -987,6 +1033,14 @@ function migrateLogement(l){
   // v4 : les catégories du quartier gagnent « Musée / Culture » et « Autres ».
   // Les identifiants existants restent valides, donc aucune adresse ne bouge ;
   // seule une valeur inconnue serait ramenée sur « Autres ».
+  // v5 : l'ordre des sections devient une donnee du livret. On y fige l'ordre
+  // ACTUEL, donc aucun livret deja enregistre ne change d'apparence.
+  {
+    const attendu=ordreSections(l);
+    if(!Array.isArray(l.ordreSections) || l.ordreSections.join()!==attendu.join()){
+      l.ordreSections=attendu; migrationsAppliquees++;
+    }
+  }
   if(Array.isArray(l.recos)) l.recos.forEach(r=>{
     const c=recoCatConnue(r.cat);
     if(r.cat!==c){ r.cat=c; migrationsAppliquees++; }
@@ -2279,9 +2333,85 @@ function urgencesParCategorie(l){
   })).join('');
 }
 
+/* ---------- Ordre des sections du livret ----------
+   L'ordre porte sur le LIVRET, pas sur la sidebar : la sidebar suit l'ordre de
+   SAISIE (on remplit l'arrivée avant le départ), le livret suit l'ordre de
+   LECTURE choisi par le gérant. Les deux n'ont pas à coïncider. */
+function sectionsVidesDuLivret(l){
+  try{ const frag=livretHTML(l,'complet','fr',{fragments:true});
+       return new Set(ordreSections(l).filter(id=>!frag[id])); }
+  catch(e){ return new Set(); }
+}
+function deplacerSection(i,dir){
+  const l=cur(); const o=ordreSections(l).slice(); const j=i+dir;
+  if(j<0||j>=o.length) return;
+  [o[i],o[j]]=[o[j],o[i]];
+  l.ordreSections=o; touch(l); renderCard();
+}
+function retablirOrdreSections(){
+  const l=cur(); l.ordreSections=ordreParDefaut(); touch(l); renderCard();
+  toast('Ordre par défaut rétabli');
+}
+/* Opération de masse : elle ne perd jamais rien. Un instantané de chaque
+   livret concerné part dans le coffre AVANT modification, comme la
+   restauration du lot précédent. Seul l'ordre change, jamais le contenu. */
+function appliquerOrdreATous(){
+  const l=cur(); const autres=S.logements.filter(x=>x.id!==l.id);
+  if(!autres.length) return toast('Vous n\'avez qu\'un seul logement');
+  const n=autres.length, s=n>1?'s':'';
+  const enLigne=!!(sb&&compte);
+  confirmModal(`Appliquer cet ordre à vos ${n} autre${s} logement${s} ?`,
+    `Seul l'ordre des sections change — aucun contenu n'est touché. `
+    + (enLigne ? `Une sauvegarde de chacun sera créée avant modification.`
+               : `Connectez-vous d'abord si vous voulez qu'une sauvegarde de chacun soit créée.`),
+    async ()=>{
+      try{
+        if(enLigne){
+          const distants=await cloudLire();
+          const parLocal=new Map(distants.map(d=>[d.local_id,d]));
+          for(const x of autres){ const d=parLocal.get(x.id); if(d) await cloudSnapshot(d); }
+        }
+        const o=ordreSections(l);
+        // Chaque livret est réconcilié pour SES propres sections.
+        autres.forEach(x=>{ x.ordreSections=o.slice(); x.updatedAt=Date.now(); x.ordreSections=ordreSections(x); });
+        save(); renderCard();
+        toast(`Ordre appliqué à ${n} logement${s}`);
+      }catch(e){ toast('Application impossible : '+messageAuth(e), true); }
+    }, 'Appliquer');
+}
+function ordreSectionsHTML(l){
+  const o=ordreSections(l), vides=sectionsVidesDuLivret(l);
+  const fixes=SECTIONS_LIVRET.filter(s=>s.fixe);
+  return accordeon({
+    cle:'ordre-sections', icon:'scroll', titre:'Ordre des sections du livret',
+    badge:String(o.length),
+    corps:`
+      <p class="ai-note" style="margin-bottom:11px">L'ordre dans lequel le voyageur lira les sections.
+        ${fixes.map(f=>esc(f.label)).join(' et ')} restent en tête.</p>
+      <div style="display:flex;flex-direction:column;gap:7px">
+      ${o.map((id,i)=>{ const s=SECTIONS_LIVRET.find(x=>x.id===id); if(!s) return '';
+        const vide=vides.has(id);
+        return `<div class="inline-row" style="background:var(--paper-warm);border:1px solid var(--line);border-radius:10px;padding:8px 10px">
+          <span class="acc-ico" style="width:30px;height:30px;border-radius:9px">${I(s.icon,15)}</span>
+          <span style="flex:1;min-width:0;font-size:13.5px;font-weight:${vide?'400':'550'};opacity:${vide?'.55':'1'}">${esc(s.label)}</span>
+          ${vide?`<span class="acc-badge">vide</span>`:''}
+          <button class="icon-x" title="Monter" ${i===0?'disabled':''} onclick="deplacerSection(${i},-1)">${I('left',14)}</button>
+          <button class="icon-x" title="Descendre" ${i===o.length-1?'disabled':''} onclick="deplacerSection(${i},1)">${I('right',14)}</button>
+        </div>`;}).join('')}
+      </div>
+      <div class="inline-row" style="flex-wrap:wrap;margin-top:12px">
+        <button class="btn btn-ghost btn-sm" onclick="appliquerOrdreATous()">${I('duplicate',13)} Appliquer à tous mes logements</button>
+        <button class="btn btn-plain btn-sm" onclick="retablirOrdreSections()">${I('back',13)} Ordre par défaut</button>
+      </div>`
+  });
+}
+
+/* Le numero affiche sur la carte vient de la position dans SECTIONS, comme
+   celui de la sidebar : coder les deux separement les faisait diverger. */
+const numFiche = id => String(SECTIONS.findIndex(s=>s.id===id)+1).padStart(2,'0');
 function renderSection(l){
   switch(route.section){
-    case 'infos': return card('01','Le logement','Ce qui apparaît en couverture du livret',`
+    case 'infos': return card(numFiche('infos'),'Le logement','Ce qui apparaît en couverture du livret',`
       <div class="row-2">
         <div style="grid-column:1/-1">${F('nom','Nom du logement',l.nom,"Ex. L'Escale Havraise",'Titre affiché en couverture du livret')}</div>
         <div style="grid-column:1/-1">${F('adresse','Adresse',l.adresse,'92 rue Frédéric Bellanger','Affichée en couverture du livret, cliquable vers les cartes')}</div>
@@ -2299,7 +2429,7 @@ function renderSection(l){
       ${l.accroche?`<div class="ai-box"><div class="lbl">${I('sparkles',11)} Accroche (couverture)</div><input class="input" value="${esc(l.accroche)}" oninput="setPath('accroche',this.value)"></div>`:''}
       ${l.bienvenue?`<div class="ai-box"><div class="lbl">${I('sparkles',11)} Mot de bienvenue</div><textarea class="textarea" rows="3" oninput="setPath('bienvenue',this.value)">${esc(l.bienvenue)}</textarea></div>`:''}
     `);
-    case 'arrivee': return card('02','Arrivée','Horaires et accès au logement',`
+    case 'arrivee': return card(numFiche('arrivee'),'Arrivée','Horaires et accès au logement',`
       <div class="row-2">
         <div class="field"><label>Arrivée à partir de</label><input type="time" class="input" value="${esc(l.arrivee.heure)}" oninput="setPath('arrivee.heure',this.value)"></div>
         ${F('arrivee.parking','Stationnement',l.arrivee.parking,'Ex. place gratuite rue Bellanger après 19h')}
@@ -2308,7 +2438,7 @@ function renderSection(l){
       ${FT('arrivee.instructions',"Instructions d'accès",l.arrivee.instructions,"Comment trouver l'entrée, où est la boîte à clés…",3,"Pour l'étage, utilisez le champ « Étage » de la fiche 01 : il s'affiche en couverture")}
       ${l.arrivee.instructions?aiPolishBtn('arrivee'):''}
     `);
-    case 'depart': return card('03','Départ','Une seule check-list, claire et actionnable — c\'est tout ce que le voyageur doit faire',`
+    case 'depart': return card(numFiche('depart'),'Départ','Une seule check-list, claire et actionnable — c\'est tout ce que le voyageur doit faire',`
       <div class="row-2">
         <div class="field"><label>Départ avant</label><input type="time" class="input" value="${esc(l.depart.heure)}" oninput="setPath('depart.heure',this.value)"></div>
       </div>
@@ -2328,13 +2458,13 @@ function renderSection(l){
         ${l.depart.checklist.some(Boolean)?`<button class="btn btn-ghost btn-sm" id="polish-depart" onclick="polishSection('depart')">${I('sparkles',13)} Reformuler la check-list</button>`:''}
       </div>
     `);
-    case 'wifi': return card('04','Wifi','Un QR code de connexion sera généré automatiquement dans le livret',`
+    case 'wifi': return card(numFiche('wifi'),'Wifi','Un QR code de connexion sera généré automatiquement dans le livret',`
       <div class="row-2">
         ${F('wifi.ssid','Nom du réseau',l.wifi.ssid,'Ex. ESCALE-Guest')}
         ${F('wifi.mdp','Mot de passe',l.wifi.mdp,'••••••••')}
       </div>
     `);
-    case 'equipements': return card('05','Équipements','Choisissez dans la bibliothèque — les instructions sont pré-rédigées, à ajuster librement',`
+    case 'equipements': return card(numFiche('equipements'),'Équipements','Choisissez dans la bibliothèque — les instructions sont pré-rédigées, à ajuster librement',`
       <button class="lib-open" onclick="openEquipLib()">
         <span class="lib-ico">${I('sofa',18)}</span>
         <span class="lib-txt"><strong>Ajouter depuis la bibliothèque</strong><span>${EQUIP_LIB.reduce((n,g)=>n+g.items.length,0)} équipements courants, prêts à l'emploi</span></span>
@@ -2346,7 +2476,7 @@ function renderSection(l){
         ${l.equipements.some(e=>e.instructions)?`<button class="btn btn-ghost btn-sm" id="polish-equipements" onclick="polishSection('equipements')">${I('sparkles',13)} Personnaliser avec l'IA</button>`:''}
       </div>
     `);
-    case 'reglement': return card('06','Règlement intérieur','Les règles affichées dans le livret',`
+    case 'reglement': return card(numFiche('reglement'),'Règlement intérieur','Les règles affichées dans le livret',`
       <div style="display:flex;flex-direction:column;gap:8px">
       ${l.reglement.map((r,i)=>`
         <div class="inline-row"><input class="input" value="${esc(r)}" oninput="setArr('reglement',${i},null,this.value)">
@@ -2357,7 +2487,7 @@ function renderSection(l){
         ${l.reglement.some(Boolean)?`<button class="btn btn-ghost btn-sm" id="polish-reglement" onclick="polishSection('reglement')">${I('sparkles',13)} Adoucir la formulation</button>`:''}
       </div>
     `);
-    case 'urgences': return card('08','Urgences & FAQ','Ce qui rassure le voyageur et vous évite les appels à 23h',`
+    case 'urgences': return card(numFiche('urgences'),'Urgences & FAQ','Ce qui rassure le voyageur et vous évite les appels à 23h',`
       <div class="field"><label>Numéros et réflexes d'urgence</label>
         ${l.urgences.length?`<div style="margin-bottom:11px">${urgencesParCategorie(l)}</div>`:''}
         <button class="lib-open" onclick="openUrgLib()">
@@ -2389,7 +2519,7 @@ function renderSection(l){
       </div>
     `);
     case 'quartier': return renderQuartier(l);
-    case 'contacts': return card('09','Contacts','Comment vous joindre pendant le séjour',`
+    case 'contacts': return card(numFiche('contacts'),'Contacts','Comment vous joindre pendant le séjour',`
       <div class="row-2">
         ${F('contacts.hote','Nom de l\'hôte / conciergerie',l.contacts.hote,'')}
         ${F('contacts.tel','Téléphone',l.contacts.tel,'')}
@@ -2397,7 +2527,7 @@ function renderSection(l){
         ${F('contacts.urgence','Urgence (hors horaires)',l.contacts.urgence,'')}
       </div>
     `);
-    case 'photos': return card('10','Photos','Couverture et galerie du livret',`
+    case 'photos': return card(numFiche('photos'),'Photos','Couverture et galerie du livret',`
       <div class="drop" id="dropzone" onclick="document.getElementById('photo-input').click()">
         <span class="dico">${I('upload',18)}</span><br>
         <strong style="font-weight:550">Glissez vos photos ici</strong> ou cliquez pour importer<br>
@@ -2421,7 +2551,7 @@ function renderSection(l){
           </div>`).join('')}
       </div>`:''}
     `);
-    case 'style': return card('11','Habillage','Le style visuel du livret remis au voyageur',`
+    case 'style': return card(numFiche('style'),'Habillage','Le style visuel du livret remis au voyageur',`
       <div class="field"><label>Palette</label>
       <div class="tpl-grid">
       ${TEMPLATES.map(t=>`
@@ -2441,6 +2571,7 @@ function renderSection(l){
           </div>
         </button>`).join('')}
       </div></div>
+      <div class="field">${ordreSectionsHTML(l)}</div>
       <div class="field"><label>Intensité des couleurs<span class="hint">Mêmes teintes, plus ou moins de présence. La lisibilité du texte est garantie dans les trois cas.</span></label>
       <div class="pill-group">
         ${INTENSITES.map(x=>`<button class="pill ${(l.intensite||'standard')===x.id?'on':''}" onclick="setPath('intensite','${x.id}');renderCard()">${x.label}</button>`).join('')}
@@ -2615,7 +2746,7 @@ function recosListHTML(l){
     })).join('')}</div>`;
 }
 function renderQuartier(l){
-  return card('07','Dans le quartier','Adresses recommandées aux voyageurs — recherche automatique autour du logement',`
+  return card(numFiche('quartier'),'Dans le quartier','Adresses recommandées aux voyageurs — recherche automatique autour du logement',`
     <div id="recos-list">${recosListHTML(l)}</div>
     <div class="inline-row" style="flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm" onclick="pushArr('recos',{id:nid(),cat:'restaurant',nom:'',desc:'',dist:null,mapsUrl:''})">${I('plus',13)} Ajouter manuellement</button>
@@ -3023,6 +3154,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       <div class="lvacc-body">${corps}</div>
     </details>`;
 
+  const frag={};
   let out=LIVRET_CSS+`<div class="lv" style="${wpStyle}color:${t.ink};padding-bottom:46px;font-family:'Inter',-apple-system,sans-serif">`;
 
   /* ---- Couverture (3 styles) ---- */
@@ -3061,7 +3193,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
 
   if(has('cover')){
     if(l.coverStyle==='minimal'||(!cover&&l.coverStyle!=='photo')){
-      out+=`<div style="max-width:600px;margin:0 auto;padding:52px 30px 6px">
+      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:52px 30px 6px">
         ${logoP || `<div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">${logoSVG(22,t.accent)}<span style="flex:1;height:1px;background:${t.line}"></span></div>`}
         ${kicker}
         <h1 style="${serif};font-size:42px;font-weight:500;line-height:1.08;margin-bottom:12px;letter-spacing:-.01em">${esc(l.nom||'Votre logement')}</h1>
@@ -3069,13 +3201,13 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
         <div style="margin-top:24px">${perfo}</div>
       </div>`;
     } else if(l.coverStyle==='cadre'&&cover){
-      out+=`<div style="max-width:600px;margin:0 auto;padding:38px 30px 6px">
+      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:38px 30px 6px">
         <img src="${cover.dataUrl}" style="width:100%;height:250px;object-fit:cover;display:block;border-radius:14px;border:1px solid ${t.line};box-shadow:0 14px 40px rgba(0,0,0,.14)">
         <div style="padding:26px 4px 0">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
         <div style="margin-top:22px">${perfo}</div>
       </div>`;
     } else {
-      out+=`<div style="max-width:600px;margin:0 auto;padding:36px 26px 6px">
+      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:36px 26px 6px">
         <div style="background:${t.paper};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
           ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:235px;object-fit:cover;display:block">`
             :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft}">${logoSVG(38,t.accent)}</div>`}
@@ -3090,8 +3222,8 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      Sorti de la couverture pour devenir un bloc à part entière, juste sous
      l'en-tête. Le champ existe déjà (`bienvenue`), il est saisissable en fiche 01
      et rédigeable par l'IA. Bloc entièrement masqué si le message est vide. */
-  if(has('cover') && String(l.bienvenue||'').trim()){
-    out+=`<div style="max-width:600px;margin:0 auto;padding:22px 26px 0">
+  if(has('bienvenue') && String(l.bienvenue||'').trim()){
+    frag.bienvenue=`<div style="max-width:600px;margin:0 auto;padding:22px 26px 0">
       <div style="background:${t.accentSoft};border-radius:14px;padding:18px 20px">
         <p style="${mono};font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:${t.accent};margin-bottom:7px">${esc(X.bienvenue)}</p>
         <p style="font-size:14.5px;line-height:1.7;opacity:.92">${esc(l.bienvenue)}</p>
@@ -3105,10 +3237,9 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      complète, avec mot de passe et QR code, arrive immédiatement après les
      horaires. Rien n'est perdu, et le wifi n'est plus à côté des horaires. */
 
-  out+=`<div style="max-width:600px;margin:0 auto;padding:30px 26px 0;display:flex;flex-direction:column;gap:36px">`;
 
   /* « Horaires » et non « Arrivée » : la section contient l'arrivée ET le départ. */
-  if(has('arrivee')) out+=`<section>${secTitle('clock',X.horaires)}
+  if(has('arrivee')) frag.arrivee=`<section>${secTitle('clock',X.horaires)}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       ${block(X.depuis, l.arrivee.heure)}
       ${block(X.avant, l.depart.heure)}
@@ -3122,7 +3253,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </div>`:''}
   </section>`;
 
-  if(has('wifi')&&(l.wifi.ssid||l.wifi.mdp)) out+=`<section>${secTitle('wifi',X.wifi)}
+  if(has('wifi')&&(l.wifi.ssid||l.wifi.mdp)) frag.wifi=`<section>${secTitle('wifi',X.wifi)}
     <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap">
       <div style="flex:1;min-width:200px;display:grid;grid-template-columns:1fr;gap:10px">
         ${block(X.reseau, l.wifi.ssid)}
@@ -3139,7 +3270,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      n'apparaît pas du tout — grouperParCat ne renvoie que les non vides. */
   if(has('equipements')&&l.equipements.some(e=>e.nom)){
     const grp=grouperParCat(l.equipements.filter(e=>e.nom), EQUIP_CATS, equipCatConnue);
-    out+=`<section>${secTitle('sofa',X.equip)}
+    frag.equipements=`<section>${secTitle('sofa',X.equip)}
     <div>
       ${grp.map(c=>lvacc(c.icon, catL10N(c.id,lang), String(c.entrees.length),
         c.entrees.map(({item:e})=>`
@@ -3151,7 +3282,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   </section>`;
   }
 
-  if(has('reglement')&&l.reglement.some(Boolean)) out+=`<section>${secTitle('shield',X.regl)}
+  if(has('reglement')&&l.reglement.some(Boolean)) frag.reglement=`<section>${secTitle('shield',X.regl)}
     <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:16px 18px">
     <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;margin:0;padding:0">
       ${l.reglement.filter(Boolean).map(r=>`<li style="font-size:14px;opacity:.88;display:flex;gap:10px;line-height:1.55"><span style="color:${t.accent};flex:none">—</span>${esc(r)}</li>`).join('')}
@@ -3169,7 +3300,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
           ${r.mapsUrl?`<a href="${esc(r.mapsUrl)}" target="_blank" rel="noopener" style="font-size:12px;color:${t.accent};text-decoration:none;display:inline-flex;align-items:center;gap:5px;margin-top:5px;font-weight:500"><span style="line-height:0">${I('pin',11)}</span>${X.itineraire}</a>`:''}
         </div>
       </div>`;
-    out+=`<section>${secTitle('compass',X.quartier)}
+    frag.quartier=`<section>${secTitle('compass',X.quartier)}
     <div>
       ${grouperParCat(l.recos.filter(r=>r.nom), CATS, recoCatConnue).map(c=>
         lvacc(c.icon, catL10N(c.label,lang), String(c.entrees.length),
@@ -3178,7 +3309,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   </section>`;
   }
 
-  if(has('galerie')&&gallery.length) out+=`<section>${secTitle('image',X.images)}
+  if(has('galerie')&&gallery.length) frag.galerie=`<section>${secTitle('image',X.images)}
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">
       ${gallery.map(p=>`<img src="${p.dataUrl}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:9px;border:1px solid ${t.line}">`).join('')}
     </div>
@@ -3187,7 +3318,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   /* L'heure de départ vit dans « Horaires ». On ne la répète ici QUE si cette
      section est absente du guide — c'est le cas du « Guide de départ », qui est
      remis seul au voyageur et perdrait sinon son information principale. */
-  if(has('depart')&&l.depart.checklist.some(Boolean)) out+=`<section>${secTitle('logout',X.avantpartir)}
+  if(has('depart')&&l.depart.checklist.some(Boolean)) frag.depart=`<section>${secTitle('logout',X.avantpartir)}
     ${(!has('arrivee') && l.depart.heure)?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">${block(X.avant, l.depart.heure)}</div>`:''}
     <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:15px 17px">
       <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:10px">${X.checklist}</p>
@@ -3198,7 +3329,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   </section>`;
 
   /* FAQ : un accordéon par question — c'est la forme naturelle d'une FAQ. */
-  if(has('faq')&&l.faq.some(f=>f.q)) out+=`<section>${secTitle('book',X.faq)}
+  if(has('faq')&&l.faq.some(f=>f.q)) frag.faq=`<section>${secTitle('book',X.faq)}
     <div>
       ${l.faq.filter(f=>f.q).map(f=>lvacc('book', f.q, '',
         f.r?`<p style="font-size:13px;opacity:.78;line-height:1.65">${esc(f.r)}</p>`
@@ -3216,7 +3347,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
         </div>
         ${u.valeur?`<span style="${serif};font-size:18px;color:${t.accent};white-space:nowrap;font-weight:500">${esc(u.valeur)}</span>`:''}
       </div>`;
-    out+=`<section>${secTitle('shield',X.urgences)}
+    frag.urgences=`<section>${secTitle('shield',X.urgences)}
     <div style="display:flex;flex-direction:column;gap:9px">
       ${grp.map(c=>{
         const corps=c.entrees.map(({item:u})=>ligneUrg(u)).join('');
@@ -3236,7 +3367,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   }
 
   const ct=l.contacts;
-  if(has('contacts')&&(ct.hote||ct.tel||ct.email||ct.urgence)) out+=`<section>${secTitle('phone',X.contact)}
+  if(has('contacts')&&(ct.hote||ct.tel||ct.email||ct.urgence)) frag.contacts=`<section>${secTitle('phone',X.contact)}
     <div style="background:${t.accentSoft};border-radius:12px;padding:17px 19px;display:flex;flex-direction:column;gap:7px">
       ${ct.hote?`<p style="${serif};font-size:16px;font-weight:500">${esc(ct.hote)}</p>`:''}
       ${ct.tel?`<p style="display:flex;align-items:center;gap:8px;font-size:13.5px"><span style="line-height:0;color:${t.accent}">${I('phone',13)}</span>${esc(ct.tel)}</p>`:''}
@@ -3244,6 +3375,14 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       ${ct.urgence?`<p style="font-size:12.5px;opacity:.72;padding-top:3px">${X.urgence} : ${esc(ct.urgence)}</p>`:''}
     </div>
   </section>`;
+
+  /* Assemblage : les blocs fixes d'abord, puis les sections dans l'ordre
+     choisi pour CE livret. Aucune section n'est nommee ici — ajouter une
+     section au registre suffit a la rendre ordonnable. */
+  if(opts.fragments) return frag;
+  for(const s of SECTIONS_LIVRET) if(s.fixe && frag[s.id]) out+=frag[s.id];
+  out+=`<div style="max-width:600px;margin:0 auto;padding:30px 26px 0;display:flex;flex-direction:column;gap:36px">`;
+  for(const id of ordreSections(l)) if(frag[id]) out+=frag[id];
 
   out+=`</div><div style="display:flex;flex-direction:column;align-items:center;gap:9px;padding-top:42px">
     <span style="width:34px;height:1px;background:${t.line}"></span>
