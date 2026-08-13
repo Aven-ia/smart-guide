@@ -416,6 +416,19 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 /* ---------- Réglages ---------- */
 .settings{max-width:660px;margin:0 auto;padding:46px 30px 90px;display:flex;flex-direction:column;gap:0}
 
+/* Réordonnancement : la poignée dit « ça se déplace », les flèches sont de
+   vraies cibles tactiles. Les boutons faisaient 26px et l'écran était enfoui —
+   le gérant cherchait à glisser faute de voir qu'il pouvait cliquer. */
+.ligne-ordre{display:flex;align-items:center;gap:9px;background:var(--paper-warm);
+  border:1px solid var(--line);border-radius:11px;padding:7px 9px;transition:border-color .16s}
+.ligne-ordre:hover{border-color:var(--accent)}
+.poignee{flex:none;color:var(--muted-2);line-height:0;cursor:grab;padding:2px}
+.btn-ordre{flex:none;width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  color:var(--ink-soft);background:var(--bg-deep);border:1px solid var(--line);transition:all .14s}
+.btn-ordre:hover:not(:disabled){background:var(--ink);color:#F2EFE7;border-color:var(--ink)}
+.btn-ordre:disabled{opacity:.3;cursor:default}
+@media(max-width:700px){ .ligne-ordre{gap:6px;padding:6px 7px} }
+
 /* Compte */
 #btn-compte.connecte{color:var(--accent-dark);background:var(--accent-mist)}
 .auth-msg{font-size:13px;line-height:1.5;margin:12px 0 0;min-height:1px}
@@ -599,6 +612,9 @@ const I = (name, size=15) => {
     left:'<path d="m14 6-6 6 6 6"/>',
     right:'<path d="m10 6 6 6-6 6"/>',
     chevron:'<path d="m6 9 6 6 6-6"/>',
+    poignee:'<circle cx="9" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.5" fill="currentColor" stroke="none"/>',
+    haut:'<path d="m6 15 6-6 6 6"/>',
+    bas:'<path d="m6 9 6 6 6-6"/>',
     user:'<circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
     smartphone:'<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/>',
     filetext:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6"/><path d="M9 13h6M9 17h6"/>',
@@ -2408,19 +2424,21 @@ function ordreSectionsHTML(l){
   const fixes=SECTIONS_LIVRET.filter(s=>s.fixe);
   return accordeon({
     cle:'ordre-sections', icon:'scroll', titre:'Ordre des sections du livret',
-    badge:String(o.length),
+    badge:String(o.length), ouvertParDefaut:true,
     corps:`
-      <p class="ai-note" style="margin-bottom:11px">L'ordre dans lequel le voyageur lira les sections.
+      <p class="ai-note" style="margin-bottom:11px"><strong>Utilisez les flèches ↑ ↓ pour déplacer un bloc.</strong>
+        C'est l'ordre dans lequel le voyageur lira les sections.
         ${fixes.map(f=>esc(f.label)).join(' et ')} restent en tête.</p>
       <div style="display:flex;flex-direction:column;gap:7px">
       ${o.map((id,i)=>{ const s=SECTIONS_LIVRET.find(x=>x.id===id); if(!s) return '';
         const vide=vides.has(id);
-        return `<div class="inline-row" style="background:var(--paper-warm);border:1px solid var(--line);border-radius:10px;padding:8px 10px">
-          <span class="acc-ico" style="width:30px;height:30px;border-radius:9px">${I(s.icon,15)}</span>
+        return `<div class="ligne-ordre">
+          <span class="poignee" aria-hidden="true" title="Ce bloc peut être déplacé">${I('poignee',16)}</span>
+          <span class="acc-ico" style="width:30px;height:30px;border-radius:9px;flex:none">${I(s.icon,15)}</span>
           <span style="flex:1;min-width:0;font-size:13.5px;font-weight:${vide?'400':'550'};opacity:${vide?'.55':'1'}">${esc(s.label)}</span>
           ${vide?`<span class="acc-badge">vide</span>`:''}
-          <button class="icon-x" title="Monter" ${i===0?'disabled':''} onclick="deplacerSection(${i},-1)">${I('left',14)}</button>
-          <button class="icon-x" title="Descendre" ${i===o.length-1?'disabled':''} onclick="deplacerSection(${i},1)">${I('right',14)}</button>
+          <button class="btn-ordre" title="Monter ${esc(s.label)}" aria-label="Monter ${esc(s.label)}" ${i===0?'disabled':''} onclick="deplacerSection(${i},-1)">${I('haut',17)}</button>
+          <button class="btn-ordre" title="Descendre ${esc(s.label)}" aria-label="Descendre ${esc(s.label)}" ${i===o.length-1?'disabled':''} onclick="deplacerSection(${i},1)">${I('bas',17)}</button>
         </div>`;}).join('')}
       </div>
       <div class="inline-row" style="flex-wrap:wrap;margin-top:12px">
@@ -2436,6 +2454,7 @@ const numFiche = id => String(SECTIONS.findIndex(s=>s.id===id)+1).padStart(2,'0'
 function renderSection(l){
   switch(route.section){
     case 'infos': return card(numFiche('infos'),'Le logement','Ce qui apparaît en couverture du livret',`
+      ${FT('bienvenue','Mot de bienvenue',l.bienvenue,'Bienvenue chez nous ! Nous avons préparé ce livret pour que votre séjour soit simple du premier au dernier jour.',3,'Affiché en grand juste sous la couverture — c\'est la première chose que lit le voyageur')}
       <div class="row-2">
         <div style="grid-column:1/-1">${F('nom','Nom du logement',l.nom,"Ex. L'Escale Havraise",'Titre affiché en couverture du livret')}</div>
         <div style="grid-column:1/-1">${F('adresse','Adresse',l.adresse,'92 rue Frédéric Bellanger','Affichée en couverture du livret, cliquable vers les cartes')}</div>
@@ -2450,8 +2469,7 @@ function renderSection(l){
       <div class="inline-row">
         <button class="btn btn-ghost" id="btn-accroche" onclick="genAccroche()">${I('sparkles',14)} Rédiger accroche &amp; mot de bienvenue</button>
       </div>
-      ${l.accroche?`<div class="ai-box"><div class="lbl">${I('sparkles',11)} Accroche (couverture)</div><input class="input" value="${esc(l.accroche)}" oninput="setPath('accroche',this.value)"></div>`:''}
-      ${l.bienvenue?`<div class="ai-box"><div class="lbl">${I('sparkles',11)} Mot de bienvenue</div><textarea class="textarea" rows="3" oninput="setPath('bienvenue',this.value)">${esc(l.bienvenue)}</textarea></div>`:''}
+      ${F('accroche','Accroche',l.accroche,"Ex. Un balcon lumineux à cinq minutes de la mer",'Une phrase sous le nom, en couverture')}
     `);
     case 'arrivee': return card(numFiche('arrivee'),'Arrivée','Horaires et accès au logement',`
       <div class="row-2">
@@ -2601,6 +2619,7 @@ function renderSection(l){
       </div>`:''}
     `);
     case 'style': return card(numFiche('style'),'Habillage','Le style visuel du livret remis au voyageur',`
+      <div class="field">${ordreSectionsHTML(l)}</div>
       <div class="field"><label>Palette</label>
       <div class="tpl-grid">
       ${TEMPLATES.map(t=>`
@@ -2620,7 +2639,6 @@ function renderSection(l){
           </div>
         </button>`).join('')}
       </div></div>
-      <div class="field">${ordreSectionsHTML(l)}</div>
       <div class="field"><label>Intensité des couleurs<span class="hint">Mêmes teintes, plus ou moins de présence. La lisibilité du texte est garantie dans les trois cas.</span></label>
       <div class="pill-group">
         ${INTENSITES.map(x=>`<button class="pill ${(l.intensite||'standard')===x.id?'on':''}" onclick="setPath('intensite','${x.id}');renderCard()">${x.label}</button>`).join('')}
@@ -3472,7 +3490,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
 
   out+=`</div><div style="display:flex;flex-direction:column;align-items:center;gap:9px;padding-top:42px">
     <span style="width:34px;height:1px;background:${t.line}"></span>
-    ${S.settings.logo
+    ${(S.settings.logo && !logoP)
       ? `<img src="${S.settings.logo}" style="max-height:38px;max-width:150px;object-fit:contain;opacity:.9">`
       : logoSVG(20,t.accent)}
     <p style="${mono};font-size:9px;letter-spacing:.16em;text-transform:uppercase;opacity:.42">${esc(S.settings.conciergerie||'Smart Guide')}</p>
