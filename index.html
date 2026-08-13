@@ -3337,6 +3337,23 @@ const LIVRET_CSS=`<style>
    page entière vide une cartouche sans rien apporter. Les pavés et les
    bordures gardent leur couleur — ce sont eux qui portent la structure. */
 @media print{ .lv{background:#FFFFFF !important;background-image:none !important} }
+/* Tout ce qui est replié s'imprime déplié.
+   L'impression lancée depuis l'application force déjà \`open\` (opts.deplie),
+   mais le FICHIER EXPORTÉ ne le peut pas : le même fichier se lit à l'écran,
+   où les accordéons doivent rester repliés. D'où une règle purement CSS, qui
+   ne touche jamais l'attribut \`open\` — l'état à l'écran ne bouge pas d'un
+   pixel, seul le rendu papier change.
+   Trois écritures pour trois générations de moteurs : la pseudo-classe
+   ::details-content (Chrome récent), le passage en display explicite sur le
+   corps (moteurs antérieurs), et overflow:visible pour que rien ne soit rogné
+   par le rayon d'angle une fois le contenu déplié.
+   Le chevron disparaît : sur papier il indique une action impossible. */
+@media print{
+  .lv .lvacc{overflow:visible !important}
+  .lv .lvacc::details-content{content-visibility:visible !important;display:block !important;block-size:auto !important}
+  .lv .lvacc:not([open])>.lvacc-body{display:flex !important}
+  .lv .lvacc-chev{display:none !important}
+}
 </style>`;
 function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const l=locView(lRaw, lang);
