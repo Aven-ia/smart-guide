@@ -1072,17 +1072,41 @@ function hauteurLogo(l){
   if(typeof v==='number') return Math.min(LOGO_MAX, Math.max(LOGO_MIN, Math.round(v)));
   return TAILLES_LOGO_HERITEES[v]||0;
 }
-/* Un logo en bandeau (600×80 par exemple) bute sur la largeur maximale bien avant
-   d'atteindre la hauteur demandée : à 62 % fixes, le curseur ne produit plus rien
-   entre 24 et 50 px — exactement le réglage à l'aveugle qu'on veut éviter. La
-   largeur autorisée suit donc la taille choisie, de 38 % à 92 %.
-   Les livrets antérieurs, eux, portent encore un palier nommé : ils gardent les
-   62 % d'origine et ne bougent pas d'un pixel tant que personne ne touche au
-   curseur. Le jour où le gérant y touche, la valeur devient un nombre et la
-   largeur devient proportionnelle — sous ses yeux, dans l'aperçu. */
-const largeurMaxLogo = (h, herite) => herite ? 62
-  : Math.round(38 + (h-LOGO_MIN)/(LOGO_MAX-LOGO_MIN)*54);
+/* La largeur maximale est FIXE. J'avais d'abord voulu la faire grandir avec la
+   taille choisie : c'était l'erreur — deux contraintes qui dépendent l'une de
+   l'autre, et un curseur qui promettait 44 px pour en rendre 34. La hauteur est
+   ce que le gérant règle, la largeur se contente de l'empêcher de manger toute
+   la couverture. Les livrets antérieurs gardent les 62 % d'origine. */
+const largeurMaxLogo = (h, herite) => herite ? 62 : 92;
 const logoHerite = l => typeof (l&&l.logoHaut) === 'string';
+
+/* Ce que le curseur peut RÉELLEMENT donner.
+   Deux plafonds, tous deux invisibles jusqu'ici :
+   1. l'image stockée — `max-height` ne grandit jamais une image, donc au-delà de
+      sa hauteur propre le curseur affichait un nombre sans effet ;
+   2. la largeur de la couverture — un bandeau 7,5:1 à 96 px de haut réclame
+      720 px de large, qui n'existent pas.
+   Le curseur se borne donc au minimum des trois, et l'écran dit pourquoi. */
+const LARGEUR_REF_COUVERTURE = 464;   // colonne de texte d'une couverture 600 px, à 92 %
+let logoMesure=null;                  // {src,w,h} — dérivé de l'image, jamais stocké
+function plafondLogo(){
+  const src=S.settings.logo;
+  if(!src || !logoMesure || logoMesure.src!==src) return { max:LOGO_MAX, cause:null };
+  const parHauteur=Math.floor(logoMesure.h);
+  const parLargeur=Math.floor(LARGEUR_REF_COUVERTURE*logoMesure.h/logoMesure.w);
+  const max=Math.min(LOGO_MAX, parHauteur, parLargeur);
+  if(max>=LOGO_MAX) return { max:LOGO_MAX, cause:null };
+  return { max, cause: parLargeur<parHauteur ? 'large' : 'definition' };
+}
+/* Mesure l'image une fois par source, puis rappelle le rendu. Le garde-fou
+   `logoMesure.src===src` empêche toute boucle de re-rendu. */
+function mesurerLogo(apres){
+  const src=S.settings.logo;
+  if(!src || (logoMesure && logoMesure.src===src)) return;
+  const im=new Image();
+  im.onload=()=>{ logoMesure={src, w:im.naturalWidth, h:im.naturalHeight}; if(apres) apres(); };
+  im.src=src;
+}
 const MARGES_LOGO={ gauche:'0 auto 8px 0', centre:'0 auto 8px', droite:'0 0 8px auto' };
 const alignLogo = l => (l && MARGES_LOGO[l.logoAlign]) ? l.logoAlign : 'gauche';
 
@@ -2657,7 +2681,7 @@ function renderSection(l){
           </div>`).join('')}
       </div>`:''}
     `);
-    case 'style': return card(numFiche('style'),'Habillage','Le style visuel du livret remis au voyageur',`
+    case 'style': mesurerLogo(renderCard); return card(numFiche('style'),'Habillage','Le style visuel du livret remis au voyageur',`
       <div class="field">${ordreSectionsHTML(l)}</div>
       <div class="field"><label>Palette</label>
       <div class="tpl-grid">
@@ -2724,7 +2748,7 @@ function renderSection(l){
         <input type="file" id="wp-input" accept="image/*" style="display:none" onchange="addWallpaper(this.files[0]);this.value=''">
       </div>
       <div class="field"><label>Logo de la conciergerie en tête du livret<span class="hint">Le logo est celui de vos réglages, commun à tous vos livrets. Sa taille et sa position se règlent ici, livret par livret.</span></label>
-        ${S.settings.logo?(()=>{ const hL=hauteurLogo(l), visible=hL>0, al=alignLogo(l); return `
+        ${S.settings.logo?(()=>{ const plaf=plafondLogo(), hL=Math.min(hauteurLogo(l), plaf.max), visible=hauteurLogo(l)>0, al=alignLogo(l); return `
         <div class="wp-panel" style="align-items:center">
           <div class="logo-prev" style="background:var(--paper-warm);border:1px solid var(--line);border-radius:11px;padding:12px;display:flex;align-items:center;justify-content:${({gauche:'flex-start',centre:'center',droite:'flex-end'})[al]}">
             <img id="logo-apercu" src="${S.settings.logo}" alt="Logo"
@@ -2737,8 +2761,13 @@ function renderSection(l){
             </div>
             ${visible?`
             <label id="logo-taille-lbl" style="margin:11px 0 6px">Taille — ${hL} px</label>
-            <input type="range" class="wp-range" min="${LOGO_MIN}" max="${LOGO_MAX}" value="${hL}"
+            <input type="range" class="wp-range" min="${Math.min(LOGO_MIN, plaf.max)}" max="${plaf.max}" value="${hL}"
               oninput="setPath('logoHaut',+this.value);liveLogo(+this.value)">
+            ${plaf.cause?`<span class="ai-note" style="margin-top:6px;display:block">${
+              plaf.cause==='large'
+                ? `Ce logo est très large : au-delà de ${plaf.max} px il déborderait de la couverture.`
+                : `Cette image ne dépasse pas ${plaf.max} px de haut. Réimportez-la en plus grand pour l'afficher davantage.`
+            }</span>`:''}
             <label style="margin:12px 0 6px">Position</label>
             <div class="pill-group">
               ${[['gauche','Gauche'],['centre','Centre'],['droite','Droite']].map(([id,lab])=>
@@ -2826,13 +2855,37 @@ async function importerImageService(i,file){
 /* Import du logo depuis la fiche Habillage. Redimensionné à 400 px de large :
    il ne dépasse jamais 62 px à l'écran et ~2 cm à l'impression, donc au-delà
    c'est du poids pur — et le livret entier part en JSONB dans Supabase. */
+/* Un logo se cadre par sa HAUTEUR dans le livret, pas par son plus grand côté.
+   compressImage plafonnait le plus grand côté à 400 px : un bandeau 600×80 était
+   stocké en 400×53, et le curseur ne pouvait plus rien au-delà de 53 px, quel que
+   soit le nombre affiché. On plafonne donc la hauteur — au double de la taille
+   maximale, pour rester net sur écran retina — et la largeur suit le rapport,
+   bornée pour les panoramas extrêmes. Jamais d'agrandissement.
+   Poids : un PNG 1600×192 pèse au pire ~120 Ko, le double d'avant. */
+const LOGO_H_STOCK=LOGO_MAX*2, LOGO_W_STOCK=1600;
+function compressLogo(file, keepAlpha){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const r=Math.min(1, LOGO_H_STOCK/img.height, LOGO_W_STOCK/img.width);
+      const w=Math.max(1,Math.round(img.width*r)), h=Math.max(1,Math.round(img.height*r));
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      res({ dataUrl: keepAlpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg',0.92), w, h });
+    };
+    img.onerror=rej;
+    const rd=new FileReader(); rd.onload=()=>img.src=rd.result; rd.onerror=rej; rd.readAsDataURL(file);
+  });
+}
 async function importerLogo(file){
   if(!file) return;
   try{
     const png=/png|svg/i.test(file.type);
-    S.settings.logo=await compressImage(file, 400, 0.92, png);
+    const {dataUrl,w,h}=await compressLogo(file, png);
+    S.settings.logo=dataUrl;
+    logoMesure={src:dataUrl, w, h};                        // mesure connue, pas de relecture
     const l=cur();
-    if(l && l.logoHaut==='aucun'){ l.logoHaut='moyen'; }   // importer, c'est vouloir l'afficher
+    if(l && l.logoHaut==='aucun'){ l.logoHaut=LOGO_DEFAUT; }  // importer, c'est vouloir l'afficher
     save(); renderCard();
     toast('Logo importé — ajustez sa taille si besoin');
   }catch(e){ toast('Image illisible, réessayez avec un PNG ou un JPEG', true); }
