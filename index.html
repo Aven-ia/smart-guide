@@ -242,6 +242,18 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .magic h3 .wico{width:30px;height:30px;border-radius:9px;background:var(--ink);color:#E9EDDF;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs)}
 .magic p{font-size:13px;color:var(--ink-soft);margin:9px 0 13px;line-height:1.55;max-width:520px}
 .magic .textarea{background:rgba(255,255,255,.85)}
+/* Version inerte (aucune clé API) : une ligne, l'usage d'abord. */
+.magic-inerte{display:flex;align-items:flex-start;gap:11px;padding:12px 15px}
+.magic-inerte .wico{width:26px;height:26px;flex:none;border-radius:8px;background:var(--ink);color:#E9EDDF;
+  display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs)}
+.magic-inerte p{margin:0;font-size:12.5px;line-height:1.5;max-width:none}
+.magic-inerte strong{font-weight:600;color:var(--ink)}
+.lien-inline{background:none;border:0;padding:0;font:inherit;color:var(--accent);
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+/* Version repliable : l'accordéon porte lui-même son cadre, le bloc ne fait
+   qu'espacer. Sans ça le fond dégradé et la bordure se doubleraient. */
+.magic-acc{margin-bottom:20px}
+.magic-acc .acc{border-color:#D3DCC5;background:linear-gradient(160deg,#EEF2E5 0%,#F9FAF5 55%,#F4EFE3 100%)}
 
 /* ---------- Bibliothèque d'équipements ---------- */
 .lib-open{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:1.5px solid #D3DCC5;border-radius:13px;padding:15px 17px;
@@ -2107,17 +2119,33 @@ function logementMenuTop(ev){
 }
 
 /* ---------- Import magique ---------- */
+/* Le bloc est un outil de démarrage : il doit se voir, pas occuper le premier
+   écran. Déplié il coûtait 413 px en tête de la fiche 01 et repoussait le mot
+   de bienvenue à 773 px sur un téléphone de 660 px de haut — hors de vue.
+   Il est donc replié, et sa clé porte l'identifiant du livret : ouvert sur un
+   logement, il ne reste pas ouvert sur les dix-neuf autres.
+   Sans clé API, pas d'accordéon du tout : on n'ouvre pas un outil qui ne peut
+   pas tourner. La ligne dit alors ce qu'il fait AVANT de dire ce qu'il exige —
+   personne ne va chercher une clé pour une fonction dont il ignore l'usage. */
 function magicBox(l){
-  return `
-  <div class="magic">
-    <h3><span class="wico">${I('wand',15)}</span> Remplissage magique</h3>
-    <p>Collez tout ce que vous avez en vrac — annonce Airbnb, mail du propriétaire, notes, codes… L'IA lit tout et remplit chaque fiche du livret, sans jamais inventer un code ou un horaire.</p>
-    <textarea class="textarea" id="magic-text" rows="5" placeholder="Collez votre texte brut ici — plus il y en a, mieux c'est…"></textarea>
-    <div class="inline-row" style="margin-top:12px;flex-wrap:wrap">
-      <button class="btn btn-accent" id="magic-btn" onclick="magicImport()">${I('sparkles',14)} Générer le livret avec l'IA</button>
-      <span class="ai-note" id="magic-note">${S.settings.apiKey?'Quelques secondes, quelques centimes.':'Ajoutez votre clé API dans les réglages pour activer l\'IA.'}</span>
-    </div>
+  if(!S.settings.apiKey) return `
+  <div class="magic magic-inerte">
+    <span class="wico">${I('wand',15)}</span>
+    <p><strong>Remplissage magique</strong> — collez votre annonce Airbnb ou le mail du propriétaire,
+    l'IA remplit tout le livret d'un coup. Demande une clé API :
+    <button type="button" class="lien-inline" onclick="go('settings')">ouvrir les Réglages</button>.</p>
   </div>`;
+  return `<div class="magic-acc">${accordeon({
+    cle:'magic-'+l.id, icon:'wand', titre:'Remplissage magique',
+    sousTitre:"Collez votre annonce, l'IA remplit tout le livret",
+    corps:`
+      <p style="font-size:13px;color:var(--ink-soft);margin:0 0 13px;line-height:1.55">Collez tout ce que vous avez en vrac — annonce Airbnb, mail du propriétaire, notes, codes… L'IA lit tout et remplit chaque fiche du livret, sans jamais inventer un code ou un horaire.</p>
+      <textarea class="textarea" id="magic-text" rows="5" placeholder="Collez votre texte brut ici — plus il y en a, mieux c'est…"></textarea>
+      <div class="inline-row" style="margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-accent" id="magic-btn" onclick="magicImport()">${I('sparkles',14)} Générer le livret avec l'IA</button>
+        <span class="ai-note" id="magic-note">Quelques secondes, quelques centimes.</span>
+      </div>`
+  })}</div>`;
 }
 
 /* ---------------- Accordéons de l'éditeur ----------------
