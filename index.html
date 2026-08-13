@@ -181,7 +181,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 /* ---------- Éditeur ---------- */
 .editor{display:flex;flex:1;min-height:0}
 .sidebar{width:242px;flex:none;border-right:1px solid var(--line);padding:20px 13px 26px;display:flex;flex-direction:column;gap:2px;
-  position:sticky;top:calc(var(--tb) + var(--safe-t));height:calc(100vh - var(--tb) - var(--safe-t));overflow-y:auto;background:rgba(245,242,235,.6)}
+  position:sticky;top:calc(var(--tb) + var(--safe-t));height:calc(100vh - var(--tb) - var(--safe-t));overflow-y:auto;background:rgba(245,242,235,.6);
+  /* Sans z-index, la barre est collante mais reste sous les éléments positionnés
+     de la fiche, qui viennent après elle dans le document : au défilement, un
+     paragraphe de carte peint par-dessus et avale le clic. Le fond translucide
+     rendait la chose invisible à l'œil — seule la boucle elementFromPoint l'a vue. */
+  z-index:5}
 .side-progress{display:flex;align-items:center;gap:11px;padding:4px 11px 16px}
 .ring{position:relative;width:38px;height:38px;flex:none}
 .ring svg{transform:rotate(-90deg)}
@@ -1049,11 +1054,45 @@ const defaultLogement = () => ({
   reglement:['Non-fumeur à l\'intérieur','Pas de fêtes ni d\'événements','Merci de respecter le voisinage après 22h'],
   recos:[],
   contacts:{ hote:'', tel:'', email:'', urgence:'' },
-  photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun',
+  photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun', logoAlign:'gauche',
   wallpaper:null, wallpaperOpacity:18, accent:null, intensite:'standard', ordreSections:null,
   urgences:[], faq:[], services:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
+/* Logo de la conciergerie en tête du livret.
+   La taille était un palier nommé (petit/moyen/grand) ; elle devient un nombre
+   de pixels réglable au curseur. Les livrets antérieurs portent encore la
+   chaîne : elle est traduite ICI, à la lecture, jamais réécrite en base — un
+   livret créé avant ce lot s'affiche exactement comme avant. */
+const TAILLES_LOGO_HERITEES={ petit:30, moyen:44, grand:62 };
+const LOGO_MIN=24, LOGO_MAX=96, LOGO_DEFAUT=44;
+function hauteurLogo(l){
+  const v=l&&l.logoHaut;
+  if(v==null||v==='aucun') return 0;
+  if(typeof v==='number') return Math.min(LOGO_MAX, Math.max(LOGO_MIN, Math.round(v)));
+  return TAILLES_LOGO_HERITEES[v]||0;
+}
+/* Un logo en bandeau (600×80 par exemple) bute sur la largeur maximale bien avant
+   d'atteindre la hauteur demandée : à 62 % fixes, le curseur ne produit plus rien
+   entre 24 et 50 px — exactement le réglage à l'aveugle qu'on veut éviter. La
+   largeur autorisée suit donc la taille choisie, de 38 % à 92 %.
+   Les livrets antérieurs, eux, portent encore un palier nommé : ils gardent les
+   62 % d'origine et ne bougent pas d'un pixel tant que personne ne touche au
+   curseur. Le jour où le gérant y touche, la valeur devient un nombre et la
+   largeur devient proportionnelle — sous ses yeux, dans l'aperçu. */
+const largeurMaxLogo = (h, herite) => herite ? 62
+  : Math.round(38 + (h-LOGO_MIN)/(LOGO_MAX-LOGO_MIN)*54);
+const logoHerite = l => typeof (l&&l.logoHaut) === 'string';
+const MARGES_LOGO={ gauche:'0 auto 8px 0', centre:'0 auto 8px', droite:'0 0 8px auto' };
+const alignLogo = l => (l && MARGES_LOGO[l.logoAlign]) ? l.logoAlign : 'gauche';
+
+/* Photo de couverture : haute quand l'écran le permet, plus basse quand chaque
+   pixel disparu du premier écran est un mot de bienvenue en moins. `clamp` fait
+   ça sans requête média — donc aussi dans le HTML exporté, qui n'a pas de
+   feuille de style à lui. La borne haute protège l'impression, où `vh` vaut la
+   hauteur de la page A4 et donnerait sinon une photo démesurée. */
+const HAUTEUR_PHOTO={ photo:'clamp(200px,28vh,235px)', cadre:'clamp(210px,30vh,250px)' };
+
 let migrationsAppliquees=0;
 function migrateLogement(l){
   const d=defaultLogement();
@@ -2454,7 +2493,7 @@ const numFiche = id => String(SECTIONS.findIndex(s=>s.id===id)+1).padStart(2,'0'
 function renderSection(l){
   switch(route.section){
     case 'infos': return card(numFiche('infos'),'Le logement','Ce qui apparaît en couverture du livret',`
-      ${FT('bienvenue','Mot de bienvenue',l.bienvenue,'Bienvenue chez nous ! Nous avons préparé ce livret pour que votre séjour soit simple du premier au dernier jour.',3,'Affiché en grand juste sous la couverture — c\'est la première chose que lit le voyageur')}
+      ${FT('bienvenue','Mot de bienvenue',l.bienvenue,'Bienvenue chez nous ! Nous avons préparé ce livret pour que votre séjour soit simple du premier au dernier jour.',3,'Affiché en grand juste sous la couverture — c\'est la première chose que lit le voyageur. Commencez par une formule d\'accueil : le livret n\'affiche aucun titre au-dessus.')}
       <div class="row-2">
         <div style="grid-column:1/-1">${F('nom','Nom du logement',l.nom,"Ex. L'Escale Havraise",'Titre affiché en couverture du livret')}</div>
         <div style="grid-column:1/-1">${F('adresse','Adresse',l.adresse,'92 rue Frédéric Bellanger','Affichée en couverture du livret, cliquable vers les cartes')}</div>
@@ -2684,21 +2723,32 @@ function renderSection(l){
         </div>`}
         <input type="file" id="wp-input" accept="image/*" style="display:none" onchange="addWallpaper(this.files[0]);this.value=''">
       </div>
-      <div class="field"><label>Logo de la conciergerie en tête du livret<span class="hint">Le logo est celui de vos réglages, commun à tous vos livrets. Seule sa taille se règle ici.</span></label>
-        ${S.settings.logo?`<div class="wp-panel" style="align-items:center">
-          <div class="logo-prev" style="background:var(--paper-warm);border:1px solid var(--line);border-radius:11px;padding:12px;display:flex;align-items:center;justify-content:center">
-            <img src="${S.settings.logo}" alt="Logo" style="max-height:${({aucun:34,petit:30,moyen:44,grand:62})[l.logoHaut]||34}px;max-width:100%;object-fit:contain">
+      <div class="field"><label>Logo de la conciergerie en tête du livret<span class="hint">Le logo est celui de vos réglages, commun à tous vos livrets. Sa taille et sa position se règlent ici, livret par livret.</span></label>
+        ${S.settings.logo?(()=>{ const hL=hauteurLogo(l), visible=hL>0, al=alignLogo(l); return `
+        <div class="wp-panel" style="align-items:center">
+          <div class="logo-prev" style="background:var(--paper-warm);border:1px solid var(--line);border-radius:11px;padding:12px;display:flex;align-items:center;justify-content:${({gauche:'flex-start',centre:'center',droite:'flex-end'})[al]}">
+            <img id="logo-apercu" src="${S.settings.logo}" alt="Logo"
+              style="max-height:${visible?hL:34}px;max-width:100%;object-fit:contain;opacity:${visible?1:.3}">
           </div>
           <div class="wp-ctrl">
             <div class="pill-group">
-              ${[['aucun','Masqué'],['petit','Petit'],['moyen','Moyen'],['grand','Grand']].map(([id,lab])=>
-                `<button class="pill ${l.logoHaut===id?'on':''}" onclick="setPath('logoHaut','${id}');renderCard()">${lab}</button>`).join('')}
+              <button class="pill ${visible?'':'on'}" onclick="setPath('logoHaut','aucun');renderCard()">Masqué</button>
+              <button class="pill ${visible?'on':''}" onclick="setPath('logoHaut',${visible?hL:LOGO_DEFAUT});renderCard()">Affiché</button>
             </div>
+            ${visible?`
+            <label id="logo-taille-lbl" style="margin:11px 0 6px">Taille — ${hL} px</label>
+            <input type="range" class="wp-range" min="${LOGO_MIN}" max="${LOGO_MAX}" value="${hL}"
+              oninput="setPath('logoHaut',+this.value);liveLogo(+this.value)">
+            <label style="margin:12px 0 6px">Position</label>
+            <div class="pill-group">
+              ${[['gauche','Gauche'],['centre','Centre'],['droite','Droite']].map(([id,lab])=>
+                `<button class="pill ${al===id?'on':''}" onclick="setPath('logoAlign','${id}');renderCard()">${lab}</button>`).join('')}
+            </div>`:''}
             <div class="inline-row" style="margin-top:11px">
               <button class="btn btn-ghost btn-sm" onclick="document.getElementById('logo-input').click()">${I('upload',13)} Remplacer</button>
             </div>
           </div>
-        </div>`:`
+        </div>`;})():`
         <div class="drop" onclick="document.getElementById('logo-input').click()">
           <span class="dico">${I('upload',18)}</span><br>
           <strong style="font-weight:550">Importer votre logo</strong> — il apparaîtra en haut du livret<br>
@@ -2788,6 +2838,13 @@ async function importerLogo(file){
   }catch(e){ toast('Image illisible, réessayez avec un PNG ou un JPEG', true); }
 }
 function renderAccentPreview(v){ const el=document.getElementById('accent-lbl'); if(el) el.textContent='Accent personnalisé '+v; }
+/* Aperçu du logo pendant que le curseur bouge : on touche l'image et le libellé,
+   rien d'autre. Un renderCard() ici rendrait le curseur inutilisable — il perdrait
+   le focus à chaque pixel. */
+function liveLogo(v){
+  const img=document.getElementById('logo-apercu'); if(img) img.style.maxHeight=v+'px';
+  const lb=document.getElementById('logo-taille-lbl'); if(lb) lb.textContent='Taille — '+v+' px';
+}
 function liveWallpaper(v){
   const veil=document.querySelector('.wp-veil'); if(veil) veil.style.opacity=(1-v/100);
   const lb=document.querySelector('.wp-ctrl label'); if(lb) lb.textContent='Intensité — '+v+'%';
@@ -3243,7 +3300,12 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
 
   /* ---- Couverture (3 styles) ---- */
   const coverLabel=guideLabelLang(g.id, lang);
-  const kicker=`<p style="${mono};font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:${t.accent};margin-bottom:10px">${esc(coverLabel)}</p>`;
+  /* Le kicker nomme le document. Sur le livret complet il n'apprend rien — le
+     lien, l'onglet et le pied de page le disent déjà — et il coûte 26 px en
+     tête d'écran, là où ils manquent. Sur les guides partiels il informe :
+     « Guide d'arrivée » n'est pas la même chose que « Livret d'accueil ». */
+  const kicker=g.id==='complet' ? ''
+    : `<p style="${mono};font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:${t.accent};margin-bottom:10px">${esc(coverLabel)}</p>`;
   const titleH=`<h1 style="${serif};font-size:34px;font-weight:500;line-height:1.1;margin-bottom:9px">${esc(l.nom||'Votre logement')}</h1>`;
   /* Adresse complète, cliquable vers l'application de cartes du téléphone.
      Chaque morceau est facultatif : un livret antérieur sans code postal
@@ -3257,10 +3319,9 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   /* Logo de la conciergerie en tête. L'image est celle des Réglages, partagée
      par tous les livrets ; seule la taille d'affichage se règle par livret.
      Rien n'est rendu si aucun logo n'est chargé ou si la taille vaut « aucun ». */
-  const TAILLES_LOGO={ petit:30, moyen:44, grand:62 };
-  const hLogo=TAILLES_LOGO[l.logoHaut];
+  const hLogo=hauteurLogo(l);
   const logoP=(hLogo && S.settings.logo)
-    ? `<img src="${S.settings.logo}" alt="" style="max-height:${hLogo}px;max-width:62%;object-fit:contain;display:block;margin-bottom:14px">`
+    ? `<img src="${S.settings.logo}" alt="" style="max-height:${hLogo}px;max-width:${largeurMaxLogo(hLogo, logoHerite(l))}%;object-fit:contain;display:block;margin:${MARGES_LOGO[alignLogo(l)]}">`
     : '';
   const ligneIdentite=(libelle,valeur)=>`<p style="display:flex;align-items:baseline;gap:7px;font-size:13px;opacity:.72;margin-bottom:10px">
       <span style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.62;flex:none">${esc(libelle)}</span>${esc(valeur)}</p>`;
@@ -3277,7 +3338,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
 
   if(has('cover')){
     if(l.coverStyle==='minimal'||(!cover&&l.coverStyle!=='photo')){
-      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:52px 30px 6px">
+      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:40px 30px 6px">
         ${logoP || `<div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">${logoSVG(22,t.accent)}<span style="flex:1;height:1px;background:${t.line}"></span></div>`}
         ${kicker}
         <h1 style="${serif};font-size:42px;font-weight:500;line-height:1.08;margin-bottom:12px;letter-spacing:-.01em">${esc(l.nom||'Votre logement')}</h1>
@@ -3285,17 +3346,17 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
         <div style="margin-top:24px">${perfo}</div>
       </div>`;
     } else if(l.coverStyle==='cadre'&&cover){
-      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:38px 30px 6px">
-        <img src="${cover.dataUrl}" style="width:100%;height:250px;object-fit:cover;display:block;border-radius:14px;border:1px solid ${t.line};box-shadow:0 14px 40px rgba(0,0,0,.14)">
-        <div style="padding:26px 4px 0">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
+      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:26px 30px 6px">
+        <img src="${cover.dataUrl}" style="width:100%;height:${HAUTEUR_PHOTO.cadre};object-fit:cover;display:block;border-radius:14px;border:1px solid ${t.line};box-shadow:0 14px 40px rgba(0,0,0,.14)">
+        <div style="padding:21px 4px 0">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
         <div style="margin-top:22px">${perfo}</div>
       </div>`;
     } else {
-      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:36px 26px 6px">
+      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:24px 26px 6px">
         <div style="background:${t.paper};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
-          ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:235px;object-fit:cover;display:block">`
+          ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:${HAUTEUR_PHOTO.photo};object-fit:cover;display:block">`
             :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft}">${logoSVG(38,t.accent)}</div>`}
-          <div style="padding:27px 27px 24px">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
+          <div style="padding:22px 24px 20px">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
           ${perfo}
         </div>
       </div>`;
@@ -3306,10 +3367,14 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      Sorti de la couverture pour devenir un bloc à part entière, juste sous
      l'en-tête. Le champ existe déjà (`bienvenue`), il est saisissable en fiche 01
      et rédigeable par l'IA. Bloc entièrement masqué si le message est vide. */
+  /* Le libellé « Bienvenue » au-dessus du message a disparu : il coûtait 20 px
+     à l'endroit exact où ils manquent, et il annonçait un mot d'accueil que le
+     message dit lui-même. Ce qui identifie le bloc reste : le fond teinté à
+     l'accent, sa position immédiatement sous la couverture, et le texte
+     d'exemple de la fiche 01 qui commence par une formule d'accueil. */
   if(has('bienvenue') && String(l.bienvenue||'').trim()){
     frag.bienvenue=`<div style="max-width:600px;margin:0 auto;padding:22px 26px 0">
       <div style="background:${t.accentSoft};border-radius:14px;padding:18px 20px">
-        <p style="${mono};font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:${t.accent};margin-bottom:7px">${esc(X.bienvenue)}</p>
         <p style="font-size:14.5px;line-height:1.7;opacity:.92">${esc(l.bienvenue)}</p>
       </div>
     </div>`;
