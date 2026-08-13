@@ -2665,9 +2665,11 @@ function renderSection(l){
       ${l.services.map((s,i)=>`
         <div class="subcard">
           <div class="inline-row">
-            ${i>0?`<button class="icon-x" title="Monter" onclick="moveArr('services',${i},-1)">${I('left',14)}</button>`:''}
+            <span class="poignee" aria-hidden="true">${I('poignee',15)}</span>
             <input class="input" placeholder="Ex. Dépôt de bagages ByeBag" value="${esc(s.titre)}" oninput="setArr('services',${i},'titre',this.value)">
-            <button class="icon-x" onclick="rmArr('services',${i})">${I('x',15)}</button>
+            <button class="btn-ordre" title="Monter ${esc(s.titre||'ce service')}" aria-label="Monter ${esc(s.titre||'ce service')}" ${i===0?'disabled':''} onclick="moveArr('services',${i},-1)">${I('haut',17)}</button>
+            <button class="btn-ordre" title="Descendre ${esc(s.titre||'ce service')}" aria-label="Descendre ${esc(s.titre||'ce service')}" ${i===l.services.length-1?'disabled':''} onclick="moveArr('services',${i},1)">${I('bas',17)}</button>
+            <button class="icon-x" title="Supprimer" aria-label="Supprimer ${esc(s.titre||'ce service')}" onclick="rmArr('services',${i})">${I('x',15)}</button>
           </div>
           <textarea class="textarea" rows="2" placeholder="En quoi ça aide le voyageur, en une phrase" oninput="setArr('services',${i},'desc',this.value)">${esc(s.desc||'')}</textarea>
           <div class="inline-row">
@@ -2870,11 +2872,16 @@ function hintURL(i,v){
   el.textContent = urlInvalide(v) ? 'Adresse incomplète — elle ne sera pas cliquable dans le livret.'
                  : (String(v||'').trim() ? 'Lien : '+urlPropre(v) : '');
 }
+/* L'image d'un service s'affiche en 62×62 dans le livret et en 36×36 dans
+   l'éditeur. Elle était stockée en 600 px de côté — dix fois la taille utile,
+   dans un JSON qui part sur Supabase à chaque synchronisation. 160 px couvre le
+   retina (2,5×) et suffit largement. Voir MAX_IMG_SERVICE pour le poids retenu. */
+const MAX_IMG_SERVICE=160;
 async function importerImageService(i,file){
   if(!file) return;
   try{
     const png=/png|svg/i.test(file.type);
-    const img=await compressImage(file, 600, 0.82, png);
+    const img=await compressImage(file, MAX_IMG_SERVICE, 0.82, png);
     setArr('services',i,'image',img); renderCard();
     toast('Image ajoutée');
   }catch(e){ toast('Image illisible, réessayez avec un PNG ou un JPEG', true); }
