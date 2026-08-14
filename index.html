@@ -439,6 +439,13 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .ligne-ordre{display:flex;align-items:center;gap:9px;background:var(--paper-warm);
   border:1px solid var(--line);border-radius:11px;padding:7px 9px;transition:border-color .16s}
 .ligne-ordre:hover{border-color:var(--accent)}
+/* Liste de livrets de destination (copie d'adresses, application d'un ordre) */
+.liste-livrets{max-height:230px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:4px}
+.ligne-livret{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13.5px}
+.ligne-livret:hover{background:var(--bg-deep)}
+.ligne-livret input{width:18px;height:18px;flex:none;accent-color:var(--accent)}
+.ligne-livret span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ligne-livret .ville{margin-left:auto;color:var(--muted-2);font-size:12px;flex:none}
 .poignee{flex:none;color:var(--muted-2);line-height:0;cursor:grab;padding:2px}
 .btn-ordre{flex:none;width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;
   color:var(--ink-soft);background:var(--bg-deep);border:1px solid var(--line);transition:all .14s}
@@ -2517,29 +2524,31 @@ function retablirOrdreSections(){
 /* Opération de masse : elle ne perd jamais rien. Un instantané de chaque
    livret concerné part dans le coffre AVANT modification, comme la
    restauration du lot précédent. Seul l'ordre change, jamais le contenu. */
+/* Même geste que la copie d'adresses : on choisit les livrets, on sauvegarde
+   avant d'écrire, on dit ce qui change. Seul le libellé et l'action diffèrent. */
 function appliquerOrdreATous(){
-  const l=cur(); const autres=S.logements.filter(x=>x.id!==l.id);
-  if(!autres.length) return toast('Vous n\'avez qu\'un seul logement');
-  const n=autres.length, s=n>1?'s':'';
-  const enLigne=!!(sb&&compte);
-  confirmModal(`Appliquer cet ordre à vos ${n} autre${s} logement${s} ?`,
-    `Seul l'ordre des sections change — aucun contenu n'est touché. `
-    + (enLigne ? `Une sauvegarde de chacun sera créée avant modification.`
-               : `Connectez-vous d'abord si vous voulez qu'une sauvegarde de chacun soit créée.`),
-    async ()=>{
-      try{
-        if(enLigne){
+  const l=cur();
+  confirmerSurLivrets({
+    titre:'Appliquer cet ordre à d\'autres logements',
+    texte:'Seul l\'ordre des sections change — aucun contenu n\'est touché.',
+    okLabel:'Appliquer',
+    action: async (cibles)=>{
+      let sauvegardesOK=true;
+      if(sb&&compte){
+        try{
           const distants=await cloudLire();
           const parLocal=new Map(distants.map(d=>[d.local_id,d]));
-          for(const x of autres){ const d=parLocal.get(x.id); if(d) await cloudSnapshot(d); }
-        }
-        const o=ordreSections(l);
-        // Chaque livret est réconcilié pour SES propres sections.
-        autres.forEach(x=>{ x.ordreSections=o.slice(); x.updatedAt=Date.now(); x.ordreSections=ordreSections(x); });
-        save(); renderCard();
-        toast(`Ordre appliqué à ${n} logement${s}`);
-      }catch(e){ toast('Application impossible : '+messageAuth(e), true); }
-    }, 'Appliquer');
+          for(const x of cibles){ const d=parLocal.get(x.id); if(d) await cloudSnapshot(d); }
+        }catch(e){ sauvegardesOK=false; }
+      }
+      const o=ordreSections(l);
+      // Chaque livret est réconcilié pour SES propres sections.
+      cibles.forEach(x=>{ x.ordreSections=o.slice(); x.updatedAt=Date.now(); x.ordreSections=ordreSections(x); });
+      save(); renderCard();
+      const n=cibles.length;
+      toast(`Ordre appliqué à ${n} logement${n>1?'s':''}`+(sauvegardesOK?'':' (sauvegarde cloud indisponible)'));
+    }
+  });
 }
 function ordreSectionsHTML(l){
   const o=ordreSections(l), vides=sectionsVidesDuLivret(l);
@@ -2991,6 +3000,9 @@ function recosListHTML(l){
     grouperParCat(l.recos, CATS, recoCatConnue).map(c=>accordeon({
       cle:'reco:'+c.id, icon:c.icon, titre:c.label, badge:String(c.entrees.length),
       corps:`<div style="display:flex;flex-direction:column;gap:10px">
+        <div class="inline-row">
+          <button class="btn btn-ghost btn-sm" onclick="copierCategorieVers('${c.id}')">${I('duplicate',13)} Copier ces ${c.entrees.length} adresse${c.entrees.length>1?'s':''} vers d'autres livrets</button>
+        </div>
         ${c.entrees.map(({item:r,i})=>`
         <div class="subcard">
           <div class="inline-row">
@@ -3004,6 +3016,70 @@ function recosListHTML(l){
         </div>`).join('')}
       </div>`
     })).join('')}</div>`;
+}
+/* Empreinte d'une adresse, sur DEUX clés et non une : l'identifiant OSM quand
+   il existe, et toujours catégorie + nom normalisé. Avec la seule clé OSM,
+   une adresse tapée à la main et la même venue de la recherche formaient un
+   doublon — testé, corrigé avant d'être écrit ici. Deux homonymes dans des
+   catégories différentes restent deux lieux distincts. */
+const nomNormalise = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+  .toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+function fusionnerRecos(destination, source){
+  const parOsm=new Set(destination.filter(r=>r.osmId).map(r=>String(r.osmId)));
+  const parNom=new Set(destination.map(r=>recoCatConnue(r.cat)+'|'+nomNormalise(r.nom)));
+  const ajoutees=[];
+  for(const r of source){
+    if(!String(r.nom||'').trim()) continue;
+    const o=r.osmId?String(r.osmId):null, n=recoCatConnue(r.cat)+'|'+nomNormalise(r.nom);
+    if((o&&parOsm.has(o))||parNom.has(n)) continue;
+    if(o) parOsm.add(o);
+    parNom.add(n);
+    ajoutees.push({...r, id:nid()});
+  }
+  return ajoutees;
+}
+/* Copie d'une catégorie vers d'autres livrets. On AJOUTE toujours : rien n'est
+   remplacé, rien n'est effacé. La sauvegarde cloud est une ceinture, pas une
+   condition — si elle échoue, la copie se fait quand même et le gérant est
+   prévenu, plutôt que de perdre le geste pour une coupure réseau. */
+async function copierCategorieVers(catId){
+  const l=cur(); if(!l) return;
+  const source=l.recos.filter(r=>recoCatConnue(r.cat)===catId && String(r.nom||'').trim());
+  if(!source.length){ toast('Aucune adresse à copier dans cette catégorie', true); return; }
+  const cat=CATS.find(c=>c.id===catId);
+  confirmerSurLivrets({
+    titre:`Copier « ${cat?cat.label:catId} » vers d'autres livrets`,
+    texte:`${source.length} adresse${source.length>1?'s':''} seront ajoutées aux livrets choisis. Les adresses déjà présentes ne sont pas dupliquées, et aucune adresse existante n'est modifiée.`,
+    okLabel:'Copier',
+    action: async (cibles)=>{
+      let sauvegardesOK=true;
+      if(sb&&compte){
+        try{
+          const distants=await cloudLire();
+          const parLocal=new Map(distants.map(d=>[d.local_id,d]));
+          for(const x of cibles){ const d=parLocal.get(x.id); if(d) await cloudSnapshot(d); }
+        }catch(e){ sauvegardesOK=false; }
+      }
+      let total=0, touches=0;
+      for(const x of cibles){
+        const ajoutees=fusionnerRecos(x.recos||[], source);
+        if(!ajoutees.length) continue;
+        x.recos=(x.recos||[]).concat(ajoutees);
+        x.translations={}; x.updatedAt=Date.now();
+        total+=ajoutees.length; touches++;
+      }
+      save(); renderCard();
+      const ignorees=source.length*cibles.length-total;
+      let msg;
+      if(!total) msg=`Rien à ajouter : ces adresses étaient déjà dans ${cibles.length>1?'les '+cibles.length+' livrets':'le livret'}`;
+      else{
+        msg=`${total} adresse${total>1?'s':''} ajoutée${total>1?'s':''} dans ${touches} livret${touches>1?'s':''}`;
+        if(ignorees>0) msg+=` — ${ignorees} déjà présente${ignorees>1?'s':''}, ignorée${ignorees>1?'s':''}`;
+      }
+      if(!sauvegardesOK) msg+=' (sauvegarde cloud indisponible)';
+      toast(msg);
+    }
+  });
 }
 function renderQuartier(l){
   return card(numFiche('quartier'),'Dans le quartier','Adresses recommandées aux voyageurs — recherche automatique autour du logement',`
@@ -3316,6 +3392,58 @@ function confirmModal(title, text, onOk, okLabel='Supprimer'){
   document.getElementById('modal-ok').onclick=()=>{ closeModal(); onOk(); };
 }
 function closeModal(){ document.getElementById('modal-root').innerHTML=''; }
+
+/* Choix de livrets de destination, avec cases à cocher.
+   Le geste « appliquer à mes autres logements » existait déjà mais était
+   tout-ou-rien ; avec vingt logements, coller vingt fois n'est que le même
+   problème déplacé d'un cran. Le composant porte aussi les deux phrases qui
+   décident si le gérant ose cliquer : d'où vient la sauvegarde, et comment
+   revenir en arrière. */
+function confirmerSurLivrets({titre, texte, okLabel='Copier', action}){
+  const l=cur(); const autres=S.logements.filter(x=>x.id!==l.id);
+  if(!autres.length){ toast('Vous n\'avez qu\'un seul logement'); return; }
+  const enLigne=!!(sb&&compte);
+  const note = enLigne
+    ? `Une sauvegarde de chaque livret est prise avant la copie : en cas d'erreur, « Restaurer une version » ramène le livret tel qu'il était.`
+    : `Vous n'êtes pas connecté : aucune sauvegarde ne sera prise. Rien n'est effacé pour autant — la copie ajoute les adresses manquantes et ne remplace jamais celles qui existent.`;
+  document.getElementById('modal-root').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <h3>${esc(titre)}</h3><p class="sub">${esc(texte)}</p>
+      <div class="inline-row" style="margin:4px 0 8px">
+        <button class="btn btn-plain btn-sm" onclick="cocherLivrets(true)">Tout cocher</button>
+        <button class="btn btn-plain btn-sm" onclick="cocherLivrets(false)">Tout décocher</button>
+      </div>
+      <div class="liste-livrets">
+        ${autres.map(x=>`<label class="ligne-livret">
+          <input type="checkbox" class="choix-livret" value="${esc(x.id)}" checked onchange="syncChoixLivrets()">
+          <span>${esc(x.nom||'Logement sans nom')}</span>
+          <span class="ville">${esc(x.ville||'')}</span>
+        </label>`).join('')}
+      </div>
+      <p class="sub" style="margin-top:10px">${note}</p>
+      <div class="modal-foot">
+        <button class="btn btn-plain" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-accent" id="modal-ok">${esc(okLabel)}</button>
+      </div>
+    </div></div>`;
+  syncChoixLivrets(okLabel);
+  document.getElementById('modal-ok').onclick=()=>{
+    const ids=[...document.querySelectorAll('.choix-livret:checked')].map(c=>c.value);
+    if(!ids.length) return;
+    closeModal(); action(S.logements.filter(x=>ids.includes(x.id)));
+  };
+}
+function cocherLivrets(on){
+  document.querySelectorAll('.choix-livret').forEach(c=>{ c.checked=on; });
+  syncChoixLivrets();
+}
+function syncChoixLivrets(okLabel){
+  const b=document.getElementById('modal-ok'); if(!b) return;
+  if(okLabel) b.dataset.libelle=okLabel;
+  const n=document.querySelectorAll('.choix-livret:checked').length;
+  b.textContent=`${b.dataset.libelle||'Copier'}${n?' ('+n+')':''}`;
+  b.disabled=!n;
+}
 /* ---------------- QR wifi ---------------- */
 function wifiQR(l, size=170){
   if(window.__noQR || !window.QRCode || !l.wifi.ssid) return '';
