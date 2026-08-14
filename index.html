@@ -729,16 +729,22 @@ function paletteLivret(l){
 }
 
 /* ---------------- Registre des sections du livret ----------------
-   AJOUTER UNE SECTION = AJOUTER UNE ENTRÉE ICI, rien d'autre. L'ordre, le
-   filtrage par guide, le masquage des sections vides, le réglage par livret et
-   l'écran de réorganisation lisent tous ce registre. Aucun code ne nomme une
-   section en particulier.
+   AJOUTER UNE SECTION = DEUX ENDROITS, ET DEUX SEULEMENT :
+     1. une entrée ici, à sa place dans l'ordre par défaut ;
+     2. son id dans `sections` de chaque GUIDE qui doit l'afficher (voir GUIDES).
+   OUBLIER LE POINT 2 EST L'ERREUR QUI COÛTE UNE HEURE : la section existe, elle
+   est ordonnable, elle apparaît dans l'écran de réorganisation — et elle ne
+   s'affiche JAMAIS dans le livret, parce que `has(id)` interroge le guide.
+   Le reste suit tout seul : l'ordre, le masquage des sections vides, le réglage
+   par livret et l'écran de réorganisation lisent tous ce registre, et aucun code
+   ne nomme une section en particulier.
    `fixe` : bloc d'en-tête, non déplaçable — un livret qui commencerait par
    « Nous contacter » n'aurait pas de sens. */
 const SECTIONS_LIVRET = [
   { id:'cover',       label:'Couverture',           icon:'home',    fixe:true },
   { id:'bienvenue',   label:'Mot de bienvenue',     icon:'sparkles',fixe:true },
   { id:'arrivee',     label:'Horaires',             icon:'clock' },
+  { id:'stationnement',label:'Stationnement',       icon:'parking' },
   { id:'wifi',        label:'Wifi',                 icon:'wifi' },
   { id:'equipements', label:'Équipements',          icon:'sofa' },
   { id:'reglement',   label:'Règlement',            icon:'scroll' },
@@ -764,13 +770,28 @@ function ordreSections(l){
   const manquants=defaut.filter(id=>!vus.has(id));
   if(!garde.length) return defaut;
   if(!manquants.length) return garde;
-  /* Un id manquant se glisse JUSTE AVANT la première section qui le suit dans
-     l'ordre par défaut. L'ordre déjà choisi par le gérant n'est pas bousculé. */
+  /* Un id manquant se pose JUSTE APRÈS son prédécesseur par défaut — et si
+     celui-ci est absent de l'ordre du gérant, après le prédécesseur du
+     prédécesseur, en remontant en cascade.
+     La règle précédente cherchait le premier successeur : sur un livret très
+     réordonné, où plus aucune section en tête n'était « après », la nouvelle
+     venue atterrissait en position 1. Mesuré : « Contacts » remonté en tête
+     faisait commencer le livret par « Stationnement ».
+     On ne retombe sur le successeur que si AUCUN prédécesseur n'est présent —
+     et là, la tête de liste est effectivement la bonne réponse. */
   const sortie=garde.slice();
   for(const id of manquants){
     const rang=defaut.indexOf(id);
-    let pos=sortie.findIndex(x=>defaut.indexOf(x)>rang);
-    sortie.splice(pos<0?sortie.length:pos, 0, id);
+    let pos=-1;
+    for(let r=rang-1; r>=0 && pos<0; r--){
+      const i=sortie.indexOf(defaut[r]);
+      if(i>=0) pos=i+1;
+    }
+    if(pos<0){
+      const suivant=sortie.findIndex(x=>defaut.indexOf(x)>rang);
+      pos = suivant<0 ? sortie.length : suivant;
+    }
+    sortie.splice(pos, 0, id);
   }
   return sortie;
 }
@@ -925,8 +946,8 @@ const RECO_AUTRE='autre';
 const recoCatConnue = c => CATS.some(x=>x.id===c) ? c : RECO_AUTRE;
 const catOf = id => CATS.find(c=>c.id===id) || CATS.find(c=>c.id===RECO_AUTRE);
 const GUIDES = [
-  { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','bienvenue','arrivee','wifi','equipements','reglement','quartier','services','galerie','depart','faq','urgences','contacts'] },
-  { id:'arrivee', label:"Guide d'arrivée",  court:'Arrivée', sections:['cover','bienvenue','arrivee','wifi','contacts'] },
+  { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','bienvenue','arrivee','stationnement','wifi','equipements','reglement','quartier','services','galerie','depart','faq','urgences','contacts'] },
+  { id:'arrivee', label:"Guide d'arrivée",  court:'Arrivée', sections:['cover','bienvenue','arrivee','stationnement','wifi','contacts'] },
   { id:'depart',  label:'Guide de départ',  court:'Départ',  sections:['cover','bienvenue','depart','contacts'] },
   { id:'maison',  label:'Guide maison',     court:'Maison',  sections:['cover','bienvenue','wifi','equipements','reglement','services','faq','urgences','contacts'] },
 ];
@@ -2571,9 +2592,9 @@ function renderSection(l){
     case 'arrivee': return card(numFiche('arrivee'),'Arrivée','Horaires et accès au logement',`
       <div class="row-2">
         <div class="field"><label>Arrivée à partir de</label><input type="time" class="input" value="${esc(l.arrivee.heure)}" oninput="setPath('arrivee.heure',this.value)"></div>
-        ${F('arrivee.parking','Stationnement',l.arrivee.parking,'Ex. place gratuite rue Bellanger après 19h')}
+        ${F('arrivee.codeAcces',"Code d'accès",l.arrivee.codeAcces,'Ex. 4821','Affiché en couverture du livret, sous l\'étage')}
       </div>
-      ${F('arrivee.codeAcces',"Code d'accès / boîte à clés",l.arrivee.codeAcces,'Ex. 4821 — boîtier à gauche de la porte','Affiché en couverture du livret, sous l\'étage')}
+      ${F('arrivee.parking','Stationnement',l.arrivee.parking,'Ex. place gratuite rue Bellanger après 19h','Section à part dans le livret : sa place se règle dans Habillage, avec les autres')}
       ${FT('arrivee.instructions',"Instructions d'accès",l.arrivee.instructions,"Comment trouver l'entrée, où est la boîte à clés…",3,"Pour l'étage, utilisez le champ « Étage » de la fiche 01 : il s'affiche en couverture")}
       ${l.arrivee.instructions?aiPolishBtn('arrivee'):''}
     `);
@@ -3329,6 +3350,10 @@ function hexA(hex, a){
    partout — destiné à devenir une option d'offre supérieure. */
 const MENTION_SMART_GUIDE=true;
 
+/* Jeton posé à la place du numéro de section pendant la construction des
+   fragments, remplacé à l'assemblage par le rang réel dans la page. Une suite
+   improbable dans un texte de gérant, et jamais rendue telle quelle. */
+const JETON_NUM='@@N°@@';
 const LIVRET_CSS=`<style>
 .lv .lvacc{border-radius:10px;overflow:hidden}
 .lv .lvacc+.lvacc{margin-top:8px}
@@ -3372,13 +3397,13 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const qr=has('wifi')?wifiQR(lRaw):'';
   const mono=`font-family:'IBM Plex Mono',monospace`;
   const serif=`font-family:'Fraunces',Georgia,serif`;
-  let secNum=0;
-
   /* Gabarit unique du titre : numéro (facultatif), libellé, filet, icône.
-     `secTitle` numérote et incrémente ; `sousTitre` rend exactement le même
-     gabarit sans numéro, pour un bloc interne à une section. Le stationnement
-     recopiait ce style à la main et avait fini par en diverger — il passe
-     désormais par ici, comme tout ce qui porte un titre dans le livret. */
+     Le numéro reste facultatif pour un futur bloc interne à une section — le
+     stationnement, lui, est devenu une section et se numérote comme les autres.
+     Le numéro n'est PAS calculé ici : les fragments sont construits dans l'ordre
+     du code, mais assemblés dans l'ordre choisi par le gérant. Numéroter à la
+     construction donnait « 01, 03, 04 … 11, 02 » dès qu'une section était
+     déplacée. On pose donc un jeton, remplacé à l'assemblage. */
   const filetTitre=(icon,label,numero)=>`
     <div style="display:flex;align-items:center;gap:10px;margin:0 0 14px">
       ${numero?`<span style="${mono};font-size:10px;color:${t.accentSurFond};letter-spacing:.05em">${numero}</span>`:''}
@@ -3386,8 +3411,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       <span style="flex:1;height:1px;background:${t.line}"></span>
       <span style="color:${t.accentSurFond};line-height:0;opacity:.85">${I(icon,14)}</span>
     </div>`;
-  const secTitle=(icon,label)=>{ secNum++; return filetTitre(icon,label,String(secNum).padStart(2,'0')); };
-  const sousTitre=(icon,label)=>filetTitre(icon,label,null);
+  const secTitle=(icon,label)=>filetTitre(icon,label,JETON_NUM);
   const block=(label,value,full=false)=>`
     <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:12px 15px;${full?'grid-column:1/-1':''}">
       <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:3px;color:${t.ink}">${label}</p>
@@ -3509,13 +3533,16 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       ${block(X.avant, l.depart.heure)}
     </div>
     ${l.arrivee.instructions?`<p style="font-size:14px;line-height:1.7;opacity:.88">${esc(l.arrivee.instructions)}</p>`:''}
-    ${l.arrivee.parking?`
-    <div style="margin-top:20px">
-      ${sousTitre('parking', X.parking)}
-      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
-        <p style="font-size:14px;line-height:1.6;opacity:.88">${esc(l.arrivee.parking)}</p>
-      </div>
-    </div>`:''}
+  </section>`;
+
+  /* Le stationnement est une section à part entière : il se déplace comme les
+     autres. Sa donnée reste `arrivee.parking` — la promotion est une affaire
+     de mise en page, pas de modèle de données, donc aucun livret existant n'a
+     à être migré. */
+  if(has('stationnement')&&String(l.arrivee.parking||'').trim()) frag.stationnement=`<section>${secTitle('parking',X.parking)}
+    <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
+      <p style="font-size:14px;line-height:1.6;opacity:.88">${esc(l.arrivee.parking)}</p>
+    </div>
   </section>`;
 
   if(has('wifi')&&(l.wifi.ssid||l.wifi.mdp)) frag.wifi=`<section>${secTitle('wifi',X.wifi)}
@@ -3665,9 +3692,14 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      choisi pour CE livret. Aucune section n'est nommee ici — ajouter une
      section au registre suffit a la rendre ordonnable. */
   if(opts.fragments) return frag;
-  for(const s of SECTIONS_LIVRET) if(s.fixe && frag[s.id]) out+=frag[s.id];
+  /* Les numéros sont attribués ICI, dans l'ordre où les sections sont réellement
+     posées sur la page — jamais dans l'ordre où le code les a construites. */
+  let secNum=0;
+  const numeroter = html => html.split(JETON_NUM).join('') === html
+    ? html : html.replace(JETON_NUM, String(++secNum).padStart(2,'0'));
+  for(const s of SECTIONS_LIVRET) if(s.fixe && frag[s.id]) out+=numeroter(frag[s.id]);
   out+=`<div style="max-width:600px;margin:0 auto;padding:30px 26px 0;display:flex;flex-direction:column;gap:36px">`;
-  for(const id of ordreSections(l)) if(frag[id]) out+=frag[id];
+  for(const id of ordreSections(l)) if(frag[id]) out+=numeroter(frag[id]);
 
   out+=`</div><div style="display:flex;flex-direction:column;align-items:center;gap:9px;padding-top:42px">
     <span style="width:34px;height:1px;background:${t.line}"></span>
