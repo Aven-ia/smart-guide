@@ -1130,7 +1130,7 @@ const logoHerite = l => typeof (l&&l.logoHaut) === 'string';
    2. la largeur de la couverture — un bandeau 7,5:1 à 96 px de haut réclame
       720 px de large, qui n'existent pas.
    Le curseur se borne donc au minimum des trois, et l'écran dit pourquoi. */
-const LARGEUR_REF_COUVERTURE = 464;   // colonne de texte d'une couverture 600 px, à 92 %
+const LARGEUR_REF_COUVERTURE = 508;   // page de 600 px moins ses marges (552), à 92 %
 let logoMesure=null;                  // {src,w,h} — dérivé de l'image, jamais stocké
 function plafondLogo(){
   const src=S.settings.logo;
@@ -3449,7 +3449,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      « Guide d'arrivée » n'est pas la même chose que « Livret d'accueil ». */
   const kicker=g.id==='complet' ? ''
     : `<p style="${mono};font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:${t.accent};margin-bottom:10px">${esc(coverLabel)}</p>`;
-  const titleH=`<h1 style="${serif};font-size:34px;font-weight:500;line-height:1.1;margin-bottom:9px">${esc(l.nom||'Votre logement')}</h1>`;
+  const titleH=`<h1 style="${serif};font-size:34px;font-weight:500;line-height:1.1;margin-bottom:7px">${esc(l.nom||'Votre logement')}</h1>`;
   /* Adresse complète, cliquable vers l'application de cartes du téléphone.
      Chaque morceau est facultatif : un livret antérieur sans code postal
      n'affiche ni virgule orpheline ni espace parasite. */
@@ -3466,7 +3466,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const logoP=(hLogo && S.settings.logo)
     ? `<img src="${S.settings.logo}" alt="" style="max-height:${hLogo}px;max-width:${largeurMaxLogo(hLogo, logoHerite(l))}%;object-fit:contain;display:block;margin:${MARGES_LOGO[alignLogo(l)]}">`
     : '';
-  const ligneIdentite=(libelle,valeur)=>`<p style="display:flex;align-items:baseline;gap:7px;font-size:13px;opacity:.72;margin-bottom:10px">
+  const ligneIdentite=(libelle,valeur)=>`<p style="display:flex;align-items:baseline;gap:7px;font-size:13px;opacity:.72;margin-bottom:8px">
       <span style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.62;flex:none">${esc(libelle)}</span>${esc(valeur)}</p>`;
   const etageTxt=String(l.etage||'').trim();
   const etageP=etageTxt?ligneIdentite(X.etage, etageTxt):'';
@@ -3479,27 +3479,37 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const accP=l.accroche?`<p style="${serif};font-style:italic;font-size:15.5px;opacity:.85;line-height:1.45">${esc(l.accroche)}</p>`:'';
   const perfo=`<div style="height:1px;background-image:radial-gradient(circle,${t.bg} 2px,transparent 2.5px);background-size:12px 12px"></div>`;
 
+  /* Le logo de la conciergerie est l'EN-TÊTE DU DOCUMENT, pas un élément de la
+     couverture : l'émetteur au-dessus, le document en dessous — comme un papier
+     à en-tête. Il est rendu UNE SEULE FOIS, juste avant la première carte, et
+     n'est pas un en-tête répété : rien ne le redessine en haut de chaque page
+     du PDF. Sorti de la carte, il n'est plus contraint par sa largeur, d'où un
+     plafond de curseur plus généreux. */
+  const bandeauLogo = logoP
+    ? `<div style="max-width:600px;margin:0 auto;padding:20px 26px 0">${logoP}</div>`
+    : '';
+
   if(has('cover')){
     if(l.coverStyle==='minimal'||(!cover&&l.coverStyle!=='photo')){
-      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:40px 30px 6px">
-        ${logoP || `<div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">${logoSVG(22,t.accent)}<span style="flex:1;height:1px;background:${t.line}"></span></div>`}
+      frag.cover=bandeauLogo+`<div style="max-width:600px;margin:0 auto;padding:${logoP?'18px':'40px'} 30px 6px">
+        ${logoP ? '' : `<div style="display:flex;align-items:center;gap:10px;margin-bottom:26px">${logoSVG(22,t.accent)}<span style="flex:1;height:1px;background:${t.line}"></span></div>`}
         ${kicker}
         <h1 style="${serif};font-size:42px;font-weight:500;line-height:1.08;margin-bottom:12px;letter-spacing:-.01em">${esc(l.nom||'Votre logement')}</h1>
         ${lieuP}${accP}
         <div style="margin-top:24px">${perfo}</div>
       </div>`;
     } else if(l.coverStyle==='cadre'&&cover){
-      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:26px 30px 6px">
+      frag.cover=bandeauLogo+`<div style="max-width:600px;margin:0 auto;padding:${logoP?'14px':'26px'} 30px 6px">
         <img src="${cover.dataUrl}" style="width:100%;height:${HAUTEUR_PHOTO.cadre};object-fit:cover;display:block;border-radius:14px;border:1px solid ${t.line};box-shadow:0 14px 40px rgba(0,0,0,.14)">
-        <div style="padding:21px 4px 0">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
+        <div style="padding:21px 4px 0">${kicker}${titleH}${lieuP}${accP}</div>
         <div style="margin-top:22px">${perfo}</div>
       </div>`;
     } else {
-      frag.cover=`<div style="max-width:600px;margin:0 auto;padding:24px 26px 6px">
+      frag.cover=bandeauLogo+`<div style="max-width:600px;margin:0 auto;padding:${logoP?'10px':'18px'} 26px 6px">
         <div style="background:${t.paper};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
           ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:${HAUTEUR_PHOTO.photo};object-fit:cover;display:block">`
             :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft}">${logoSVG(38,t.accent)}</div>`}
-          <div style="padding:22px 24px 20px">${logoP}${kicker}${titleH}${lieuP}${accP}</div>
+          <div style="padding:16px 24px 16px">${kicker}${titleH}${lieuP}${accP}</div>
           ${perfo}
         </div>
       </div>`;
