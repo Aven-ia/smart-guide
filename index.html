@@ -3097,13 +3097,16 @@ function renderQuartier(l){
       </div>
       <div class="inline-row" style="flex-wrap:wrap">
         <button class="btn btn-accent" id="osm-btn" onclick="searchOSM()" ${(!l.adresse&&!l.ville)?'disabled':''}>${I('compass',14)} Chercher</button>
-        <select class="input" style="width:auto" onchange="osmState.radius=+this.value">
+        <select class="input" style="width:auto" onchange="osmState.radius = this.value==='ville' ? 'ville' : +this.value">
           ${[500,900,1500,3000].map(r=>`<option value="${r}" ${osmState.radius===r?'selected':''}>Rayon ${r>=1000?(r/1000)+' km':r+' m'}</option>`).join('')}
+          <option value="ville" ${osmState.radius==='ville'?'selected':''}>Toute la ville</option>
         </select>
         ${osmState.results.length?`<button class="btn btn-ghost btn-sm" id="osm-addall" onclick="addAllOSM()">${I('plus',13)} Tout ajouter (${osmState.results.filter(r=>!l.recos.some(x=>x.osmId===r.osmId)).length})</button>`:''}
         ${osmState.error?`<span class="err">${esc(osmState.error)}</span>`:''}
       </div>
-      ${osmState.loading?`<div style="display:flex;flex-direction:column;gap:8px;margin-top:13px"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`:''}
+      ${osmState.loading?`<p class="ai-note" style="margin-top:11px">${esc(osmState.etape||'Recherche en cours…')}</p>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:9px"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>`:''}
+      ${(!osmState.loading&&osmState.resume)?`<p class="ai-note" style="margin-top:11px">${esc(osmState.resume)}</p>`:''}
       ${osmState.results.length&&!osmState.loading?`
         <div class="osm-res" style="margin-top:13px">
           ${osmState.results.map((r,i)=>{ const c=catOf(r.cat); const added=l.recos.some(x=>x.osmId===r.osmId); return `
@@ -3160,20 +3163,63 @@ const OSM_FILTERS = {
 };
 function haversine(a,b,c,d){ const R=6371e3,p=Math.PI/180; const x=(c-a)*p/2,y=(d-b)*p/2;
   const h=Math.sin(x)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y)**2; return Math.round(2*R*Math.asin(Math.sqrt(h))); }
+/* Interrogation d'Overpass avec réessais.
+   Mesuré sur 10 requêtes communales consécutives : 5 refus — 429 (quota, que
+   mes propres rafales provoquaient) et surtout 504 (serveur saturé), 3 sur 10
+   celui-là, indépendant de la cadence. Un seul réessai a suffi dans 5 cas sur
+   5, jamais le troisième. D'où trois tentatives et des pauses courtes, plus un
+   texte qui change à chaque essai : dix secondes d'écran figé, c'est une
+   application qui a planté. */
+const PAUSES_OVERPASS=[0,2000,5000,10000];
+async function overpass(q, surEtape){
+  let dernier=null;
+  for(let i=0;i<3;i++){
+    if(PAUSES_OVERPASS[i]) await new Promise(r=>setTimeout(r,PAUSES_OVERPASS[i]));
+    if(surEtape) surEtape(i);
+    try{
+      const res=await fetch('https://overpass-api.de/api/interpreter',
+        {method:'POST',body:'data='+encodeURIComponent(q)});
+      if(res.ok) return await res.json();
+      dernier=res.status;
+    }catch(e){ dernier='reseau'; }
+  }
+  const err=new Error(dernier==='reseau'
+    ? "Pas de connexion — la recherche a besoin d'internet."
+    : "Le service cartographique est saturé. Réessayez dans un moment : c'est un service public gratuit, ces ralentissements sont passagers.");
+  err.sature=true; throw err;
+}
 async function searchOSM(){
   const l=cur();
   if(!osmState.cats.length){ toast('Choisissez au moins une catégorie', true); return; }
-  osmState.loading=true; osmState.error=''; osmState.results=[]; renderCard();
+  osmState.loading=true; osmState.error=''; osmState.results=[]; osmState.resume='';
+  osmState.etape='Recherche en cours…'; renderCard();
   try{
     const g=await geocode(l);
-    const RAD=osmState.radius;
-    const parts=osmState.cats.flatMap(c=>OSM_FILTERS[c]).map(sel=>`node(around:${RAD},${g.lat},${g.lon})${sel}`).join(';');
-    const q=`[out:json][timeout:20];( ${parts}; );out tags center 90;`;
-    const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});
-    if(!res.ok) throw new Error('Service cartographique saturé, réessayez dans une minute.');
-    const data=await res.json();
+    const communal = osmState.radius==='ville';
+    const sels=osmState.cats.flatMap(c=>OSM_FILTERS[c]);
+    /* La commune est celle qui CONTIENT le point du logement, jamais celle qui
+       porte le même nom : « Saint-Denis » désigne cinq communes françaises, dont
+       La Réunion. Le nom saisi par le gérant — casse, accents, code postal collé —
+       ne sert donc jamais à chercher. Tout tient en une requête : la commune,
+       le total réel, et les lieux. */
+    const q = communal
+      ? `[out:json][timeout:90];is_in(${g.lat},${g.lon})->.z;
+         area.z["boundary"="administrative"]["admin_level"="8"]->.c;
+         .c out tags;
+         ( ${sels.map(s=>`node(area.c)${s};way(area.c)${s};`).join('')} )->.p;
+         .p out tags center 60;
+         .p out count;`
+      : `[out:json][timeout:25];( ${sels.map(s=>`node(around:${osmState.radius},${g.lat},${g.lon})${s};`).join('')} );out tags center 90;`;
+    const etapes=['Recherche en cours…',
+      'Le service cartographique est chargé — deuxième tentative…',
+      'Toujours chargé — dernière tentative…'];
+    const data=await overpass(q, i=>{ osmState.etape=etapes[i]||etapes[2]; renderCard(); });
+    const els=data.elements||[];
+    const zone=els.find(e=>e.type==='area');
+    const compte=els.find(e=>e.type==='count');
+    const total=compte?+compte.tags.total:null;
     const seen=new Set();
-    const rows=(data.elements||[]).map(e=>{
+    const rows=els.filter(e=>e.type==='node'||e.type==='way').map(e=>{
       const t=e.tags||{}; const name=t.name; if(!name||seen.has(name)) return null; seen.add(name);
       let cat='activite';
       if(/restaurant|fast_food/.test(t.amenity||'')) cat='restaurant';
@@ -3183,16 +3229,31 @@ async function searchOSM(){
       else if(/pharmacy|doctors|hospital/.test(t.amenity||'')) cat='sante';
       else if(/museum|gallery/.test(t.tourism||'')||/theatre|arts_centre/.test(t.amenity||'')) cat='musee';
       const lat=e.lat??e.center?.lat, lon=e.lon??e.center?.lon;
+      if(lat==null||lon==null) return null;
       const dist=haversine(g.lat,g.lon,lat,lon);
       let detail=t.cuisine?t.cuisine.split(';')[0].replace(/_/g,' '):(t.railway?'gare / arrêt':(t.shop||''));
       return { osmId:e.id, nom:name, cat, dist, detail,
         mapsUrl:`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}` };
     }).filter(Boolean).filter(r=>osmState.cats.includes(r.cat));
     rows.sort((a,b)=>a.dist-b.dist);
-    osmState.results=rows.slice(0,30);
-    if(!rows.length) osmState.error='Rien trouvé dans ce rayon. Essayez plus large ou d\'autres catégories.';
+    osmState.results=rows.slice(0,60);
+    osmState.communal=communal;
+    if(communal){
+      const nomCommune=zone&&zone.tags?zone.tags.name:null;
+      if(!nomCommune){
+        osmState.error="Commune introuvable pour cette adresse — vérifiez la ville en fiche 01, ou choisissez un rayon.";
+      } else if(!rows.length){
+        osmState.error=`Aucun lieu de ces catégories trouvé dans ${nomCommune}.`;
+      } else {
+        /* Dire le total réel, pas seulement les 60 retenus : sans ça le gérant
+           croit que sa ville compte soixante restaurants et ne cherche pas plus loin. */
+        osmState.resume=`${total} lieu${total>1?'x':''} dans ${nomCommune} — les ${osmState.results.length} plus proches du logement sont listés.`;
+      }
+    } else if(!rows.length){
+      osmState.error="Aucun lieu de ces catégories dans ce rayon. Essayez plus large, ou « Toute la ville ».";
+    }
   }catch(e){ osmState.error=e.message; }
-  osmState.loading=false; renderCard();
+  osmState.loading=false; osmState.etape=''; renderCard();
 }
 function osmReco(r){
   return { id:nid(), osmId:r.osmId, cat:r.cat, nom:r.nom,
@@ -3209,12 +3270,26 @@ function addOSM(i, btn){
   markOsmAdded(btn); refreshRecos();
 }
 function addAllOSM(){
-  const l=cur(); let n=0;
-  osmState.results.forEach(r=>{ if(!l.recos.some(x=>x.osmId===r.osmId)){
-    const reco=osmReco(r); l.recos.push(reco); accSet('reco:'+recoCatConnue(reco.cat), true); n++; } });
-  l.translations={}; touch(l);
-  document.querySelectorAll('.osm-res .add').forEach(markOsmAdded); refreshRecos();
-  toast(n+' adresse'+(n>1?'s':'')+' ajoutée'+(n>1?'s':''));
+  const l=cur();
+  const aAjouter=osmState.results.filter(r=>!l.recos.some(x=>x.osmId===r.osmId));
+  if(!aAjouter.length){ toast('Toutes ces adresses sont déjà dans le livret'); return; }
+  const poser=()=>{
+    let n=0;
+    aAjouter.forEach(r=>{ const reco=osmReco(r); l.recos.push(reco);
+      accSet('reco:'+recoCatConnue(reco.cat), true); n++; });
+    l.translations={}; touch(l);
+    document.querySelectorAll('.osm-res .add').forEach(markOsmAdded); refreshRecos();
+    toast(n+' adresse'+(n>1?'s':'')+' ajoutée'+(n>1?'s':''));
+  };
+  /* « Tout ajouter » peut poser soixante adresses d'un coup : c'est un geste qui
+     se regrette. La confirmation ne dépend PAS du mode mais du nombre — en plein
+     centre-ville, un rayon de 900 m rend déjà soixante restaurants, et le
+     regret est le même que sur une commune entière. */
+  if(aAjouter.length>=15){
+    confirmModal(`Ajouter ${aAjouter.length} adresses au livret ?`,
+      `Elles seront classées par catégorie et vous pourrez les retirer une par une. Vous pouvez aussi n'ajouter que celles qui vous intéressent, ligne par ligne.`,
+      poser, 'Tout ajouter');
+  } else poser();
 }
 
 /* ---------------- IA — API Anthropic ---------------- */
