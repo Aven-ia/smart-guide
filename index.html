@@ -677,6 +677,23 @@ const INTENSITES = [
   { id:'affirme',  label:'Affirmé',  fAcc:1.45, fSoft:1.75, fBg:1.90, dBg:-0.015 },
 ];
 const CONTRASTE_MINI = 4.5;
+/* Intensité continue, de 0 à 100 %.
+   0 % = le fond d'origine de la palette, 100 % = la couleur d'accent pleine —
+   « l'intensité de la couleur importée », mot pour mot ce qui était demandé.
+   Les livrets antérieurs portent encore un palier nommé : ils gardent le
+   transformateur de saturation d'origine et ne bougent pas d'un pixel. Dès que
+   le gérant touche au curseur, la valeur devient un nombre et le fond suit ce
+   mélange-ci.
+   Le garde-fou ne plafonne plus l'intensité : il adapte le TEXTE. Sur n'importe
+   quelle couleur, le noir pur ou le blanc pur atteint toujours 4,5:1 — le pire
+   fond concevable (luminance 0,179) laisse encore 4,59:1. Il n'existe donc
+   aucune combinaison à refuser : c'est l'encre qui cède, jamais la couleur. */
+const intensiteNumerique = v => typeof v==='number' ? Math.max(0,Math.min(100,Math.round(v))) : null;
+function encreLisible(fond, encre){
+  if(contraste(encre,fond)>=CONTRASTE_MINI) return encre;
+  const n=contraste('#000000',fond), b=contraste('#FFFFFF',fond);
+  return n>=b ? '#000000' : '#FFFFFF';
+}
 
 const versRGB = h => { let s=String(h||'').replace('#',''); if(s.length===3) s=s.split('').map(c=>c+c).join('');
   const n=parseInt(s,16)||0; return [(n>>16)&255,(n>>8)&255,n&255]; };
@@ -707,31 +724,52 @@ function depuisHSL(H,L,S){
 const saturer = (h,f,dl) => { const [H,L,S]=versHSL(h);
   return depuisHSL(H, Math.max(0,Math.min(1,L+(dl||0))), Math.max(0,Math.min(1,S*f))); };
 /* Assombrit (ou éclaircit en thème sombre) jusqu'à franchir le seuil. */
-function accentLisible(accent, paper, sombre){
+/* La direction se déduit du FOND visé, pas d'un drapeau global : l'accent est
+   testé tantôt sur les pavés clairs, tantôt sur un fond de page devenu sombre,
+   et pousser du mauvais côté l'emmène vers la couleur du fond — mesuré, un
+   contraste de 1,00 sur Lichen à 100 %. Si la teinte n'y arrive pas malgré
+   tout, on cède sur la teinte, jamais sur la lisibilité. */
+function accentLisible(accent, fond){
+  const versLeClair = luminance(fond) < 0.5;
   let c=accent;
-  for(let i=0;i<80 && contraste(c,paper)<CONTRASTE_MINI;i++){
+  for(let i=0;i<100 && contraste(c,fond)<CONTRASTE_MINI;i++){
     const [H,L,S]=versHSL(c);
-    c=depuisHSL(H, Math.max(0,Math.min(1, sombre ? L+0.01 : L-0.01)), S);
+    const L2 = Math.max(0, Math.min(1, versLeClair ? L+0.01 : L-0.01));
+    if(L2===L) break;
+    c=depuisHSL(H, L2, S);
+  }
+  if(contraste(c,fond)<CONTRASTE_MINI){
+    c = contraste('#000000',fond)>=contraste('#FFFFFF',fond) ? '#000000' : '#FFFFFF';
   }
   return c;
 }
 function paletteLivret(l){
   const base=TEMPLATES.find(x=>x.id===l.templateId)||TEMPLATES[0];
+  const pct=intensiteNumerique(l.intensite);
   const I=INTENSITES.find(x=>x.id===l.intensite)||INTENSITES[1];
-  const sombre=luminance(base.bg)<0.2;
-  const p={ ...base,
-    bg:         saturer(base.bg, I.fBg, I.dBg),
-    accentSoft: saturer(base.accentSoft, I.fSoft, 0),
-    accent:     saturer(base.accent, I.fAcc, 0) };
+  const p = pct===null
+    ? { ...base,
+        bg:         saturer(base.bg, I.fBg, I.dBg),
+        accentSoft: saturer(base.accentSoft, I.fSoft, 0),
+        accent:     saturer(base.accent, I.fAcc, 0) }
+    : { ...base,
+        bg:         mixHex(base.accent, base.bg, 1-pct/100),
+        accentSoft: mixHex(base.accent, base.accentSoft, 1-pct/200),
+        accent:     base.accent };
   // Un accent personnalisé n'est pas resaturé, mais il passe le même garde-fou.
   if(l.accent){ p.accent=l.accent; p.accentSoft=mixHex(l.accent, base.paper, .82); }
-  p.accent=accentLisible(p.accent, p.paper, sombre);
+  p.accent=accentLisible(p.accent, p.paper);
   /* L'accent n'était garanti lisible que sur les PAVÉS (paper). Les numéros de
      section et l'icône du filet, eux, se posent sur le FOND DE PAGE (bg) — le
      seul que le réglage d'intensité assombrit. Mesuré avant correctif : 12 des
      18 combinaisons palette × intensité tombaient sous 4,5:1, jusqu'à 4,07.
      D'où une seconde variante, dérivée du fond réel sur lequel elle s'affiche. */
-  p.accentSurFond=accentLisible(p.accent, p.bg, sombre);
+  p.accentSurFond=accentLisible(p.accent, p.bg);
+  /* L'encre de page bascule quand le fond monte : c'est elle qui s'adapte,
+     pour que l'intensité n'ait pas à être bridée. L'encre des PAVÉS ne bouge
+     pas — ils gardent leur fond clair. */
+  p.inkSurFond=encreLisible(p.bg, base.ink);
+  p.inkSurSoft=encreLisible(p.accentSoft, base.ink);
   return p;
 }
 
@@ -2772,10 +2810,10 @@ function renderSection(l){
           </div>
         </button>`).join('')}
       </div></div>
-      <div class="field"><label>Intensité des couleurs<span class="hint">Mêmes teintes, plus ou moins de présence. La lisibilité du texte est garantie dans les trois cas.</span></label>
-      <div class="pill-group">
-        ${INTENSITES.map(x=>`<button class="pill ${(l.intensite||'standard')===x.id?'on':''}" onclick="setPath('intensite','${x.id}');renderCard()">${x.label}</button>`).join('')}
-      </div>
+      <div class="field"><label id="intensite-lbl">Intensité de la couleur de fond — ${intensiteNumerique(l.intensite)===null?INTENSITES.find(x=>x.id===(l.intensite||'standard')).label:intensiteNumerique(l.intensite)+' %'}<span class="hint">À 100 %, le fond prend la couleur pleine de la palette. Le texte s'éclaircit tout seul si le fond devient sombre — la lisibilité est garantie à toutes les valeurs.</span></label>
+        <input type="range" class="wp-range" min="0" max="100" step="5" value="${intensiteNumerique(l.intensite)===null?0:intensiteNumerique(l.intensite)}"
+          oninput="setPath('intensite',+this.value);liveIntensite(+this.value)" onchange="renderCard()">
+        ${intensiteNumerique(l.intensite)===null?`<span class="ai-note" style="margin-top:6px;display:block">Ce livret utilise encore l'ancien réglage « ${esc(INTENSITES.find(x=>x.id===(l.intensite||'standard')).label)} ». Bougez le curseur pour passer au réglage continu.</span>`:''}
       </div>
       <div class="field"><label>Style de couverture</label>
       <div class="cover-styles">
@@ -2969,6 +3007,10 @@ function renderAccentPreview(v){ const el=document.getElementById('accent-lbl');
 /* Aperçu du logo pendant que le curseur bouge : on touche l'image et le libellé,
    rien d'autre. Un renderCard() ici rendrait le curseur inutilisable — il perdrait
    le focus à chaque pixel. */
+function liveIntensite(v){
+  const lb=document.getElementById('intensite-lbl');
+  if(lb) lb.childNodes[0].nodeValue='Intensité de la couleur de fond — '+v+' %';
+}
 function liveLogo(v){
   const img=document.getElementById('logo-apercu'); if(img) img.style.maxHeight=v+'px';
   const lb=document.getElementById('logo-taille-lbl'); if(lb) lb.textContent='Taille — '+v+' px';
@@ -3614,7 +3656,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const filetTitre=(icon,label,numero)=>`
     <div style="display:flex;align-items:center;gap:10px;margin:0 0 14px">
       ${numero?`<span style="${mono};font-size:10px;color:${t.accentSurFond};letter-spacing:.05em">${numero}</span>`:''}
-      <h2 style="${mono};font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:500;color:${t.ink};white-space:nowrap">${label}</h2>
+      <h2 style="${mono};font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:500;color:${t.inkSurFond};white-space:nowrap">${label}</h2>
       <span style="flex:1;height:1px;background:${t.line}"></span>
       <span style="color:${t.accentSurFond};line-height:0;opacity:.85">${I(icon,14)}</span>
     </div>`;
@@ -3642,7 +3684,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </details>`;
 
   const frag={};
-  let out=LIVRET_CSS+`<div class="lv" style="${wpStyle}color:${t.ink};padding-bottom:46px;font-family:'Inter',-apple-system,sans-serif">`;
+  let out=LIVRET_CSS+`<div class="lv" style="${wpStyle}color:${t.inkSurFond};padding-bottom:46px;font-family:'Inter',-apple-system,sans-serif">`;
 
   /* ---- Couverture (3 styles) ---- */
   const coverLabel=guideLabelLang(g.id, lang);
@@ -3730,8 +3772,8 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      d'exemple de la fiche 01 qui commence par une formule d'accueil. */
   if(has('bienvenue') && String(l.bienvenue||'').trim()){
     frag.bienvenue=`<div style="max-width:600px;margin:0 auto;padding:22px 26px 0">
-      <div style="background:${t.accentSoft};border-radius:14px;padding:18px 20px">
-        <p style="font-size:14.5px;line-height:1.7;opacity:.92">${esc(l.bienvenue)}</p>
+      <div style="background:${t.accentSoft};border-radius:14px;padding:18px 20px;color:${t.inkSurSoft}">
+        <p style="font-size:14.5px;line-height:1.7">${esc(l.bienvenue)}</p>
       </div>
     </div>`;
   }
@@ -4066,7 +4108,7 @@ function posterHTML(lRaw, type, lang='fr'){
   const qr=type==='wifi'?wifiQR(lRaw,320):'';
 
   const shell = (kicker, body) => `
-  <div class="poster" style="background:${t.bg};color:${t.ink};font-family:'Inter',sans-serif;
+  <div class="poster" style="background:${t.bg};color:${t.inkSurFond};font-family:'Inter',sans-serif;
     width:148mm;min-height:210mm;padding:18mm 16mm;display:flex;flex-direction:column;box-sizing:border-box">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:auto">
       <p style="${mono};font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:${t.accent}">${esc(kicker)}</p>
