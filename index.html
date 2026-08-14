@@ -949,7 +949,11 @@ const GUIDES = [
   { id:'complet', label:'Livret complet',   court:'Complet', sections:['cover','bienvenue','arrivee','stationnement','wifi','equipements','reglement','quartier','services','galerie','depart','faq','urgences','contacts'] },
   { id:'arrivee', label:"Guide d'arrivée",  court:'Arrivée', sections:['cover','bienvenue','arrivee','stationnement','wifi','contacts'] },
   { id:'depart',  label:'Guide de départ',  court:'Départ',  sections:['cover','bienvenue','depart','contacts'] },
-  { id:'maison',  label:'Guide maison',     court:'Maison',  sections:['cover','bienvenue','wifi','equipements','reglement','services','faq','urgences','contacts'] },
+  /* Le stationnement est dans « Maison » et pas dans « Départ » : c'est une
+     information de séjour, pas d'arrivée. Le voyageur au long cours sort et
+     rentre la voiture tous les jours, et n'a plus le guide d'arrivée sous la
+     main ; celui qui part ne se gare plus. */
+  { id:'maison',  label:'Guide maison',     court:'Maison',  sections:['cover','bienvenue','stationnement','wifi','equipements','reglement','services','faq','urgences','contacts'] },
 ];
 const MODELS = [
   { id:'claude-haiku-4-5',  label:'Claude Haiku — rapide & très économique (recommandé)' },
