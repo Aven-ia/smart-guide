@@ -719,6 +719,12 @@ function paletteLivret(l){
   // Un accent personnalisé n'est pas resaturé, mais il passe le même garde-fou.
   if(l.accent){ p.accent=l.accent; p.accentSoft=mixHex(l.accent, base.paper, .82); }
   p.accent=accentLisible(p.accent, p.paper, sombre);
+  /* L'accent n'était garanti lisible que sur les PAVÉS (paper). Les numéros de
+     section et l'icône du filet, eux, se posent sur le FOND DE PAGE (bg) — le
+     seul que le réglage d'intensité assombrit. Mesuré avant correctif : 12 des
+     18 combinaisons palette × intensité tombaient sous 4,5:1, jusqu'à 4,07.
+     D'où une seconde variante, dérivée du fond réel sur lequel elle s'affiche. */
+  p.accentSurFond=accentLisible(p.accent, p.bg, sombre);
   return p;
 }
 
@@ -3368,16 +3374,20 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const serif=`font-family:'Fraunces',Georgia,serif`;
   let secNum=0;
 
-  const secTitle=(icon,label)=>{
-    secNum++;
-    return `
+  /* Gabarit unique du titre : numéro (facultatif), libellé, filet, icône.
+     `secTitle` numérote et incrémente ; `sousTitre` rend exactement le même
+     gabarit sans numéro, pour un bloc interne à une section. Le stationnement
+     recopiait ce style à la main et avait fini par en diverger — il passe
+     désormais par ici, comme tout ce qui porte un titre dans le livret. */
+  const filetTitre=(icon,label,numero)=>`
     <div style="display:flex;align-items:center;gap:10px;margin:0 0 14px">
-      <span style="${mono};font-size:10px;color:${t.accent};letter-spacing:.05em">${String(secNum).padStart(2,'0')}</span>
+      ${numero?`<span style="${mono};font-size:10px;color:${t.accentSurFond};letter-spacing:.05em">${numero}</span>`:''}
       <h2 style="${mono};font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:500;color:${t.ink};white-space:nowrap">${label}</h2>
       <span style="flex:1;height:1px;background:${t.line}"></span>
-      <span style="color:${t.accent};line-height:0;opacity:.85">${I(icon,14)}</span>
+      <span style="color:${t.accentSurFond};line-height:0;opacity:.85">${I(icon,14)}</span>
     </div>`;
-  };
+  const secTitle=(icon,label)=>{ secNum++; return filetTitre(icon,label,String(secNum).padStart(2,'0')); };
+  const sousTitre=(icon,label)=>filetTitre(icon,label,null);
   const block=(label,value,full=false)=>`
     <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:12px 15px;${full?'grid-column:1/-1':''}">
       <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:3px;color:${t.ink}">${label}</p>
@@ -3500,10 +3510,11 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </div>
     ${l.arrivee.instructions?`<p style="font-size:14px;line-height:1.7;opacity:.88">${esc(l.arrivee.instructions)}</p>`:''}
     ${l.arrivee.parking?`
-    <div style="display:flex;align-items:center;gap:11px;margin-top:12px;background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:11px 14px">
-      <span style="width:30px;height:30px;border-radius:8px;background:${t.accentSoft};color:${t.accent};display:flex;align-items:center;justify-content:center;flex:none">${I('parking',17)}</span>
-      <div><p style="${mono};font-size:9px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:1px">${X.parking}</p>
-      <p style="font-size:13.5px;line-height:1.45">${esc(l.arrivee.parking)}</p></div>
+    <div style="margin-top:20px">
+      ${sousTitre('parking', X.parking)}
+      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
+        <p style="font-size:14px;line-height:1.6;opacity:.88">${esc(l.arrivee.parking)}</p>
+      </div>
     </div>`:''}
   </section>`;
 
