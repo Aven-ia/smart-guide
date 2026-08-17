@@ -712,7 +712,16 @@ function hexPropre(v){
    c'est la première idée qui vient, elle est fausse. Marine vit à 0,0067
    d'écart — page et blocs quasi identiques — et reste parfaitement lisible,
    parce que sa bordure, elle, se voit. C'est la bordure le critère, jamais
-   l'écart des deux surfaces. */
+   l'écart des deux surfaces.
+
+   COMMENT MESURER UN CONTRASTE, ICI ET PARTOUT AILLEURS : ne jamais énumérer
+   des paires choisies à la main — on mesure alors ce qu'on a construit, pas ce
+   qui est peint. Parcourir TOUS les nœuds de texte du rendu (TreeWalker),
+   remonter au fond réellement peint, calculer. Cette méthode ne peut rien
+   rater parce qu'elle ne choisit rien.
+   Elle a trouvé 14 libellés à 1,03:1 qu'une énumération de paires avait
+   laissés passer : un `color` posé sur un enfant écrase l'héritage du
+   conteneur, et aucune paire choisie ne regardait cet enfant-là. */
 const CONTRASTE_BORDURE = 1.3;
 function bordureLisible(bloc, page){
   const versLeClair = luminance(bloc) < 0.5;
@@ -766,16 +775,16 @@ const saturer = (h,f,dl) => { const [H,L,S]=versHSL(h);
    et pousser du mauvais côté l'emmène vers la couleur du fond — mesuré, un
    contraste de 1,00 sur Lichen à 100 %. Si la teinte n'y arrive pas malgré
    tout, on cède sur la teinte, jamais sur la lisibilité. */
-function accentLisible(accent, fond){
+function accentLisible(accent, fond, seuil=CONTRASTE_MINI){
   const versLeClair = luminance(fond) < 0.5;
   let c=accent;
-  for(let i=0;i<100 && contraste(c,fond)<CONTRASTE_MINI;i++){
+  for(let i=0;i<100 && contraste(c,fond)<seuil;i++){
     const [H,L,S]=versHSL(c);
     const L2 = Math.max(0, Math.min(1, versLeClair ? L+0.01 : L-0.01));
     if(L2===L) break;
     c=depuisHSL(H, L2, S);
   }
-  if(contraste(c,fond)<CONTRASTE_MINI){
+  if(contraste(c,fond)<seuil){
     c = contraste('#000000',fond)>=contraste('#FFFFFF',fond) ? '#000000' : '#FFFFFF';
   }
   return c;
@@ -815,6 +824,10 @@ function paletteLivret(l){
   p.inkSurFond=encreLisible(p.bg, base.ink);
   p.inkSurSoft=encreLisible(p.accentSoft, base.ink);
   p.inkSurBloc=encreLisible(p.paper, base.ink);
+  /* Les liens sont en 12,5 px : à 4,5:1 pile, un trait fin sur un pavé sombre
+     se devine plus qu'il ne se lit — vu à l'œil sur une capture, pas déduit.
+     Ils visent donc 7:1, le seuil renforcé des petits textes. */
+  p.accentLien=accentLisible(p.accent, p.paper, 7);
   return p;
 }
 
@@ -3758,8 +3771,8 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const secTitle=(icon,label)=>filetTitre(icon,label,JETON_NUM);
   const block=(label,value,full=false)=>`
     <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:9px;padding:12px 15px;${full?'grid-column:1/-1':''}">
-      <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:3px;color:${t.ink}">${label}</p>
-      <p style="${serif};font-size:16.5px;color:${t.ink}">${esc(value)||'—'}</p>
+      <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:3px;color:${t.inkSurBloc}">${label}</p>
+      <p style="${serif};font-size:16.5px;color:${t.inkSurBloc}">${esc(value)||'—'}</p>
     </div>`;
 
   /* Voile de l'image des pavés : opacité bornée à 40 %, donc voile ≥ 60 %. */
@@ -3775,7 +3788,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   /* Accordéon du livret. `ouvert` est le défaut ; l'impression force l'ouverture. */
   const lvacc=(icon,titre,badge,corps,ouvert=false)=>`
     <details class="lvacc pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line}" ${(deplie||ouvert)?'open':''}>
-      <summary style="color:${t.ink}">
+      <summary style="color:${t.inkSurBloc}">
         <span style="width:32px;height:32px;flex:none;border-radius:10px;background:${t.accentSoft};color:${t.accent};display:flex;align-items:center;justify-content:center">${I(icon,15)}</span>
         <span style="flex:1;min-width:0;font-size:14px;font-weight:600">${esc(titre)}</span>
         ${badge?`<span style="${mono};font-size:9.5px;letter-spacing:.08em;opacity:.5;flex:none">${esc(badge)}</span>`:''}
@@ -3854,7 +3867,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       frag.cover=bandeauLogo+`<div style="max-width:600px;margin:0 auto;padding:${logoP?'10px':'18px'} 26px 6px">
         <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
           ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:${HAUTEUR_PHOTO.photo};object-fit:cover;display:block">`
-            :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft}">${logoSVG(38,t.accent)}</div>`}
+            :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft};color:${t.inkSurSoft}">${logoSVG(38,t.accent)}</div>`}
           <div style="padding:16px 24px 16px">${kicker}${titleH}${lieuP}${accP}</div>
           ${perfo}
         </div>
@@ -3873,7 +3886,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      d'exemple de la fiche 01 qui commence par une formule d'accueil. */
   if(has('bienvenue') && String(l.bienvenue||'').trim()){
     frag.bienvenue=`<div style="max-width:600px;margin:0 auto;padding:22px 26px 0">
-      <div style="background:${t.accentSoft};border-radius:14px;padding:18px 20px;color:${t.inkSurSoft}">
+      <div style="background:${t.accentSoft};color:${t.inkSurSoft};border-radius:14px;padding:18px 20px">
         <p style="font-size:14.5px;line-height:1.7">${esc(l.bienvenue)}</p>
       </div>
     </div>`;
@@ -3974,7 +3987,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
           <p style="font-size:14px;font-weight:600">${esc(s.titre)}</p>
           ${s.desc?`<p style="font-size:13px;opacity:.72;line-height:1.6;margin-top:1px">${esc(s.desc)}</p>`:''}
           ${lien?`<a href="${esc(lien)}" target="_blank" rel="noopener noreferrer"
-              style="font-size:12.5px;color:${t.accent};text-decoration:none;display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-weight:550">
+              style="font-size:12.5px;color:${t.accentLien};font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-weight:550">
               <span style="line-height:0">${I('share',11)}</span>${esc(domaineLisible(lien))}</a>`:''}
         </div>
       </div>`;}).join('')}
@@ -4040,7 +4053,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
 
   const ct=l.contacts;
   if(has('contacts')&&(ct.hote||ct.tel||ct.email||ct.urgence)) frag.contacts=`<section>${secTitle('phone',X.contact)}
-    <div style="background:${t.accentSoft};border-radius:12px;padding:17px 19px;display:flex;flex-direction:column;gap:7px">
+    <div style="background:${t.accentSoft};color:${t.inkSurSoft};border-radius:12px;padding:17px 19px;display:flex;flex-direction:column;gap:7px">
       ${ct.hote?`<p style="${serif};font-size:16px;font-weight:500">${esc(ct.hote)}</p>`:''}
       ${ct.tel?`<p style="display:flex;align-items:center;gap:8px;font-size:13.5px"><span style="line-height:0;color:${t.accent}">${I('phone',13)}</span>${esc(ct.tel)}</p>`:''}
       ${ct.email?`<p style="display:flex;align-items:center;gap:8px;font-size:13.5px"><span style="line-height:0;color:${t.accent}">${I('mail',13)}</span>${esc(ct.email)}</p>`:''}
@@ -4256,7 +4269,7 @@ function posterHTML(lRaw, type, lang='fr'){
       </div>`).join('')}
     </div>
     ${(l.contacts.hote||l.contacts.tel)?`
-    <div style="margin-top:16px;background:${t.accentSoft};border-radius:12px;padding:15px 18px">
+    <div style="margin-top:16px;background:${t.accentSoft};color:${t.inkSurSoft};border-radius:12px;padding:15px 18px">
       <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.6;margin-bottom:4px">${X.contact}</p>
       ${l.contacts.hote?`<p style="${serif};font-size:17px">${esc(l.contacts.hote)}</p>`:''}
       ${l.contacts.tel?`<p style="${serif};font-size:20px;color:${t.accent};margin-top:2px">${esc(l.contacts.tel)}</p>`:''}
@@ -4286,7 +4299,7 @@ function posterHTML(lRaw, type, lang='fr'){
         ${u.valeur?`<span style="${serif};font-size:23px;color:${t.accent};white-space:nowrap">${esc(u.valeur)}</span>`:''}
       </div>`).join('')}
     </div>
-    ${l.contacts.tel?`<div style="margin-top:16px;background:${t.accentSoft};border-radius:12px;padding:15px 18px;text-align:center">
+    ${l.contacts.tel?`<div style="margin-top:16px;background:${t.accentSoft};color:${t.inkSurSoft};border-radius:12px;padding:15px 18px;text-align:center">
       <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.6;margin-bottom:3px">${esc(l.contacts.hote||X.contact)}</p>
       <p style="${serif};font-size:24px;color:${t.accent}">${esc(l.contacts.tel)}</p>
     </div>`:''}`);
