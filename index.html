@@ -446,6 +446,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .ligne-livret input{width:18px;height:18px;flex:none;accent-color:var(--accent)}
 .ligne-livret span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ligne-livret .ville{margin-left:auto;color:var(--muted-2);font-size:12px;flex:none}
+.nuancier{display:flex;flex-wrap:wrap;gap:7px}
+.pastille{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);cursor:pointer;transition:transform .12s}
+.pastille:hover{transform:scale(1.08)}
+.pastille.on{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
 .poignee{flex:none;color:var(--muted-2);line-height:0;cursor:grab;padding:2px}
 .btn-ordre{flex:none;width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;
   color:var(--ink-soft);background:var(--bg-deep);border:1px solid var(--line);transition:all .14s}
@@ -689,6 +693,39 @@ const CONTRASTE_MINI = 4.5;
    fond concevable (luminance 0,179) laisse encore 4,59:1. Il n'existe donc
    aucune combinaison à refuser : c'est l'encre qui cède, jamais la couleur. */
 const intensiteNumerique = v => typeof v==='number' ? Math.max(0,Math.min(100,Math.round(v))) : null;
+/* Hexadécimal tolérant : « 1b3a5c », « #1B3A5C », « 1b3a5cff », « #abc » — tout
+   ce qu'un gérant peut coller depuis une charte. Renvoie null si ce n'est pas
+   une couleur, pour que l'écran prévienne au lieu de peindre n'importe quoi. */
+function hexPropre(v){
+  let s=String(v||'').trim().replace(/^#/,'').replace(/\s/g,'');
+  if(/^[0-9a-f]{8}$/i.test(s)) s=s.slice(0,6);
+  if(/^[0-9a-f]{3}$/i.test(s)) s=s.split('').map(c=>c+c).join('');
+  return /^[0-9a-f]{6}$/i.test(s) ? '#'+s.toUpperCase() : null;
+}
+/* Une bordure doit se voir sur le bloc ET sur la page. Le jour où les deux
+   portent la même couleur, c'est elle seule qui empêche le livret de devenir
+   un mur de texte : le contraste texte/fond reste parfait pendant que la
+   structure disparaît.
+   Le plancher de 1,3 n'est pas choisi au hasard — c'est la valeur mesurée la
+   plus basse des six palettes existantes (Craie, 1,30).
+   N'IMPOSEZ PAS UN ÉCART MINIMUM DE LUMINANCE ENTRE LA PAGE ET LES BLOCS :
+   c'est la première idée qui vient, elle est fausse. Marine vit à 0,0067
+   d'écart — page et blocs quasi identiques — et reste parfaitement lisible,
+   parce que sa bordure, elle, se voit. C'est la bordure le critère, jamais
+   l'écart des deux surfaces. */
+const CONTRASTE_BORDURE = 1.3;
+function bordureLisible(bloc, page){
+  const versLeClair = luminance(bloc) < 0.5;
+  let c = mixHex(versLeClair?'#FFFFFF':'#000000', bloc, 0.88);
+  const ok = x => contraste(x,bloc)>=CONTRASTE_BORDURE && contraste(x,page)>=CONTRASTE_BORDURE;
+  for(let i=0;i<100 && !ok(c);i++){
+    const [H,L,S]=versHSL(c);
+    const L2=Math.max(0,Math.min(1, versLeClair ? L+0.01 : L-0.01));
+    if(L2===L) break;
+    c=depuisHSL(H,L2,S);
+  }
+  return c;
+}
 function encreLisible(fond, encre){
   if(contraste(encre,fond)>=CONTRASTE_MINI) return encre;
   const n=contraste('#000000',fond), b=contraste('#FFFFFF',fond);
@@ -758,6 +795,13 @@ function paletteLivret(l){
         accent:     base.accent };
   // Un accent personnalisé n'est pas resaturé, mais il passe le même garde-fou.
   if(l.accent){ p.accent=l.accent; p.accentSoft=mixHex(l.accent, base.paper, .82); }
+  /* Couleurs libres. Elles écrasent le résultat de la palette, et tout ce qui
+     en dépend est recalculé : la teinte douce du mot de bienvenue, la bordure,
+     l'encre. Le gérant choisit deux couleurs, pas huit. */
+  const cf=hexPropre(l.couleurFond), cb=hexPropre(l.couleurBlocs);
+  if(cf) p.bg=cf;
+  if(cb){ p.paper=cb; p.accentSoft=mixHex(p.accent, cb, .82); }
+  if(cf||cb) p.line=bordureLisible(p.paper, p.bg);
   p.accent=accentLisible(p.accent, p.paper);
   /* L'accent n'était garanti lisible que sur les PAVÉS (paper). Les numéros de
      section et l'icône du filet, eux, se posent sur le FOND DE PAGE (bg) — le
@@ -770,6 +814,7 @@ function paletteLivret(l){
      pas — ils gardent leur fond clair. */
   p.inkSurFond=encreLisible(p.bg, base.ink);
   p.inkSurSoft=encreLisible(p.accentSoft, base.ink);
+  p.inkSurBloc=encreLisible(p.paper, base.ink);
   return p;
 }
 
@@ -1144,6 +1189,7 @@ const defaultLogement = () => ({
   contacts:{ hote:'', tel:'', email:'', urgence:'' },
   photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun', logoAlign:'gauche',
   wallpaper:null, wallpaperOpacity:18, accent:null, intensite:'standard', ordreSections:null,
+  couleurFond:null, couleurBlocs:null, imageBlocs:null, imageBlocsOpacite:18,
   urgences:[], faq:[], services:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
@@ -2824,7 +2870,7 @@ function renderSection(l){
           <p style="font-weight:400;color:var(--muted-2);font-size:10.5px">${cs.desc}</p>
         </button>`).join('')}
       </div></div>
-      <div class="field"><label>Couleur d'accent<span class="hint">Remplace la couleur de la palette — utile pour coller à votre charte</span></label>
+      <div class="field"><label>Couleur d'accent<span class="hint">Les liens, les numéros, les pictogrammes — jamais un fond</span></label>
         <div class="inline-row" style="flex-wrap:wrap;gap:10px">
           <input type="color" class="color-pick" value="${esc(l.accent||(TEMPLATES.find(t=>t.id===l.templateId)||TEMPLATES[0]).accent)}"
             oninput="setPath('accent',this.value);renderAccentPreview(this.value)">
@@ -2832,29 +2878,20 @@ function renderSection(l){
           ${l.accent?`<button class="btn btn-ghost btn-sm" onclick="setPath('accent',null);renderCard()">Rétablir la palette</button>`:''}
         </div>
       </div>
-      <div class="field"><label>Fond personnalisé<span class="hint">Votre propre texture ou photo en filigrane derrière tout le livret</span></label>
-        ${l.wallpaper?`
-        <div class="wp-panel">
-          <div class="wp-prev" style="background-image:url('${l.wallpaper}')">
-            <span class="wp-veil" style="background:${(TEMPLATES.find(t=>t.id===l.templateId)||TEMPLATES[0]).bg};opacity:${1-l.wallpaperOpacity/100}"></span>
-          </div>
-          <div class="wp-ctrl">
-            <label style="margin-bottom:6px">Intensité — ${l.wallpaperOpacity}%</label>
-            <input type="range" class="wp-range" min="4" max="60" value="${l.wallpaperOpacity}"
-              oninput="setPath('wallpaperOpacity',+this.value);liveWallpaper(+this.value)">
-            <div class="inline-row" style="margin-top:11px">
-              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('wp-input').click()">${I('upload',13)} Remplacer</button>
-              <button class="btn btn-danger btn-sm" onclick="setPath('wallpaper',null);renderCard()">${I('trash',13)} Retirer</button>
-            </div>
-          </div>
-        </div>`:`
-        <div class="drop" onclick="document.getElementById('wp-input').click()">
-          <span class="dico">${I('paint',18)}</span><br>
-          <strong style="font-weight:550">Importer un fond</strong> — texture, motif ou photo<br>
-          <span style="font-size:11.5px;color:var(--muted-2)">Il sera appliqué en filigrane, sans nuire à la lisibilité</span>
-        </div>`}
-        <input type="file" id="wp-input" accept="image/*" style="display:none" onchange="addWallpaper(this.files[0]);this.value=''">
-      </div>
+      ${caseCouleur({
+        titre:'Fond du livret', indice:'Ce qu\'on voit derrière et autour des blocs. Conservé dans le PDF envoyé, blanchi à l\'impression papier.',
+        champ:'couleurFond', valeur:l.couleurFond, defaut:paletteLivret(l).bg,
+        image:l.wallpaper, champImage:'wallpaper', opacite:l.wallpaperOpacity, champOpacite:'wallpaperOpacity', maxOpacite:60,
+        inputId:'wp-input'
+      })}
+      ${caseCouleur({
+        titre:'Blocs du livret', indice:'Les pavés qui portent les informations. La teinte du mot de bienvenue et les bordures en découlent automatiquement.',
+        champ:'couleurBlocs', valeur:l.couleurBlocs, defaut:paletteLivret(l).paper,
+        image:l.imageBlocs, champImage:'imageBlocs', opacite:l.imageBlocsOpacite, champOpacite:'imageBlocsOpacite', maxOpacite:40,
+        inputId:'bloc-img-input'
+      })}
+      <input type="file" id="bloc-img-input" accept="image/*" style="display:none" onchange="importerImageBlocs(this.files[0]);this.value=''">
+      <input type="file" id="wp-input" accept="image/*" style="display:none" onchange="addWallpaper(this.files[0]);this.value=''">
       <div class="field"><label>Logo de la conciergerie en tête du livret<span class="hint">Le logo est celui de vos réglages, commun à tous vos livrets. Sa taille et sa position se règlent ici, livret par livret.</span></label>
         ${S.settings.logo?(()=>{ const plaf=plafondLogo(), hL=Math.min(hauteurLogo(l), plaf.max), visible=hauteurLogo(l)>0, al=alignLogo(l); return `
         <div class="wp-panel" style="align-items:center">
@@ -2955,6 +2992,9 @@ function hintURL(i,v){
    dans un JSON qui part sur Supabase à chaque synchronisation. 160 px couvre le
    retina (2,5×) et suffit largement. Voir MAX_IMG_SERVICE pour le poids retenu. */
 const MAX_IMG_SERVICE=160;
+/* Une image de fond est étalée en « cover » : c'est la LARGEUR qui compte, pas
+   le plus grand côté. 1200 px couvre un écran d'ordinateur sans excès. */
+const MAX_IMG_FOND=1200;
 async function importerImageService(i,file){
   if(!file) return;
   try{
@@ -3122,6 +3162,57 @@ async function copierCategorieVers(catId){
       toast(msg);
     }
   });
+}
+/* Une case de couleur : nuancier, sélecteur natif, hexadécimal, image.
+   Les deux cases sont le même composant — « Fond » et « Blocs » ne diffèrent que
+   par le champ visé et le plafond de l'image. */
+const NUANCIER = ['#FFFFFF','#F6F4EF','#F7F0E8','#F4F4F2','#FAF6EE','#F5F1F3',
+                  '#E8E4DA','#D9D5CB','#2B2B2B','#101826','#1C2B21','#2E222B'];
+function caseCouleur({titre, indice, champ, valeur, defaut, image, champImage, opacite, champOpacite, maxOpacite, inputId}){
+  const actuelle=hexPropre(valeur)||defaut;
+  return `<div class="field"><label>${esc(titre)}<span class="hint">${esc(indice)}</span></label>
+    <div class="nuancier">
+      ${NUANCIER.map(c=>`<button class="pastille ${hexPropre(valeur)===c?'on':''}" style="background:${c}"
+        title="${c}" aria-label="Couleur ${c}" onclick="setPath('${champ}','${c}');renderCard()"></button>`).join('')}
+    </div>
+    <div class="inline-row" style="flex-wrap:wrap;gap:9px;margin-top:10px">
+      <input type="color" class="color-pick" value="${actuelle}" oninput="setPath('${champ}',this.value);renderCard()">
+      <input class="input" style="width:120px;font-family:var(--mono)" value="${esc(hexPropre(valeur)||'')}"
+        placeholder="${actuelle}" onchange="poserHex('${champ}',this.value,this)">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('${inputId}').click()">${I('upload',13)} ${image?'Changer l\'image':'Importer une image'}</button>
+      ${valeur?`<button class="btn btn-plain btn-sm" onclick="setPath('${champ}',null);renderCard()">Couleur d'origine</button>`:''}
+    </div>
+    ${image?`<div class="wp-panel" style="margin-top:11px">
+      <div class="wp-prev" style="background-image:url('${image}')">
+        <span class="wp-veil" style="background:${actuelle};opacity:${1-(opacite||18)/100}"></span>
+      </div>
+      <div class="wp-ctrl">
+        <label style="margin-bottom:6px">Intensité de l'image — ${opacite||18} %</label>
+        <input type="range" class="wp-range" min="4" max="${maxOpacite}" value="${Math.min(opacite||18,maxOpacite)}"
+          oninput="setPath('${champOpacite}',+this.value);liveWallpaper(+this.value)">
+        <div class="inline-row" style="margin-top:11px">
+          <button class="btn btn-danger btn-sm" onclick="setPath('${champImage}',null);renderCard()">${I('trash',13)} Retirer l'image</button>
+        </div>
+      </div>
+    </div>`:''}
+  </div>`;
+}
+/* Hexadécimal saisi à la main : on pardonne tout ce qui est reconnaissable, et
+   on prévient sans rien casser quand ça ne l'est pas. */
+function poserHex(champ, brut, input){
+  const v=String(brut||'').trim();
+  if(!v){ setPath(champ,null); renderCard(); return; }
+  const c=hexPropre(v);
+  if(!c){ toast('« '+v+' » n\'est pas une couleur — attendu #RRGGBB', true); input.value=''; return; }
+  setPath(champ,c); renderCard();
+}
+async function importerImageBlocs(file){
+  if(!file) return;
+  try{
+    const png=/png|svg/i.test(file.type);
+    setPath('imageBlocs', await compressImage(file, MAX_IMG_FOND, 0.82, png));
+    renderCard(); toast('Image appliquée aux blocs');
+  }catch(e){ toast('Image illisible, réessayez avec un PNG ou un JPEG', true); }
 }
 function renderQuartier(l){
   return card(numFiche('quartier'),'Dans le quartier','Adresses recommandées aux voyageurs — recherche automatique autour du logement',`
@@ -3616,7 +3707,11 @@ const LIVRET_CSS=`<style>
 /* À l'impression, le fond de page revient au blanc : un fond saturé sur une
    page entière vide une cartouche sans rien apporter. Les pavés et les
    bordures gardent leur couleur — ce sont eux qui portent la structure. */
-@media print{ .lv{background:#FFFFFF !important;background-image:none !important} }
+/* Image de fond des pavés : une seule règle, pilotée par deux variables posées
+   sur .lv. Le voile est plafonné à 60 % d'image (40 % de réglage) — mesuré,
+   une photo contrastée sous un voile plus faible tombe à 2,88:1, illisible. */
+.lv .pave{background-image:var(--voile-bloc,none),var(--img-bloc,none);background-size:auto,cover;background-position:center,center}
+@media print{ .lv:not(.garde-fond){background:#FFFFFF !important;background-image:none !important} }
 /* Tout ce qui est replié s'imprime déplié.
    L'impression lancée depuis l'application force déjà \`open\` (opts.deplie),
    mais le FICHIER EXPORTÉ ne le peut pas : le même fichier se lit à l'écran,
@@ -3662,18 +3757,24 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </div>`;
   const secTitle=(icon,label)=>filetTitre(icon,label,JETON_NUM);
   const block=(label,value,full=false)=>`
-    <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:12px 15px;${full?'grid-column:1/-1':''}">
+    <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:9px;padding:12px 15px;${full?'grid-column:1/-1':''}">
       <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:3px;color:${t.ink}">${label}</p>
       <p style="${serif};font-size:16.5px;color:${t.ink}">${esc(value)||'—'}</p>
     </div>`;
 
+  /* Voile de l'image des pavés : opacité bornée à 40 %, donc voile ≥ 60 %. */
+  const imgBloc=l.imageBlocs||null;
+  const opBloc=Math.max(0,Math.min(40, l.imageBlocsOpacite==null?18:l.imageBlocsOpacite));
+  const varsBloc = imgBloc
+    ? `--img-bloc:url('${imgBloc}');--voile-bloc:linear-gradient(${hexA(t.paper,1-opBloc/100)},${hexA(t.paper,1-opBloc/100)});`
+    : '';
   const wpOn = !!l.wallpaper;
   const wpStyle = wpOn
     ? `background-image:linear-gradient(${hexA(t.bg,1-(l.wallpaperOpacity||18)/100)},${hexA(t.bg,1-(l.wallpaperOpacity||18)/100)}),url('${l.wallpaper}');background-size:auto,cover;background-position:center;background-attachment:scroll;background-color:${t.bg};`
     : `background:${t.bg};`;
   /* Accordéon du livret. `ouvert` est le défaut ; l'impression force l'ouverture. */
   const lvacc=(icon,titre,badge,corps,ouvert=false)=>`
-    <details class="lvacc" style="background:${t.paper};border:1px solid ${t.line}" ${(deplie||ouvert)?'open':''}>
+    <details class="lvacc pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line}" ${(deplie||ouvert)?'open':''}>
       <summary style="color:${t.ink}">
         <span style="width:32px;height:32px;flex:none;border-radius:10px;background:${t.accentSoft};color:${t.accent};display:flex;align-items:center;justify-content:center">${I(icon,15)}</span>
         <span style="flex:1;min-width:0;font-size:14px;font-weight:600">${esc(titre)}</span>
@@ -3684,7 +3785,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </details>`;
 
   const frag={};
-  let out=LIVRET_CSS+`<div class="lv" style="${wpStyle}color:${t.inkSurFond};padding-bottom:46px;font-family:'Inter',-apple-system,sans-serif">`;
+  let out=LIVRET_CSS+`<div class="lv${opts.fondColore?' garde-fond':''}" style="${wpStyle}${varsBloc}color:${t.inkSurFond};padding-bottom:46px;min-height:100%;font-family:'Inter',-apple-system,sans-serif">`;
 
   /* ---- Couverture (3 styles) ---- */
   const coverLabel=guideLabelLang(g.id, lang);
@@ -3751,7 +3852,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       </div>`;
     } else {
       frag.cover=bandeauLogo+`<div style="max-width:600px;margin:0 auto;padding:${logoP?'10px':'18px'} 26px 6px">
-        <div style="background:${t.paper};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
+        <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:16px;overflow:hidden">
           ${cover?`<img src="${cover.dataUrl}" style="width:100%;height:${HAUTEUR_PHOTO.photo};object-fit:cover;display:block">`
             :`<div style="height:150px;display:flex;align-items:center;justify-content:center;background:${t.accentSoft}">${logoSVG(38,t.accent)}</div>`}
           <div style="padding:16px 24px 16px">${kicker}${titleH}${lieuP}${accP}</div>
@@ -3799,7 +3900,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      de mise en page, pas de modèle de données, donc aucun livret existant n'a
      à être migré. */
   if(has('stationnement')&&String(l.arrivee.parking||'').trim()) frag.stationnement=`<section>${secTitle('parking',X.parking)}
-    <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
+    <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:9px;padding:13px 15px">
       <p style="font-size:14px;line-height:1.6;opacity:.88">${esc(l.arrivee.parking)}</p>
     </div>
   </section>`;
@@ -3810,7 +3911,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
         ${block(X.reseau, l.wifi.ssid)}
         ${block(X.mdp, l.wifi.mdp)}
       </div>
-      ${qr?`<div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+      ${qr?`<div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:9px;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
         <img src="${qr}" style="width:106px;height:106px;display:block;border-radius:4px">
         <p style="${mono};font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;opacity:.55">${X.scan}</p>
       </div>`:''}
@@ -3834,7 +3935,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   }
 
   if(has('reglement')&&l.reglement.some(Boolean)) frag.reglement=`<section>${secTitle('shield',X.regl)}
-    <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:16px 18px">
+    <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:9px;padding:16px 18px">
     <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;margin:0;padding:0">
       ${l.reglement.filter(Boolean).map(r=>`<li style="font-size:14px;opacity:.88;display:flex;gap:10px;line-height:1.55"><span style="color:${t.accent};flex:none">—</span>${esc(r)}</li>`).join('')}
     </ul></div>
@@ -3891,7 +3992,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
      remis seul au voyageur et perdrait sinon son information principale. */
   if(has('depart')&&l.depart.checklist.some(Boolean)) frag.depart=`<section>${secTitle('logout',X.avantpartir)}
     ${(!has('arrivee') && l.depart.heure)?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">${block(X.avant, l.depart.heure)}</div>`:''}
-    <div style="background:${t.paper};border:1px solid ${t.line};border-radius:9px;padding:15px 17px">
+    <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:9px;padding:15px 17px">
       <p style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:10px">${X.checklist}</p>
       ${l.depart.checklist.filter(Boolean).map(c=>`
       <p style="font-size:13.5px;display:flex;gap:10px;align-items:baseline;line-height:1.5;padding:5px 0">
@@ -4124,11 +4225,11 @@ function posterHTML(lRaw, type, lang='fr'){
   if(type==='wifi') return shell(X.wifi, `
     <h1 style="${serif};font-size:34px;font-weight:500;line-height:1.1;margin-bottom:22px">${esc(X.wifi)}</h1>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
-      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:12px;padding:16px 18px">
+      <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:12px;padding:16px 18px">
         <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.5;margin-bottom:4px">${X.reseau}</p>
         <p style="${serif};font-size:25px;word-break:break-all">${esc(l.wifi.ssid)||'—'}</p>
       </div>
-      <div style="background:${t.paper};border:1px solid ${t.line};border-radius:12px;padding:16px 18px">
+      <div class="pave" style="background:${t.paper};color:${t.inkSurBloc};border:1px solid ${t.line};border-radius:12px;padding:16px 18px">
         <p style="${mono};font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.5;margin-bottom:4px">${X.mdp}</p>
         <p style="${serif};font-size:25px;word-break:break-all">${esc(l.wifi.mdp)||'—'}</p>
       </div>
@@ -4318,11 +4419,29 @@ function langMenu(ev){
   })));
 }
 
+/* Deux sorties, une seule mécanique d'impression.
+   Le navigateur ne dit pas si l'utilisateur va choisir une imprimante ou
+   « Enregistrer en PDF » — mais NOUS savons ce qu'il a demandé, et c'est la
+   seule information qui compte. Le PDF part par WhatsApp et se lit à l'écran :
+   il garde le fond de la marque. Le papier le perd — mesuré, un fond coloré
+   fait passer la couverture d'encre de 2,2 % à 15,3 % sur quatre pages. */
 function exportPDF(){
+  confirmModal('Pour l\'écran ou pour le papier ?',
+    'Le PDF envoyé au voyageur garde le fond coloré du livret. L\'impression le met en blanc : un fond plein consomme sept fois plus d\'encre et ne sert à rien sur papier.',
+    ()=>lancerImpression(true), 'Pour envoyer');
+  const pied=document.querySelector('.modal-foot');
+  if(pied){
+    const b=document.createElement('button');
+    b.className='btn btn-plain'; b.textContent='Pour imprimer';
+    b.onclick=()=>{ closeModal(); lancerImpression(false); };
+    pied.insertBefore(b, pied.lastElementChild);
+  }
+}
+function lancerImpression(fondColore){
   const l=cur();
   const pz=document.getElementById('print-zone');
   // Sur papier, tout doit être visible : un accordéon replié serait du contenu perdu.
-  pz.innerHTML=livretHTML(l, route.guide, route.lang, {deplie:true});
+  pz.innerHTML=livretHTML(l, route.guide, route.lang, {deplie:true, fondColore});
   pz.style.display='block';
   const gl=guideLabelLang(route.guide, route.lang);
   document.title=`${gl} — ${l.nom||'Smart Guide'}`;
@@ -4337,7 +4456,12 @@ function documentLivretAutonome(l){
   return `<!DOCTYPE html><html lang="${route.lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(gl)} — ${esc(l.nom||'')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',-apple-system,sans-serif}.lv{min-height:100vh}section{break-inside:avoid}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',-apple-system,sans-serif}.lv{min-height:100vh}section{break-inside:avoid}
+/* Le fond était porté par .lv seul, qui s'arrête au contenu : sur un fond
+   foncé, une bande claire restait en bas de page. html et body le portent
+   aussi — uniquement ici, pour ne pas repeindre l'éditeur. */
+html,body{background:${paletteLivret(l).bg}}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#FFFFFF !important}}</style>
 </head><body>${body}</body></html>`;
 }
 function nomFichierLivret(l){
