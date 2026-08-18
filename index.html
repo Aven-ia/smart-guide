@@ -1794,10 +1794,22 @@ async function synchroniser({silencieux=false}={}){
     const distants=await cloudLire();
     const plan=planSynchro(S.logements, distants, metaSync(), restaurationsVoulues);
 
-    /* MONTANT — n'écrit rien à l'écran, donc jamais bloqué par la saisie. */
+    /* MONTANT — n'écrit rien à l'écran, donc jamais bloqué par la saisie.
+       CHAQUE LIVRET EST ISOLÉ. Une seule boucle dans un seul try faisait qu'un
+       livret en échec emportait tous les autres : trois livrets fantômes vides
+       ont empêché vingt vrais livrets de se synchroniser pendant une journée.
+       Et les MISES À JOUR passent avant les CRÉATIONS : le travail déjà en
+       ligne n'a pas à attendre qu'une création aboutisse. */
+    const echecs=[];
     if(plan.motifBlocage!=='local-vide'){
-      for(const l of plan.monter)         await cloudInserer(l);
-      for(const {l,d} of plan.majDistant) await cloudMettreAJour(d,l);
+      for(const {l,d} of plan.majDistant){
+        try{ await cloudMettreAJour(d,l); }
+        catch(e){ echecs.push({nom:l.nom||'Livret sans nom', e}); }
+      }
+      for(const l of plan.monter){
+        try{ await cloudInserer(l); }
+        catch(e){ echecs.push({nom:l.nom||'Livret sans nom', e}); }
+      }
     }
 
     /* DESCENDANT — jamais pendant que le gérant écrit : on reporte. */
@@ -1818,7 +1830,20 @@ async function synchroniser({silencieux=false}={}){
 
     S.settings.derniereSynchro=Date.now();
     persisterSansSync();
-    syncEtat='ok'; majEtatSync();
+    /* Un rapport que le gérant peut lire. Le texte brut de Postgres — « duplicate
+       key value violates unique constraint » — ne lui apprenait rien et lui
+       faisait croire que tout avait échoué. */
+    if(echecs.length){
+      syncEtat='erreur'; majEtatSync();
+      const reussis=plan.majDistant.length+plan.monter.length-echecs.length;
+      const noms=[...new Set(echecs.map(x=>x.nom))].slice(0,3).join(', ');
+      if(!silencieux) toast(
+        (reussis>0 ? reussis+' livret'+(reussis>1?'s':'')+' synchronisé'+(reussis>1?'s':'')+', ' : '')
+        + echecs.length+' en échec : '+noms
+        + (echecs.length>3?'…':''), true);
+    } else {
+      syncEtat='ok'; majEtatSync();
+    }
     if(plan.appauvris.length) demanderArbitrage(plan.appauvris);
   }catch(e){
     syncEtat='erreur'; majEtatSync();
