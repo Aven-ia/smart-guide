@@ -1676,11 +1676,78 @@ function noterMeta(localId, updatedAtDistant, updatedAtLocal){
 }
 
 /* --- Décision pure : ne touche à rien, donc entièrement testable isolément --- */
-function planSynchro(locaux, distants, meta, voulues){
-  meta=meta||{}; voulues=voulues||new Set();
+/* Un livret « sans contenu » n'a rien qu'on puisse regretter. Mais on ne
+   l'établit pas en ÉNUMÉRANT les champs qui comptent : on mesure alors ce
+   qu'on a pensé à nommer, pas ce qui est là. Un gérant qui n'a rempli que le
+   règlement, ou qui a passé vingt minutes sur ses couleurs et son logo,
+   serait passé pour vide.
+   On compare donc au livret que produit « Nouveau logement », champ par champ.
+   Différer du vierge, c'est avoir du contenu. La règle ne choisit rien, donc
+   elle ne peut rien rater — et un champ ajouté au modèle est couvert d'office.
+   Ne sont ignorés que les champs qui bougent sans intervention du gérant. */
+const IGNORES_COMPARAISON = new Set([
+  'id',          // identifiant local, différent par construction
+  'local_id',    // colonne SQL, jamais du contenu
+  'createdAt',   // horodatage
+  'updatedAt',   // horodatage
+  'audit',       // verdict de l'IA, dérivé du contenu et non saisi
+  'geo',         // coordonnées résolues automatiquement depuis l'adresse
+  'translations',// traductions générées, dérivées et vidées à chaque édition
+]);
+/* Ce qui, dans ce livret, diffère du vierge. Sert à dire au gérant CE QU'ON A
+   TROUVÉ, pas seulement ce qui manque : « 0 équipement, 0 adresse, 0 photo »
+   est vrai mais laisse penser qu'on demande pour rien. */
+function ecartsAuVierge(l){
+  const vierge=migrateLogement(defaultLogement());
+  const meme=(a,b)=>JSON.stringify(a===undefined?null:a)===JSON.stringify(b===undefined?null:b);
+  return Object.keys(vierge).filter(k=>!IGNORES_COMPARAISON.has(k) && !meme(l[k], vierge[k]));
+}
+const CHAMPS_APPARENCE=new Set(['templateId','intensite','couleurFond','couleurBlocs','wallpaper',
+  'wallpaperOpacity','imageBlocs','imageBlocsOpacite','logoHaut','logoAlign','coverStyle','accent','tone']);
+const NOMS_CHAMPS={nom:'un nom', adresse:'une adresse', ville:'une ville', codePostal:'un code postal',
+  etage:'un étage', bienvenue:'un mot de bienvenue', accroche:'une accroche', notes:'des notes',
+  arrivee:"des informations d'arrivée", depart:'des informations de départ', wifi:'un wifi',
+  equipements:'des équipements', reglement:'un règlement', recos:'des adresses de quartier',
+  contacts:'des contacts', photos:'des photos', services:'des services', urgences:'des urgences',
+  faq:'une FAQ', publicUrl:'un lien de partage', ordreSections:'un ordre de sections personnalisé'};
+function decrireEcarts(l){
+  const e=ecartsAuVierge(l);
+  const reels=e.filter(k=>!CHAMPS_APPARENCE.has(k));
+  const apparence=e.some(k=>CHAMPS_APPARENCE.has(k));
+  if(!reels.length && apparence) return "Ce logement n'a ni nom, ni adresse, ni contenu — seulement des réglages d'apparence.";
+  if(!reels.length) return "Ce logement est vide.";
+  const libelles=reels.map(k=>NOMS_CHAMPS[k]||k);
+  const liste=libelles.length>3 ? libelles.slice(0,3).join(', ')+' et '+(libelles.length-3)+' autre'+(libelles.length>4?'s':'')
+                                : libelles.join(', ').replace(/, ([^,]*)$/, ' et $1');
+  return 'Ce logement contient '+liste+(apparence?", plus des réglages d'apparence":'')+'.';
+}
+function livretSansContenu(l){
+  if(!l) return true;
+  /* La référence passe par migrateLogement comme le livret comparé : sans ça,
+     `ordreSections` — que la réconciliation du lot B calcule à la lecture —
+     paraissait modifié sur un livret neuf, et AUCUN livret n'aurait jamais été
+     reconnu vide. Un réordonnancement délibéré reste détecté, puisque les deux
+     côtés subissent la même dérivation. */
+  const vierge=migrateLogement(defaultLogement());
+  const meme=(a,b)=>JSON.stringify(a===undefined?null:a)===JSON.stringify(b===undefined?null:b);
+  for(const k of Object.keys(vierge)){
+    if(IGNORES_COMPARAISON.has(k)) continue;
+    if(!meme(l[k], vierge[k])) return false;
+  }
+  /* Un champ que le modèle ne connaît pas encore — ou plus — compte aussi :
+     mieux vaut garder un livret de trop que d'en effacer un. */
+  for(const k of Object.keys(l)){
+    if(IGNORES_COMPARAISON.has(k) || (k in vierge)) continue;
+    if(l[k]!=null && !meme(l[k], null)) return false;
+  }
+  return true;
+}
+function planSynchro(locaux, distants, meta, voulues, supprimes){
+  meta=meta||{}; voulues=voulues||new Set(); supprimes=supprimes||new Set();
   const parLocal=new Map(distants.filter(d=>d.local_id).map(d=>[d.local_id,d]));
   const idsLocaux=new Set(locaux.map(l=>l.id));
-  const plan={ descendre:[], monter:[], majDistant:[], majLocal:[], appauvris:[], motifBlocage:null };
+  const plan={ descendre:[], monter:[], majDistant:[], majLocal:[], appauvris:[],
+               supprimerLocal:[], suppressionsDouteuses:[], motifBlocage:null };
 
   /* Règle absolue : un appareil vide ne remonte jamais rien. */
   if(locaux.length===0 && distants.length>0){
@@ -1691,7 +1758,15 @@ function planSynchro(locaux, distants, meta, voulues){
   for(const d of distants) if(!idsLocaux.has(d.local_id)) plan.descendre.push(d);
   for(const l of locaux){
     const d=parLocal.get(l.id);
-    if(!d){ plan.monter.push(l); continue; }
+    if(!d){
+      /* Supprimé en ligne : on ne le remonte JAMAIS, ce serait défaire une
+         suppression. Vide, il disparaît d'ici ; avec du contenu, on demande. */
+      if(supprimes.has(l.id)){
+        (livretSansContenu(l) ? plan.supprimerLocal : plan.suppressionsDouteuses).push(l);
+        continue;
+      }
+      plan.monter.push(l); continue;
+    }
     const m=meta[l.id]||{distant:null,pousse:0};
     const localModifie   = (l.updatedAt||0) > (m.pousse||0);
     const distantModifie = d.updated_at !== m.distant;
@@ -1717,15 +1792,42 @@ async function cloudLire(){
   if(error) throw error;
   return data||[];
 }
+/* Les identifiants des livrets supprimés en ligne. Le planificateur ne les
+   voyait pas : un livret supprimé sur un appareil restait affiché sur l'autre,
+   qui tentait de le REMONTER — et se heurtait à la contrainte d'unicité, qui
+   elle n'oublie jamais un local_id. C'est la cause première du blocage. */
+async function cloudSupprimes(){
+  const {data,error}=await sb.from('livrets').select('local_id').not('deleted_at','is',null);
+  if(error) throw error;
+  return new Set((data||[]).map(d=>d.local_id).filter(Boolean));
+}
 async function cloudSnapshot(distant){
   try{ await sb.from('livret_backups').insert({livret_id:distant.id, owner_id:compte.id, data:distant.data}); }catch(e){}
 }
+/* Un upsert qui remet `deleted_at` à null fait d'une suppression une opinion :
+   n'importe quel appareil resté en retard la déferait. Les lignes supprimées
+   sont donc EXCLUES, jamais ressuscitées.
+   Le reste est un upsert applicatif : si la ligne existe déjà et qu'elle est
+   vivante — deux appareils qui créent le même livret en même temps — on met à
+   jour au lieu d'échouer. « Cette ligne existe déjà » n'est pas une erreur en
+   multi-appareils, c'est le cas normal. */
 async function cloudInserer(l){
   const {data,error}=await sb.from('livrets')
     .insert({owner_id:compte.id, local_id:l.id, nom:l.nom||'', data:l})
     .select('updated_at').single();
-  if(error) throw error;
-  noterMeta(l.id, data.updated_at, l.updatedAt||0);
+  if(!error){ noterMeta(l.id, data.updated_at, l.updatedAt||0); return; }
+  if(error.code!=='23505') throw error;          // 23505 = violation d'unicité
+  const {data:ligne}=await sb.from('livrets')
+    .select('id,deleted_at').eq('owner_id',compte.id).eq('local_id',l.id).maybeSingle();
+  if(!ligne) throw error;
+  if(ligne.deleted_at){
+    const e=new Error('Ce livret a été supprimé depuis un autre appareil.');
+    e.supprimeAilleurs=true; throw e;            // surtout pas de résurrection
+  }
+  const {data:maj,error:e2}=await sb.from('livrets')
+    .update({nom:l.nom||'', data:l}).eq('id',ligne.id).select('updated_at').single();
+  if(e2) throw e2;
+  noterMeta(l.id, maj.updated_at, l.updatedAt||0);
 }
 async function cloudMettreAJour(distant,l){
   // Une copie de la version en ligne part avant de l'écraser, au plus une fois
@@ -1792,7 +1894,21 @@ async function synchroniser({silencieux=false}={}){
   syncEnCours=true; syncEtat='en-cours'; majEtatSync();
   try{
     const distants=await cloudLire();
-    const plan=planSynchro(S.logements, distants, metaSync(), restaurationsVoulues);
+    const supprimes=await cloudSupprimes();
+    const plan=planSynchro(S.logements, distants, metaSync(), restaurationsVoulues, supprimes);
+
+    /* Supprimé ailleurs, vide ici : on aligne, sans rien dire. C'est le cas
+       normal du multi-appareils, et il n'y a rien à regretter. */
+    if(plan.supprimerLocal.length){
+      for(const l of plan.supprimerLocal){
+        const i=S.logements.findIndex(x=>x.id===l.id);
+        if(i>=0) S.logements.splice(i,1);
+        metaOublier(l.id);
+      }
+      persisterSansSync();
+      if(route.view==='edit' && !S.logements.some(x=>x.id===route.id)) route={...route, view:'dash', id:null};
+      render();
+    }
 
     /* MONTANT — n'écrit rien à l'écran, donc jamais bloqué par la saisie.
        CHAQUE LIVRET EST ISOLÉ. Une seule boucle dans un seul try faisait qu'un
@@ -1845,11 +1961,42 @@ async function synchroniser({silencieux=false}={}){
       syncEtat='ok'; majEtatSync();
     }
     if(plan.appauvris.length) demanderArbitrage(plan.appauvris);
+    if(plan.suppressionsDouteuses.length) demanderSuppression(plan.suppressionsDouteuses);
   }catch(e){
     syncEtat='erreur'; majEtatSync();
     if(!silencieux) toast('Synchronisation impossible : '+messageAuth(e), true);
   }finally{ syncEnCours=false; }
 }
+/* Supprimé sur un autre appareil, mais il a du CONTENU ici. On ne supprime
+   jamais du travail sur la seule foi d'un drapeau distant : on demande, une
+   fois, et on retient la réponse pour ne pas reposer la question toutes les
+   quatre secondes. Le refus est le défaut : ne rien faire garde le livret. */
+const suppressionsTranchees=new Set();
+let suppressionEnCours=null;
+function demanderSuppression(livrets){
+  const l=livrets.find(x=>!suppressionsTranchees.has(x.id));
+  if(!l || suppressionEnCours) return;
+  suppressionEnCours=l.id;
+  confirmModal(`« ${l.nom||'Livret sans nom'} » a été supprimé sur un autre appareil`,
+    decrireEcarts(l)
+    + ` La supprimer ici aussi est définitif. La garder ne la remettra pas en ligne : `
+    + `elle restera sur cet appareil seulement.`,
+    ()=>{
+      const i=S.logements.findIndex(x=>x.id===l.id);
+      if(i>=0) S.logements.splice(i,1);
+      metaOublier(l.id); suppressionsTranchees.add(l.id); suppressionEnCours=null;
+      persisterSansSync();
+      if(route.view==='edit' && route.id===l.id) route={...route, view:'dash', id:null};
+      render(); toast('Livret supprimé sur cet appareil');
+    }, 'Supprimer ici aussi');
+  const pied=document.querySelector('.modal-foot');
+  if(pied){
+    const b=pied.firstElementChild;               // le bouton « Annuler »
+    b.textContent='Garder sur cet appareil';
+    b.onclick=()=>{ suppressionsTranchees.add(l.id); suppressionEnCours=null; closeModal(); };
+  }
+}
+
 /* Un livret devenu nettement plus pauvre que sa version en ligne n'écrase rien
    sans un accord explicite. Deux issues franches, pour que la question ne se
    repose pas toutes les 4 secondes — et UNE seule sauvegarde, posée à
