@@ -2252,9 +2252,16 @@ function topbar(inner=''){
 }
 
 /* ---------------- Dashboard ---------------- */
+/* Le texte d'accueil compte, qu'il soit rangé dans l'accroche ou dans le mot de
+   bienvenue. Mesuré sur les 29 livrets du client : 0 accroche, 28 mots de
+   bienvenue de 169 caractères en moyenne — il écrivait bien son accueil, on
+   comptait l'autre case. Aucun de ses livrets ne pouvait dépasser 87,5 %.
+   La fusion existait déjà pour l'accès (code OU instructions) ; elle manquait
+   ici, même besoin, même forme. */
 function completeness(l){
   const checks=[!!l.nom, !!(l.arrivee.codeAcces||l.arrivee.instructions), !!l.wifi.ssid, l.photos.length>0,
-    l.equipements.some(e=>e.nom), l.recos.length>0, !!(l.contacts.hote||l.contacts.tel), !!l.accroche];
+    l.equipements.some(e=>e.nom), l.recos.length>0, !!(l.contacts.hote||l.contacts.tel),
+    !!(l.accroche||l.bienvenue)];
   return Math.round(checks.filter(Boolean).length/checks.length*100);
 }
 function renderDash(){
