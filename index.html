@@ -735,6 +735,18 @@ function bordureLisible(bloc, page){
   }
   return c;
 }
+/* Forçage du texte en clair ou en foncé. Il n'est offert QUE sur la valeur qui
+   reste lisible : un interrupteur noir/blanc sans garde-fou permettrait de
+   reproduire exactement le défaut signalé — du noir sur du bleu à 1,85:1.
+   Si la valeur forcée ne tient pas sur ce fond, on retombe sur l'automatique
+   plutôt que d'obéir à un réglage qui rend le livret illisible. */
+function encreForceeSiLisible(fond, encre, force){
+  if(force){
+    const c = force==='clair' ? '#FFFFFF' : '#000000';
+    if(contraste(c, fond) >= CONTRASTE_MINI) return c;
+  }
+  return encreLisible(fond, encre);
+}
 function encreLisible(fond, encre){
   if(contraste(encre,fond)>=CONTRASTE_MINI) return encre;
   const n=contraste('#000000',fond), b=contraste('#FFFFFF',fond);
@@ -1202,7 +1214,7 @@ const defaultLogement = () => ({
   contacts:{ hote:'', tel:'', email:'', urgence:'' },
   photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun', logoAlign:'gauche',
   wallpaper:null, wallpaperOpacity:18, accent:null, intensite:'standard', ordreSections:null,
-  couleurFond:null, couleurBlocs:null, imageBlocs:null, imageBlocsOpacite:18,
+  couleurFond:null, couleurBlocs:null, imageBlocs:null, imageBlocsOpacite:18, encreForcee:null,
   urgences:[], faq:[], services:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
@@ -2727,10 +2739,65 @@ function moveDansCat(arrPath,i,dir,normaliser){
 }
 /* Changement de catégorie : on déplie la destination pour que le gérant voie
    où son élément est parti. */
+/* Changer la catégorie d'une adresse reconstruisait la CARTE ENTIÈRE. Sur
+   Chrome de bureau l'ancrage du navigateur absorbe le saut et l'écart de
+   défilement paraît nul — sur iPad il ne l'absorbe pas, et le contenu bouge
+   sous le doigt. Ne pas conclure d'un écart nul sur un écran de bureau : c'est
+   la reconstruction qu'il faut supprimer, pas son effet visible.
+   On déplace donc le nœud de la ligne d'un accordéon à l'autre et on met à jour
+   les deux compteurs. Le repli sur un rendu complet ne sert que si la structure
+   change vraiment — groupe d'arrivée inexistant, ou groupe de départ vidé — et
+   il rétablit alors l'ancre de défilement. */
 function changerCat(arrPath, i, cle, valeur){
+  const l=cur(); if(!l) return;
+  const arr=arrPath.split('.').reduce((o,k)=>o[k],l);
+  const ancienne=cle+(arr[i]&&arr[i].cat!=null?String(arr[i].cat):'');
   accSet(cle+valeur, true);
   setArr(arrPath, i, 'cat', valeur);
+  if(deplacerLigne(arrPath, i, cle, ancienne, cle+valeur)) return;
+  /* Repli : la structure change, on reconstruit — mais sans faire bouger la page. */
+  const ancre=ancreVisible();
   renderCard();
+  retablirAncre(ancre);
+}
+/* Déplacement chirurgical. Renvoie false si la structure ne s'y prête pas. */
+function deplacerLigne(arrPath, i, cle, cleSource, cleCible){
+  const ligne=document.querySelector(`[data-ligne="${arrPath}:${i}"]`);
+  const source=document.querySelector(`[data-groupe="${cleSource}"]`);
+  const cible=document.querySelector(`[data-groupe="${cleCible}"]`);
+  if(!ligne||!source||!cible||source===cible) return false;
+  const restantes=source.querySelectorAll('[data-ligne]').length;
+  if(restantes<=1) return false;              // le groupe de départ disparaîtrait
+  cible.appendChild(ligne);
+  majCompteurGroupe(source); majCompteurGroupe(cible);
+  const acc=cible.closest('.acc');
+  if(acc && acc.dataset.open!=='true') acc.querySelector('.acc-head').click();
+  return true;
+}
+function majCompteurGroupe(groupe){
+  const acc=groupe.closest('.acc'); if(!acc) return;
+  const n=groupe.querySelectorAll('[data-ligne]').length;
+  const badge=acc.querySelector('.acc-badge'); if(badge) badge.textContent=String(n);
+  const b=groupe.querySelector('button[onclick^="copierCategorieVers"]');
+  if(b) b.innerHTML=b.innerHTML.replace(/Copier ces \d+ adresses?/, `Copier ces ${n} adresse${n>1?'s':''}`);
+}
+/* Ancre de défilement : l'élément le plus haut visible et sa position. */
+function ancreVisible(){
+  const els=document.querySelectorAll('.card [data-ligne], .card .acc, .card .field');
+  for(const e of els){ const r=e.getBoundingClientRect();
+    if(r.bottom>0 && r.top<innerHeight) return {sel:reperer(e), haut:r.top}; }
+  return null;
+}
+function reperer(e){
+  if(e.dataset&&e.dataset.ligne) return `[data-ligne="${e.dataset.ligne}"]`;
+  if(e.dataset&&e.dataset.cle) return `[data-cle="${e.dataset.cle}"]`;
+  return null;
+}
+function retablirAncre(a){
+  if(!a||!a.sel) return;
+  const e=document.querySelector(a.sel); if(!e) return;
+  const d=e.getBoundingClientRect().top-a.haut;
+  if(d) document.scrollingElement.scrollTop+=d;
 }
 const selectCat = (arrPath, i, valeurCourante, cats, cle) => `
   <select class="input cat-select" title="Catégorie" onchange="changerCat('${arrPath}',${i},'${cle}',this.value)">
@@ -3076,6 +3143,7 @@ function renderSection(l){
         image:l.wallpaper, champImage:'wallpaper', opacite:l.wallpaperOpacity, champOpacite:'wallpaperOpacity', maxOpacite:60,
         inputId:'wp-input'
       })}
+      ${choixEncre(l)}
       ${caseCouleur({
         titre:'Blocs du livret', indice:'Les pavés qui portent les informations. La teinte du mot de bienvenue et les bordures en découlent automatiquement.',
         champ:'couleurBlocs', valeur:l.couleurBlocs, defaut:paletteLivret(l).paper,
@@ -3273,12 +3341,12 @@ function recosListHTML(l){
   return `<div style="margin-bottom:17px">${
     grouperParCat(l.recos, CATS, recoCatConnue).map(c=>accordeon({
       cle:'reco:'+c.id, icon:c.icon, titre:c.label, badge:String(c.entrees.length),
-      corps:`<div style="display:flex;flex-direction:column;gap:10px">
+      corps:`<div style="display:flex;flex-direction:column;gap:10px" data-groupe="reco:${c.id}">
         <div class="inline-row">
           <button class="btn btn-ghost btn-sm" onclick="copierCategorieVers('${c.id}')">${I('duplicate',13)} Copier ces ${c.entrees.length} adresse${c.entrees.length>1?'s':''} vers d'autres livrets</button>
         </div>
         ${c.entrees.map(({item:r,i})=>`
-        <div class="subcard">
+        <div class="subcard" data-ligne="recos:${i}">
           <div class="inline-row">
             <input class="input" placeholder="Nom de l'adresse" value="${esc(r.nom)}" oninput="setArr('recos',${i},'nom',this.value)">
             <button class="icon-x" onclick="rmArr('recos',${i})">${I('x',15)}</button>
@@ -3360,6 +3428,36 @@ async function copierCategorieVers(catId){
    par le champ visé et le plafond de l'image. */
 const NUANCIER = ['#FFFFFF','#F6F4EF','#F7F0E8','#F4F4F2','#FAF6EE','#F5F1F3',
                   '#E8E4DA','#D9D5CB','#2B2B2B','#101826','#1C2B21','#2E222B'];
+/* Le forçage n'est proposé que là où il ne casse rien. Une valeur qui
+   descendrait sous 4,5:1 sur le fond OU sur les blocs est grisée, avec le
+   chiffre : le gérant garde la main quand elle est sans danger, et voit
+   pourquoi quand elle ne l'est pas. */
+function choixEncre(l){
+  const t=paletteLivret(l);
+  /* L'éligibilité se juge sur les BLOCS, pas sur le fond de page. L'encre est
+     calculée surface par surface : exiger qu'une même valeur tienne aussi sur
+     le fond de page grisait les deux options alors que l'automatique rendait
+     du blanc parfaitement lisible dans les blocs. C'est là que le défaut a été
+     vu, c'est là que le choix se juge. */
+  const eval1=c=>contraste(c,t.paper);
+  const options=[
+    {id:null,      label:'Automatique', k:null},
+    {id:'sombre',  label:'Texte foncé', k:eval1('#000000')},
+    {id:'clair',   label:'Texte clair', k:eval1('#FFFFFF')},
+  ];
+  const courant=l.encreForcee||null;
+  const refuses=options.filter(o=>o.k!==null && o.k<CONTRASTE_MINI);
+  return `<div class="field"><label>Couleur du texte des blocs<span class="hint">Le texte s'adapte tout seul à la couleur des blocs. Vous pouvez l'imposer, quand la lisibilité le permet.</span></label>
+    <div class="pill-group">
+      ${options.map(o=>{
+        const inutilisable = o.k!==null && o.k<CONTRASTE_MINI;
+        return `<button class="pill ${courant===o.id?'on':''}" ${inutilisable?'disabled title="Illisible sur ce fond"':''}
+          onclick="setPath('encreForcee',${o.id?`'${o.id}'`:'null'});renderCard()">${o.label}</button>`;
+      }).join('')}
+    </div>
+    ${refuses.map(o=>`<span class="ai-note" style="margin-top:6px;display:block">Sur ce fond, le ${o.id==='sombre'?'noir':'blanc'} descend à ${o.k.toFixed(1)}:1. Illisible à l'impression.</span>`).join('')}
+  </div>`;
+}
 function caseCouleur({titre, indice, champ, valeur, defaut, image, champImage, opacite, champOpacite, maxOpacite, inputId}){
   const actuelle=hexPropre(valeur)||defaut;
   return `<div class="field"><label>${esc(titre)}<span class="hint">${esc(indice)}</span></label>
@@ -3949,8 +4047,8 @@ function attenue(encre, fond, taux){
 /* Chaque surface pose ses trois encres. Un texte secondaire n'a donc plus à
    connaître son fond : il demande `var(--encre-douce)`, et c'est la surface qui
    a déjà répondu. Ajouter une surface donne les trois d'office. */
-const faireSurface = t => (fond, encre) => {
-  const e = encre ? accentLisible(encre, fond) : encreLisible(fond, t.ink);
+const faireSurface = (t, force) => (fond, encre) => {
+  const e = encre ? accentLisible(encre, fond) : encreForceeSiLisible(fond, t.ink, force);
   return `background:${fond};--encre:${e};--encre-douce:${attenue(e,fond,.72)};`
        + `--encre-discrete:${attenue(e,fond,.5)};color:var(--encre);`;
 };
@@ -3964,7 +4062,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const has=id=>g.sections.includes(id);
   const cover=l.photos[0], gallery=l.photos.slice(1);
   const qr=has('wifi')?wifiQR(lRaw):'';
-  const surface = faireSurface(t);
+  const surface = faireSurface(t, l.encreForcee);
   const mono=`font-family:'IBM Plex Mono',monospace`;
   const serif=`font-family:'Fraunces',Georgia,serif`;
   /* Gabarit unique du titre : numéro (facultatif), libellé, filet, icône.
@@ -4430,7 +4528,7 @@ const POSTERS = [
 function posterHTML(lRaw, type, lang='fr'){
   const l=locView(lRaw, lang);
   const t=paletteLivret(l);
-  const surface = faireSurface(t);
+  const surface = faireSurface(t, l.encreForcee);
   const X=L10N[lang]||L10N.fr;
   const mono=`font-family:'IBM Plex Mono',monospace`, serif=`font-family:'Fraunces',Georgia,serif`;
   const qr=type==='wifi'?wifiQR(lRaw,320):'';
