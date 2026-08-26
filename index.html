@@ -735,18 +735,6 @@ function bordureLisible(bloc, page){
   }
   return c;
 }
-/* Forçage du texte en clair ou en foncé. Il n'est offert QUE sur la valeur qui
-   reste lisible : un interrupteur noir/blanc sans garde-fou permettrait de
-   reproduire exactement le défaut signalé — du noir sur du bleu à 1,85:1.
-   Si la valeur forcée ne tient pas sur ce fond, on retombe sur l'automatique
-   plutôt que d'obéir à un réglage qui rend le livret illisible. */
-function encreForceeSiLisible(fond, encre, force){
-  if(force){
-    const c = force==='clair' ? '#FFFFFF' : '#000000';
-    if(contraste(c, fond) >= CONTRASTE_MINI) return c;
-  }
-  return encreLisible(fond, encre);
-}
 function encreLisible(fond, encre){
   if(contraste(encre,fond)>=CONTRASTE_MINI) return encre;
   const n=contraste('#000000',fond), b=contraste('#FFFFFF',fond);
@@ -1214,7 +1202,7 @@ const defaultLogement = () => ({
   contacts:{ hote:'', tel:'', email:'', urgence:'' },
   photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun', logoAlign:'gauche',
   wallpaper:null, wallpaperOpacity:18, accent:null, intensite:'standard', ordreSections:null,
-  couleurFond:null, couleurBlocs:null, imageBlocs:null, imageBlocsOpacite:18, encreForcee:null,
+  couleurFond:null, couleurBlocs:null, imageBlocs:null, imageBlocsOpacite:18,
   urgences:[], faq:[], services:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
@@ -3143,7 +3131,7 @@ function renderSection(l){
         image:l.wallpaper, champImage:'wallpaper', opacite:l.wallpaperOpacity, champOpacite:'wallpaperOpacity', maxOpacite:60,
         inputId:'wp-input'
       })}
-      ${choixEncre(l)}
+      ${etatEncre(l)}
       ${caseCouleur({
         titre:'Blocs du livret', indice:'Les pavés qui portent les informations. La teinte du mot de bienvenue et les bordures en découlent automatiquement.',
         champ:'couleurBlocs', valeur:l.couleurBlocs, defaut:paletteLivret(l).paper,
@@ -3428,34 +3416,23 @@ async function copierCategorieVers(catId){
    par le champ visé et le plafond de l'image. */
 const NUANCIER = ['#FFFFFF','#F6F4EF','#F7F0E8','#F4F4F2','#FAF6EE','#F5F1F3',
                   '#E8E4DA','#D9D5CB','#2B2B2B','#101826','#1C2B21','#2E222B'];
-/* Le forçage n'est proposé que là où il ne casse rien. Une valeur qui
-   descendrait sous 4,5:1 sur le fond OU sur les blocs est grisée, avec le
-   chiffre : le gérant garde la main quand elle est sans danger, et voit
-   pourquoi quand elle ne l'est pas. */
-function choixEncre(l){
+/* Pas de boutons ici, et c'est une décision mesurée : sur 200 couleurs de bloc
+   tirées au hasard, les deux valeurs ne sont lisibles que dans 4 cas — et dans
+   ces quatre-là, les deux sont médiocres. Sur les six palettes livrées, jamais.
+   Trois boutons dont un grisé et deux qui font la même chose, ce n'est pas un
+   réglage : c'est une leçon de choses sur l'impuissance du gérant.
+   Une ligne d'état répond à sa vraie question — « pourquoi ceux-là sont en
+   noir ? » — sans rien promettre qu'on ne puisse tenir. */
+function etatEncre(l){
   const t=paletteLivret(l);
-  /* L'éligibilité se juge sur les BLOCS, pas sur le fond de page. L'encre est
-     calculée surface par surface : exiger qu'une même valeur tienne aussi sur
-     le fond de page grisait les deux options alors que l'automatique rendait
-     du blanc parfaitement lisible dans les blocs. C'est là que le défaut a été
-     vu, c'est là que le choix se juge. */
-  const eval1=c=>contraste(c,t.paper);
-  const options=[
-    {id:null,      label:'Automatique', k:null},
-    {id:'sombre',  label:'Texte foncé', k:eval1('#000000')},
-    {id:'clair',   label:'Texte clair', k:eval1('#FFFFFF')},
-  ];
-  const courant=l.encreForcee||null;
-  const refuses=options.filter(o=>o.k!==null && o.k<CONTRASTE_MINI);
-  return `<div class="field"><label>Couleur du texte des blocs<span class="hint">Le texte s'adapte tout seul à la couleur des blocs. Vous pouvez l'imposer, quand la lisibilité le permet.</span></label>
-    <div class="pill-group">
-      ${options.map(o=>{
-        const inutilisable = o.k!==null && o.k<CONTRASTE_MINI;
-        return `<button class="pill ${courant===o.id?'on':''}" ${inutilisable?'disabled title="Illisible sur ce fond"':''}
-          onclick="setPath('encreForcee',${o.id?`'${o.id}'`:'null'});renderCard()">${o.label}</button>`;
-      }).join('')}
-    </div>
-    ${refuses.map(o=>`<span class="ai-note" style="margin-top:6px;display:block">Sur ce fond, le ${o.id==='sombre'?'noir':'blanc'} descend à ${o.k.toFixed(1)}:1. Illisible à l'impression.</span>`).join('')}
+  const e=encreLisible(t.paper, t.ink);
+  const clair=contraste(e,t.paper)>0 && luminance(e)>0.5;
+  const autre=clair?'#000000':'#FFFFFF';
+  const nomEncre=clair?'blanc':'foncé';
+  const nomAutre=clair?'noir':'blanc';
+  return `<div class="field"><label>Texte des blocs</label>
+    <span class="ai-note" style="display:block">${nomEncre.charAt(0).toUpperCase()+nomEncre.slice(1)}, choisi automatiquement pour rester lisible sur cette couleur.
+    Le ${nomAutre} y descendrait à ${contraste(autre,t.paper).toFixed(1)}:1.</span>
   </div>`;
 }
 function caseCouleur({titre, indice, champ, valeur, defaut, image, champImage, opacite, champOpacite, maxOpacite, inputId}){
@@ -4047,8 +4024,8 @@ function attenue(encre, fond, taux){
 /* Chaque surface pose ses trois encres. Un texte secondaire n'a donc plus à
    connaître son fond : il demande `var(--encre-douce)`, et c'est la surface qui
    a déjà répondu. Ajouter une surface donne les trois d'office. */
-const faireSurface = (t, force) => (fond, encre) => {
-  const e = encre ? accentLisible(encre, fond) : encreForceeSiLisible(fond, t.ink, force);
+const faireSurface = t => (fond, encre) => {
+  const e = encre ? accentLisible(encre, fond) : encreLisible(fond, t.ink);
   return `background:${fond};--encre:${e};--encre-douce:${attenue(e,fond,.72)};`
        + `--encre-discrete:${attenue(e,fond,.5)};color:var(--encre);`;
 };
@@ -4062,7 +4039,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const has=id=>g.sections.includes(id);
   const cover=l.photos[0], gallery=l.photos.slice(1);
   const qr=has('wifi')?wifiQR(lRaw):'';
-  const surface = faireSurface(t, l.encreForcee);
+  const surface = faireSurface(t);
   const mono=`font-family:'IBM Plex Mono',monospace`;
   const serif=`font-family:'Fraunces',Georgia,serif`;
   /* Gabarit unique du titre : numéro (facultatif), libellé, filet, icône.
@@ -4528,7 +4505,7 @@ const POSTERS = [
 function posterHTML(lRaw, type, lang='fr'){
   const l=locView(lRaw, lang);
   const t=paletteLivret(l);
-  const surface = faireSurface(t, l.encreForcee);
+  const surface = faireSurface(t);
   const X=L10N[lang]||L10N.fr;
   const mono=`font-family:'IBM Plex Mono',monospace`, serif=`font-family:'Fraunces',Georgia,serif`;
   const qr=type==='wifi'?wifiQR(lRaw,320):'';
