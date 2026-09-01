@@ -574,6 +574,8 @@ body.avec-alerte{padding-bottom:210px}
 .adr-ligne .input:focus{box-shadow:none}
 .adr-etat{display:block;margin-top:6px;font-size:12.5px;line-height:1.45}
 .adr-etat.ok{color:var(--accent-deep)} .adr-etat.ko{color:var(--danger)} .adr-etat.attente{color:var(--muted)}
+.adr-ancienne{display:inline-block;font-family:var(--mono);font-size:11.5px;background:var(--bg-deep);
+  border-radius:5px;padding:1px 5px;margin:2px 2px 0 0;word-break:break-all}
 .lien-partage{font-size:13.5px;font-weight:600;word-break:break-all;margin:0;color:var(--accent-dark)}
 @media(max-width:420px){ .adr-ligne{flex-direction:column} .adr-prefixe{max-width:none;border-right:0;
   border-bottom:1px solid var(--line-faint);padding:6px 10px} }
@@ -1931,6 +1933,18 @@ async function cloudSupprimes(){
    un jour le logement d'un autre. */
 async function adresseDisponible(chemin){
   const {data,error}=await sb.rpc('slug_disponible',{p_slug:chemin});
+  if(error) throw error;
+  return data===true;
+}
+/* UNE ADRESSE PUBLIÉE RÉSERVE SON PRÉFIXE, MÊME SI AUCUN PROFIL NE LE
+   REVENDIQUE. `demo/escale-havraise` a été publié avant que `prefixe_partage`
+   n'existe : `demo` n'appartient à personne dans `profiles`, et sans ce
+   contrôle une autre conciergerie pourrait le choisir et publier
+   `demo/autre-chose`. Deux comptes partageraient alors un espace de noms, et
+   plus personne ne saurait à qui il est. La fonction vérifie les deux :
+   aucun profil, et aucune adresse publiée — anciennes comprises. */
+async function prefixeDisponible(prefixe){
+  const {data,error}=await sb.rpc('prefixe_disponible',{p_prefixe:prefixe});
   if(error) throw error;
   return data===true;
 }
@@ -5030,6 +5044,7 @@ async function verifierDisponibilite(adresse, jeton){
    pas de compte / pas de préfixe / pas encore publié / publié. */
 function ouvrirPartage(){
   const l=cur(); if(!l) return;
+  modeRenommage=false;
   document.getElementById('modal-root').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal wide lib-modal" style="max-width:600px">
       <h3>Partager ce livret</h3>
@@ -5040,6 +5055,8 @@ function ouvrirPartage(){
     </div></div>`;
   const champ=document.getElementById('champ-adresse');
   if(champ){ champ.focus(); surSaisieAdresse(champ); }
+  const pfx=document.getElementById('champ-prefixe');
+  if(pfx) pfx.focus();
   if(estPublie(l)) confirmerPublication(l);
 }
 const estPublie = l => !!(l && l.partage && l.partage.actif && l.partage.slug);
@@ -5050,9 +5067,18 @@ const blocFichier = `
   <div class="ai-box" style="margin-top:14px">
     <p style="font-weight:600;font-size:13px;margin:0 0 4px">Le livret en un fichier</p>
     <p class="ai-note" style="margin:0 0 10px">Pour un voyageur qui arrive sans connexion.
-      Le fichier s'ouvre sans internet et sans Smart Guide — mais il ne suivra pas vos corrections.</p>
+      Il s'ouvre sans internet et sans Smart Guide.</p>
     <button class="btn btn-plain btn-sm" onclick="partagerLivret()">${I('download',13)} Obtenir le fichier</button>
   </div>`;
+
+/* LA SEULE INFORMATION DONT LE GÉRANT A BESOIN POUR CHOISIR. Ce n'est pas
+   « avec ou sans réseau » : c'est que l'un vit et l'autre est figé. S'il
+   corrige un code wifi après l'envoi, le lien suit et le fichier ment. */
+const phraseChoix = `<p class="ai-note" style="margin-top:12px"><strong>Le lien vit</strong> :
+  vos corrections le suivent après l'envoi. <strong>Le fichier est figé</strong> :
+  il ne changera plus jamais.</p>`;
+
+let modeRenommage=false;
 
 function corpsPartage(l){
   if(!sb||!compte) return `
@@ -5068,32 +5094,54 @@ function corpsPartage(l){
       <label>Nom de votre conciergerie dans les liens</label>
       <div class="adr-ligne">
         <span class="adr-prefixe">guide.aven-ia.com/</span>
-        <input class="input" id="champ-prefixe" placeholder="tilit" autocomplete="off" spellcheck="false"
-               oninput="convertirChampAdresse(this)">
+        <input class="input" id="champ-prefixe" placeholder="ma-conciergerie" autocomplete="off"
+               spellcheck="false" oninput="surSaisiePrefixe(this)">
       </div>
       <span class="adr-etat" id="prefixe-etat"></span>
     </div>
     <div class="inline-row" style="margin-top:10px">
-      <button class="btn btn-accent" onclick="enregistrerPrefixe()">${I('check',14)} Choisir ce nom</button>
+      <button class="btn btn-accent" id="btn-prefixe" onclick="enregistrerPrefixe()" disabled>${I('check',14)} Choisir ce nom</button>
     </div>
     ${blocFichier}`;
 
-  if(estPublie(l)) return `
+  if(estPublie(l)){
+    /* La ligne d'état du lien publié ne porte SURTOUT PAS l'id « adresse-etat » :
+       en mode renommage le champ en porte un aussi, getElementById rendait le
+       premier, et le verdict de disponibilité s'affichait sur la ligne du lien
+       déjà publié — à côté du champ qu'il jugeait, mais pas dessous. */
+    const anciens=(l.partage.anciens||[]);
+    return `
     <div class="ai-box">
       <p style="font-weight:600;font-size:13px;margin:0 0 4px">Le lien du voyageur</p>
       <p class="lien-partage" id="lien-affiche">${esc(lienPartage(l.partage.slug))}</p>
       <div class="inline-row" style="margin-top:8px" id="lien-actions">
-        <span class="adr-etat attente" id="adresse-etat">Vérification auprès du serveur…</span>
+        <span class="adr-etat attente">Vérification auprès du serveur…</span>
       </div>
       <p class="ai-note" style="margin:10px 0 0">Le voyageur voit toujours la dernière version :
         vos corrections lui parviennent sans avoir à renvoyer le lien.</p>
+      ${anciens.length ? `<p class="ai-note" style="margin:8px 0 0">
+        ${anciens.length>1?'Vos adresses précédentes répondent toujours':'Votre adresse précédente répond toujours'} :
+        ${anciens.map(a=>`<span class="adr-ancienne">${esc(a)}</span>`).join(' ')}</p>` : ''}
     </div>
-    ${blocFichier}`;
+    ${modeRenommage ? blocRenommage(l) : `
+      <div class="inline-row" style="margin-top:12px">
+        <button class="btn btn-plain btn-sm" onclick="modeRenommage=true;redessinerPartage()">${I('pen',13)} Renommer l'adresse</button>
+        <button class="btn btn-plain btn-sm" onclick="depublier()">Dépublier</button>
+      </div>`}
+    ${blocFichier}
+    ${phraseChoix}`;
+  }
 
-  const propose=slugifier(l.nom||'');
+  /* UN LIVRET DÉPUBLIÉ GARDE SON ADRESSE. Reproposer une adresse dérivée du nom
+     ferait croire au gérant qu'il doit en choisir une nouvelle, alors que la
+     sienne l'attend — et il en brûlerait une deuxième pour rien, puisqu'aucune
+     ne se recycle. */
+  const dejaSienne=(l.partage&&l.partage.slug)||'';
+  const propose = dejaSienne ? dejaSienne.split('/').slice(1).join('/') : slugifier(l.nom||'');
   return `
-    <p class="ai-note">Choisissez l'adresse du lien. Elle vous appartient pour de bon —
-      même dépubliée ou renommée, elle ne sera jamais réattribuée à un autre logement.</p>
+    <p class="ai-note">${dejaSienne
+      ? 'Ce livret n\'est plus partagé. Son adresse vous reste réservée : republiez au même endroit, ou choisissez-en une autre.'
+      : 'Choisissez l\'adresse du lien. Elle vous appartient pour de bon — même dépubliée ou renommée, elle ne sera jamais réattribuée à un autre logement.'}</p>
     <div class="field" style="margin-top:12px">
       <label>Adresse du livret</label>
       <div class="adr-ligne">
@@ -5106,7 +5154,88 @@ function corpsPartage(l){
     <div class="inline-row" style="margin-top:10px">
       <button class="btn btn-accent" id="btn-publier" onclick="publierLivret()" disabled>${I('share',14)} Publier le lien</button>
     </div>
-    ${blocFichier}`;
+    ${blocFichier}
+    ${phraseChoix}`;
+}
+
+/* LE BOUTON DIT LA VÉRITÉ, ET C'EST CETTE PHRASE QUI FERA QU'IL OSE. Un gérant
+   qui croit casser les liens déjà envoyés ne renomme jamais — il garde une
+   adresse qui ne lui plaît pas, et c'est une fonctionnalité morte. */
+function blocRenommage(l){
+  const courante=(l.partage.slug||'').split('/').slice(1).join('/');
+  return `
+    <div class="ai-box" style="margin-top:12px">
+      <p style="font-weight:600;font-size:13px;margin:0 0 4px">Renommer l'adresse</p>
+      <p class="ai-note" style="margin:0 0 10px">L'ancienne adresse continuera de fonctionner.
+        Les liens déjà envoyés à vos voyageurs ne seront pas cassés.</p>
+      <div class="adr-ligne">
+        <span class="adr-prefixe">guide.aven-ia.com/${esc(prefixePartage)}/</span>
+        <input class="input" id="champ-adresse" value="${esc(courante)}" autocomplete="off"
+               spellcheck="false" oninput="surSaisieAdresse(this)">
+      </div>
+      <span class="adr-etat" id="adresse-etat"></span>
+      <div class="inline-row" style="margin-top:10px">
+        <button class="btn btn-accent btn-sm" id="btn-publier" onclick="publierLivret()" disabled>${I('check',13)} Renommer</button>
+        <button class="btn btn-plain btn-sm" onclick="modeRenommage=false;redessinerPartage()">Annuler</button>
+      </div>
+    </div>`;
+}
+
+function redessinerPartage(){
+  const l=cur(); if(!l) return;
+  const hote=document.getElementById('partage-corps');
+  if(!hote) return;
+  hote.innerHTML=corpsPartage(l);
+  const champ=document.getElementById('champ-adresse');
+  if(champ){ champ.focus(); champ.setSelectionRange(champ.value.length,champ.value.length); surSaisieAdresse(champ); }
+  if(estPublie(l) && !modeRenommage) confirmerPublication(l);
+}
+
+/* DÉPUBLIER N'EST PAS SUPPRIMER : l'adresse reste réservée pour toujours.
+   La rendre au pot commun ferait qu'un jour le lien d'un ancien voyageur
+   ouvrirait le logement d'un autre. */
+function depublier(){
+  const l=cur(); if(!l||!estPublie(l)) return;
+  confirmModal('Dépublier ce livret ?',
+    "Le lien répondra « Ce livret n'est pas partagé ». L'adresse vous reste réservée : "
+    +"vous pourrez republier au même endroit, et personne d'autre ne pourra la prendre.",
+    async()=>{
+      l.partage.actif=false;
+      touch(l);
+      try{ await synchroniser({silencieux:true}); }catch(e){}
+      /* confirmModal ferme la fenêtre avant d'agir : sans cette réouverture, le
+         panneau disparaît sous les doigts du gérant et il ne voit pas le
+         résultat de son geste. */
+      ouvrirPartage();
+      toast('Livret dépublié — le lien ne répond plus');
+    }, 'Dépublier');
+}
+
+/* Le préfixe se vérifie comme une adresse, au repos de la frappe. */
+let jetonPrefixe=0, minuteurPrefixe=null;
+function surSaisiePrefixe(input){
+  const brut=input.value;
+  const p=convertirChampAdresse(input);
+  clearTimeout(minuteurPrefixe);
+  const poser=(c,t,ok)=>{ const e=document.getElementById('prefixe-etat');
+    if(e){ e.className='adr-etat '+c; e.textContent=t; }
+    const b=document.getElementById('btn-prefixe'); if(b) b.disabled=!ok; };
+  if(brut && !p){ poser('ko','Ces caractères ne peuvent pas entrer dans une adresse web — essayez avec des lettres latines.',false); return; }
+  const reproche=validerAdresse(p.replace(/-$/,''));
+  if(reproche){ poser('ko',reproche,false); return; }
+  poser('attente','Vérification…',false);
+  const jeton=++jetonPrefixe;
+  minuteurPrefixe=setTimeout(async()=>{
+    try{
+      const libre=await prefixeDisponible(p);
+      if(jeton!==jetonPrefixe) return;
+      /* Jamais par qui : même règle que pour les adresses. */
+      libre ? poser('ok','Ce nom est libre.',true) : poser('ko','Ce préfixe est déjà utilisé.',false);
+    }catch(e){
+      if(jeton!==jetonPrefixe) return;
+      poser('attente','Impossible de vérifier maintenant — vous êtes peut-être hors ligne.',false);
+    }
+  }, 450);
 }
 
 async function enregistrerPrefixe(){
@@ -5118,9 +5247,7 @@ async function enregistrerPrefixe(){
   etat.className='adr-etat attente'; etat.textContent='Enregistrement…';
   try{
     await definirPrefixePartage(p);
-    document.getElementById('partage-corps').innerHTML=corpsPartage(cur());
-    const c=document.getElementById('champ-adresse');
-    if(c){ c.focus(); surSaisieAdresse(c); }
+    redessinerPartage();
   }catch(e){
     etat.className='adr-etat ko'; etat.textContent=e.message||'Enregistrement impossible.';
   }
@@ -5164,15 +5291,22 @@ async function publierLivret(){
     if(!adresseDuLivret(l,chemin) && !await adresseDisponible(chemin)){
       poserEtatAdresse('ko','Cette adresse est déjà utilisée.', false); return;
     }
+    /* `anciens` S'ACCUMULE, IL NE SE REMPLACE PAS. Une liste qui ne garderait
+       que la dernière ancienne adresse casserait le lien le plus vieux — celui
+       qui dort depuis des mois dans une conversation WhatsApp, et qui est
+       justement le plus susceptible d'être rouvert un jour sans prévenir. */
+    const precedente=l.partage.slug;
+    if(precedente && precedente!==chemin && !(l.partage.anciens||[]).includes(precedente))
+      l.partage.anciens=[...(l.partage.anciens||[]), precedente];
     l.partage.slug=chemin;
     l.partage.actif=true;
-    l.partage.publieLe=new Date().toISOString();
+    if(!l.partage.publieLe) l.partage.publieLe=new Date().toISOString();
+    modeRenommage=false;
     touch(l);
     await synchroniser({silencieux:true});
-    document.getElementById('partage-corps').innerHTML=corpsPartage(l);
-    confirmerPublication(l);
+    redessinerPartage();
   }catch(e){
-    poserEtatAdresse('ko','La publication n\'a pas abouti — '+(e&&e.message||'réessayez.'), false);
+    poserEtatAdresse('ko','L\'enregistrement n\'a pas abouti — '+(e&&e.message||'réessayez.'), false);
     if(bouton) bouton.disabled=false;
   }
 }
