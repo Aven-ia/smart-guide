@@ -1272,9 +1272,27 @@ const alignLogo = l => (l && MARGES_LOGO[l.logoAlign]) ? l.logoAlign : 'gauche';
 const HAUTEUR_PHOTO={ photo:'clamp(200px,28vh,235px)', cadre:'clamp(210px,30vh,250px)' };
 
 let migrationsAppliquees=0;
+/* ON COMPLÈTE CE QUI MANQUE, ON N'ÉCRASE JAMAIS CE QUI EXISTE.
+   Un champ absent est une lacune ; un champ rempli est une décision du gérant.
+   La complétion DESCEND dans les objets. Sans ça, un `partage:{slug,actif}`
+   écrit par une version antérieure gardait `anciens` à `undefined`, et le
+   premier renommage levait « Cannot read properties of undefined (reading
+   'push') » : le lien envoyé au voyageur mourait à l'instant précis où le
+   gérant croyait le renommer, sans erreur visible ailleurs.
+   Les TABLEAUX ne sont pas complétés élément par élément : une liste vide est
+   une décision du gérant, pas une lacune. */
+function completerDefauts(cible, modele){
+  for(const k of Object.keys(modele)){
+    if(cible[k]===undefined){ cible[k]=modele[k]; continue; }
+    const c=cible[k], m=modele[k];
+    if(c && m && typeof c==='object' && typeof m==='object' && !Array.isArray(c) && !Array.isArray(m))
+      completerDefauts(c, m);
+  }
+  return cible;
+}
 function migrateLogement(l){
   const d=defaultLogement();
-  for(const k of Object.keys(d)) if(l[k]===undefined) l[k]=d[k];
+  completerDefauts(l, d);
   // v3 : la catégorie devient une donnée portée par l'élément. On la devine ici
   // UNE SEULE FOIS depuis le nom, puis elle est persistée — un renommage
   // ultérieur ne peut donc plus rendre l'élément orphelin.
