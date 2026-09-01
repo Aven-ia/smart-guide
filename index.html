@@ -4548,8 +4548,14 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     ${(S.settings.logo && !logoP)
       ? `<img src="${S.settings.logo}" style="max-height:38px;max-width:150px;object-fit:contain;opacity:.9">`
       : logoSVG(20,t.accent)}
-    <p style="${mono};font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--encre-discrete)">${esc(S.settings.conciergerie||'Smart Guide')}</p>
-    ${MENTION_SMART_GUIDE?`<p style="${mono};font-size:7.5px;letter-spacing:.1em;color:var(--encre-discrete);margin-top:2px">Créé avec Smart Guide</p>`:''}
+    ${/* Le pied disait « Smart Guide » en titre puis « Créé avec Smart Guide »
+          juste dessous : deux fois le même mot, l'un au-dessus de l'autre. Le
+          nom du gérant n'apparaît que s'il en a mis un ; la mention de l'outil
+          tient en une ligne discrète, et une seule. */''}
+    ${(S.settings.conciergerie||'').trim()
+      ? `<p style="${mono};font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--encre-discrete)">${esc(S.settings.conciergerie)}</p>`
+      : ''}
+    ${MENTION_SMART_GUIDE?`<p style="${mono};font-size:8px;letter-spacing:.12em;color:var(--encre-discrete)">Smart Guide · Aven IA</p>`:''}
   </div></div>`;
   return out;
 }
