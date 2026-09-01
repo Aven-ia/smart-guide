@@ -566,6 +566,17 @@ body.avec-alerte{padding-bottom:210px}
   .no-print{display:none!important}
 }
 @page{margin:14mm 0}
+.adr-ligne{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--paper)}
+.adr-ligne:focus-within{border-color:var(--accent);box-shadow:var(--sh-glow)}
+.adr-prefixe{display:flex;align-items:center;padding:0 2px 0 10px;font-size:13px;color:var(--muted);white-space:nowrap;
+  background:var(--bg-deep);border-right:1px solid var(--line-faint);max-width:55%;overflow:hidden;text-overflow:ellipsis}
+.adr-ligne .input{border:0;border-radius:0;flex:1;min-width:0;background:transparent}
+.adr-ligne .input:focus{box-shadow:none}
+.adr-etat{display:block;margin-top:6px;font-size:12.5px;line-height:1.45}
+.adr-etat.ok{color:var(--accent-deep)} .adr-etat.ko{color:var(--danger)} .adr-etat.attente{color:var(--muted)}
+.lien-partage{font-size:13.5px;font-weight:600;word-break:break-all;margin:0;color:var(--accent-dark)}
+@media(max-width:420px){ .adr-ligne{flex-direction:column} .adr-prefixe{max-width:none;border-right:0;
+  border-bottom:1px solid var(--line-faint);padding:6px 10px} }
 </style>
 </head>
 <body>
@@ -1530,6 +1541,11 @@ async function rechargerVersion(){
    l'app fonctionne exactement comme avant, sans compte. */
 const SUPABASE_URL='https://hpmthjaebbgmbljoyfgx.supabase.co';
 const SUPABASE_CLE_PUBLIQUE='sb_publishable_aW94eKqMkZF548HHwrhonw_Hrtq_n2j';
+/* Le domaine du lien public. Il ne sert QUE la page du voyageur, jamais
+   l'application : ce sont deux dépôts et deux hébergements distincts, et
+   l'adresse de l'application ne doit jamais changer — les données du gérant
+   sont liées à son origine. */
+const DOMAINE_PARTAGE='https://guide.aven-ia.com';
 let sb=null, compte=null, authEtat='indisponible', modeRecuperation=false;
 
 function initAuth(){
@@ -1557,10 +1573,10 @@ async function chargerSession(){
       if(route.view==='compte') renderCompte();
       majBoutonCompte();
       // Connexion (ou reprise de session) : réconciliation complète.
-      if(compte && !avant) synchroniser();
-      if(!compte) syncEtat='inactif';
+      if(compte && !avant){ chargerProfil(); synchroniser(); }
+      if(!compte){ syncEtat='inactif'; prefixePartage=null; }
     });
-    if(compte) synchroniser();
+    if(compte){ chargerProfil(); synchroniser(); }
     return compte;
   }catch(e){ return null; }
 }
@@ -1643,7 +1659,7 @@ async function seDeconnecter(){
   /* Étape 1 : rien n'est synchronisé, donc la déconnexion ne touche à aucun
      livret. Ils restent sur l'appareil, exactement comme avant. */
   await sb.auth.signOut();
-  compte=null; renderCompte(); majBoutonCompte(); toast('Déconnecté — vos livrets restent sur cet appareil');
+  compte=null; prefixePartage=null; renderCompte(); majBoutonCompte(); toast('Déconnecté — vos livrets restent sur cet appareil');
 }
 function authMessage(txt,erreur){
   const el=document.getElementById('auth-msg');
@@ -1794,6 +1810,58 @@ function livretSansContenu(l){
   }
   return true;
 }
+/* ---------------- L'adresse publique d'un livret ----------------
+   L'ADRESSE SE CONVERTIT SOUS LES YEUX DU GÉRANT, ELLE NE SE CORRIGE PAS DANS
+   SON DOS. « Appart' Washington N°1 » devient « appart-washington-n1 »
+   pendant qu'il tape. Une correction silencieuse APRÈS coup lui donnerait une
+   adresse qu'il n'a pas choisie et qu'il découvrirait dans le lien déjà
+   envoyé — donc trop tard pour la changer, puisqu'une adresse ne se recycle
+   jamais. */
+const slugifier = t => String(t==null?'':t)
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')            // é → e
+  .replace(/[°º]/g,'').replace(/['’`]/g,'')          // N°1 → n1, Appart' → appart
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g,'-')
+  .replace(/-{2,}/g,'-')
+  .replace(/^-+|-+$/g,'');
+
+/* Ces chemins appartiennent à l'hébergeur ou à la page publique. Un livret qui
+   s'y installerait ne serait pas « en conflit » : il rendrait l'un des deux
+   inatteignable, sans erreur nulle part. */
+const ADRESSES_RESERVEES = new Set(['api','apercu.jpg','robots.txt','favicon.ico','_vercel','vercel','sw.js','index.html']);
+
+/* L'ordre des contrôles est l'ordre dans lequel le gérant les rencontre : on
+   lui dit CE QUI CLOCHE, une chose à la fois, jamais une liste de reproches. */
+const REGLES_ADRESSE = [
+  { ok:s=>s.length>0,               dit:'Choisissez une adresse pour ce livret.' },
+  { ok:s=>/^[a-z0-9-]+$/.test(s),   dit:'Seulement des minuscules, des chiffres et des tirets.' },
+  { ok:s=>s.length>=3,              dit:'Trois caractères au minimum.' },
+  { ok:s=>s.length<=60,             dit:'Soixante caractères au maximum.' },
+  { ok:s=>!/^-|-$/.test(s),         dit:'Pas de tiret au début ni à la fin.' },
+  { ok:s=>!/--/.test(s),            dit:'Pas de double tiret.' },
+  { ok:s=>!s.startsWith('.') && !ADRESSES_RESERVEES.has(s), dit:'Cette adresse est réservée par Smart Guide.' },
+];
+/* Renvoie le reproche, ou null si l'adresse est valide. */
+function validerAdresse(s){
+  for(const r of REGLES_ADRESSE) if(!r.ok(s)) return r.dit;
+  return null;
+}
+/* Le chemin complet, tel qu'il apparaît dans le lien. Le préfixe est déjà figé
+   et déjà valide : il n'est pas re-slugifié ici, sinon un préfixe existant
+   pourrait changer de forme et casser tous les liens envoyés. */
+const cheminPartage = (prefixe, adresse) => `${prefixe}/${adresse}`;
+const lienPartage = chemin => `${DOMAINE_PARTAGE}/${chemin}`;
+
+/* Une adresse déjà portée par CE livret — courante ou ancienne — n'est pas
+   « prise » de son point de vue : c'est la sienne. Sans ça, le gérant qui
+   rouvre le panneau sans rien changer lirait « déjà utilisée » à propos de sa
+   propre adresse. */
+function adresseDuLivret(l, chemin){
+  const p=(l&&l.partage)||{};
+  const c=String(chemin||'').toLowerCase();
+  if(String(p.slug||'').toLowerCase()===c) return true;
+  return (p.anciens||[]).some(a=>String(a||'').toLowerCase()===c);
+}
 function planSynchro(locaux, distants, meta, voulues, supprimes){
   meta=meta||{}; voulues=voulues||new Set(); supprimes=supprimes||new Set();
   const parLocal=new Map(distants.filter(d=>d.local_id).map(d=>[d.local_id,d]));
@@ -1852,6 +1920,46 @@ async function cloudSupprimes(){
   const {data,error}=await sb.from('livrets').select('local_id').not('deleted_at','is',null);
   if(error) throw error;
   return new Set((data||[]).map(d=>d.local_id).filter(Boolean));
+}
+/* LA BASE NE DIT JAMAIS PAR QUI UNE ADRESSE EST PRISE. Elle répond « libre »
+   ou « occupée », rien de plus : révéler le propriétaire donnerait à qui
+   possède la clé publiable la carte des logements de tous les gérants. C'est
+   délibéré côté SQL, et ça le reste ici — ne remplacez jamais cet appel par
+   une lecture directe de `livrets`.
+   La fonction compte AUSSI les livrets supprimés et les anciennes adresses :
+   une adresse ne se recycle pas, sinon le lien d'un ancien voyageur ouvrirait
+   un jour le logement d'un autre. */
+async function adresseDisponible(chemin){
+  const {data,error}=await sb.rpc('slug_disponible',{p_slug:chemin});
+  if(error) throw error;
+  return data===true;
+}
+/* Le préfixe de la conciergerie : choisi une fois, puis figé. Il est dans
+   chaque lien déjà envoyé — le renommer les casserait tous d'un coup, et sans
+   erreur nulle part. Le livret garde un chemin complet, pas un suffixe, pour
+   cette raison exacte : même si le préfixe changeait un jour, les adresses
+   déjà publiées continueraient de répondre telles quelles. */
+let prefixePartage=null;
+async function chargerProfil(){
+  if(!sb||!compte){ prefixePartage=null; return null; }
+  try{
+    const {data}=await sb.from('profiles').select('prefixe_partage').eq('id',compte.id).maybeSingle();
+    prefixePartage=(data&&data.prefixe_partage)||null;
+  }catch(e){ prefixePartage=null; }
+  return prefixePartage;
+}
+/* Aucune vérification de disponibilité côté client : c'est l'index unique qui
+   tranche, et lui ne peut pas se tromper entre le moment où l'on demande et
+   celui où l'on écrit. Deux gérants qui choisissent le même préfixe à la même
+   seconde : le second reçoit 23505, et un message clair. */
+async function definirPrefixePartage(prefixe){
+  const {error}=await sb.from('profiles')
+    .upsert({id:compte.id, prefixe_partage:prefixe}, {onConflict:'id'});
+  if(error){
+    if(error.code==='23505') throw new Error('Ce nom est déjà pris par une autre conciergerie.');
+    throw error;
+  }
+  prefixePartage=prefixe;
 }
 async function cloudSnapshot(distant){
   try{ await sb.from('livret_backups').insert({livret_id:distant.id, owner_id:compte.id, data:distant.data}); }catch(e){}
@@ -4734,7 +4842,7 @@ function previewBarHTML(l){
       <button class="btn btn-ghost" onclick="openPosters()" title="Affichettes à poser" aria-label="Affichettes">${I('printer',14)} <span class="lbl">Affichettes</span></button>
       <button class="btn btn-ghost" onclick="exportHTML()" title="Télécharger le fichier du livret" aria-label="Télécharger le fichier">${I('download',14)} <span class="lbl">Fichier</span></button>
       <button class="btn btn-ghost" onclick="exportPDF()" title="Imprimer ou enregistrer en PDF" aria-label="Imprimer ou PDF">${I('printer',14)} <span class="lbl">Imprimer / PDF</span></button>
-      <button class="btn btn-dark" onclick="partagerLivret()" title="Envoyer le livret au voyageur" aria-label="Partager le livret">${I('share',14)} <span class="lbl">Partager</span></button>
+      <button class="btn btn-dark" onclick="ouvrirPartage()" title="Envoyer le livret au voyageur" aria-label="Partager le livret">${I('share',14)} <span class="lbl">Partager</span></button>
     </div>`;
 }
 function deviceHTML(l){
@@ -4754,11 +4862,16 @@ function renderLivret(){
 }
 /* Lève le malentendu : le gérant a partagé le SIGNET de son navigateur, donc
    l'adresse de l'application — chez le destinataire elle s'ouvre vide, puisque
-   les livrets vivent sur l'appareil de chacun. */
+   les livrets vivent sur l'appareil de chacun.
+   Cette phrase disait « Partager envoie le livret lui-même, en un fichier ».
+   Elle est devenue fausse le jour où le lien est arrivé, et un texte faux dans
+   l'interface coûte plus cher qu'un texte absent : le gérant qui le croit
+   n'essaie jamais le lien. */
 function texteAidePartage(){
   const lang=route.lang!=='fr'?`Version ${(LANGS.find(x=>x.id===route.lang)||{}).label} — les exports utiliseront cette langue. `:'';
-  return `${lang}<strong>« Partager » envoie le livret lui-même</strong>, en un fichier qui s'ouvre
-    sans internet et sans Smart Guide. Ne transmettez pas l'adresse de l'application :
+  return `${lang}<strong>« Partager » propose deux sorties</strong> : un lien, que le voyageur
+    ouvre et qui suit vos corrections ; et le livret en un fichier, qui s'ouvre sans internet
+    et sans Smart Guide. Ne transmettez pas l'adresse de l'application :
     votre voyageur y trouverait sa propre page, vide.`;
 }
 function renderPreview(){
@@ -4843,6 +4956,235 @@ function exportHTML(){
 /* Partage du livret lui-même. Sur téléphone et tablette, la feuille de partage
    du système reçoit le FICHIER : le voyageur reçoit son livret, pas un lien vers
    l'application. Partout ailleurs, repli sur le téléchargement. */
+/* ---------------- Le panneau de partage ----------------
+   Deux sorties, et elles ne servent pas le même voyageur :
+   — LE LIEN, qui suit les corrections du gérant après l'envoi ;
+   — LE FICHIER, qui s'ouvre sans internet et ne change plus jamais.
+   Le lien passe en premier parce que c'est celui qu'on envoie neuf fois sur
+   dix ; le fichier reste, entier, pour celui qui arrive sans réseau. */
+let minuteurAdresse=null;
+
+/* PENDANT LA FRAPPE, UN TIRET EN FIN DE SAISIE EST UN TIRET EN COURS, PAS UNE
+   FAUTE. Le retirer à la volée rendrait « washington-1 » impossible à taper :
+   le tiret disparaîtrait avant le 1. On le tolère tant qu'il tape, la
+   validation le refuse au moment de publier. */
+const slugifierFrappe = t => slugifier(t) + (/[- ]$/.test(String(t==null?'':t)) ? '-' : '');
+
+/* La conversion réécrit le champ sous les doigts du gérant : sans ça le
+   curseur saute en fin de ligne dès qu'il corrige un caractère au milieu. */
+function convertirChampAdresse(input){
+  const avant=input.value, curseur=input.selectionStart;
+  const apres=slugifierFrappe(avant);
+  if(apres===avant) return apres;
+  const finDeLigne = curseur===avant.length;
+  input.value=apres;
+  const pos = finDeLigne ? apres.length : Math.max(0, curseur - (avant.length - apres.length));
+  try{ input.setSelectionRange(pos,pos); }catch(e){}
+  return apres;
+}
+
+function etatAdresseHTML(classe, texte){
+  return `<span class="adr-etat ${classe}">${texte}</span>`;
+}
+function poserEtatAdresse(classe, texte, publiable){
+  const e=document.getElementById('adresse-etat');
+  if(e) e.outerHTML=`<span class="adr-etat ${classe}" id="adresse-etat">${texte}</span>`;
+  const b=document.getElementById('btn-publier');
+  if(b) b.disabled=!publiable;
+}
+
+/* Le gérant tape, on attend qu'il s'arrête. Une requête par touche donnerait
+   quinze appels pour un mot, et la réponse de la douzième pourrait arriver
+   après celle de la quinzième — donc afficher « libre » pour un texte qu'il
+   n'a plus sous les yeux. Le jeton écarte les réponses périmées. */
+let jetonAdresse=0;
+function surSaisieAdresse(input){
+  const brut=input.value;
+  const adresse=convertirChampAdresse(input);
+  clearTimeout(minuteurAdresse);
+  if(brut && !adresse){
+    poserEtatAdresse('ko','Ces caractères ne peuvent pas entrer dans une adresse web — essayez avec des lettres latines.', false);
+    return;
+  }
+  const reproche=validerAdresse(adresse.replace(/-$/,''));
+  if(reproche){ poserEtatAdresse('ko', reproche, false); return; }
+  poserEtatAdresse('attente','Vérification…', false);
+  const jeton=++jetonAdresse;
+  minuteurAdresse=setTimeout(()=>verifierDisponibilite(adresse, jeton), 450);
+}
+async function verifierDisponibilite(adresse, jeton){
+  const l=cur(); if(!l) return;
+  const chemin=cheminPartage(prefixePartage, adresse);
+  try{
+    const libre = adresseDuLivret(l, chemin) || await adresseDisponible(chemin);
+    if(jeton!==jetonAdresse) return;                 // une frappe plus récente a pris la main
+    if(libre) poserEtatAdresse('ok','Cette adresse est libre.', true);
+    /* Ne dit JAMAIS par qui : la base ne le dit pas non plus, c'est délibéré. */
+    else poserEtatAdresse('ko','Cette adresse est déjà utilisée.', false);
+  }catch(e){
+    if(jeton!==jetonAdresse) return;
+    poserEtatAdresse('attente','Impossible de vérifier maintenant — vous êtes peut-être hors ligne.', false);
+  }
+}
+/* Le panneau lui-même. Quatre situations, et une seule affichée à la fois :
+   pas de compte / pas de préfixe / pas encore publié / publié. */
+function ouvrirPartage(){
+  const l=cur(); if(!l) return;
+  document.getElementById('modal-root').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal wide lib-modal" style="max-width:600px">
+      <h3>Partager ce livret</h3>
+      <div id="partage-corps">${corpsPartage(l)}</div>
+      <div class="modal-foot" style="border-top:1px solid var(--line-faint);padding-top:16px">
+        <button class="btn btn-plain" onclick="closeModal()">Fermer</button>
+      </div>
+    </div></div>`;
+  const champ=document.getElementById('champ-adresse');
+  if(champ){ champ.focus(); surSaisieAdresse(champ); }
+  if(estPublie(l)) confirmerPublication(l);
+}
+const estPublie = l => !!(l && l.partage && l.partage.actif && l.partage.slug);
+
+/* Le fichier autonome n'est jamais retiré : il sert le voyageur qui arrive
+   sans réseau, et lui seul. */
+const blocFichier = `
+  <div class="ai-box" style="margin-top:14px">
+    <p style="font-weight:600;font-size:13px;margin:0 0 4px">Le livret en un fichier</p>
+    <p class="ai-note" style="margin:0 0 10px">Pour un voyageur qui arrive sans connexion.
+      Le fichier s'ouvre sans internet et sans Smart Guide — mais il ne suivra pas vos corrections.</p>
+    <button class="btn btn-plain btn-sm" onclick="partagerLivret()">${I('download',13)} Obtenir le fichier</button>
+  </div>`;
+
+function corpsPartage(l){
+  if(!sb||!compte) return `
+    <p class="ai-note">Le lien de partage demande un compte : c'est lui qui garde le livret à jour
+      pour le voyageur après l'envoi. Vous pouvez déjà partager le fichier.</p>
+    ${blocFichier}`;
+
+  if(!prefixePartage) return `
+    <p class="ai-note">Vos liens commenceront tous par le nom de votre conciergerie.
+      <strong>Il se choisit une fois et ne change plus</strong> : il figure dans chaque lien que
+      vous enverrez, et le renommer les casserait tous.</p>
+    <div class="field" style="margin-top:12px">
+      <label>Nom de votre conciergerie dans les liens</label>
+      <div class="adr-ligne">
+        <span class="adr-prefixe">guide.aven-ia.com/</span>
+        <input class="input" id="champ-prefixe" placeholder="tilit" autocomplete="off" spellcheck="false"
+               oninput="convertirChampAdresse(this)">
+      </div>
+      <span class="adr-etat" id="prefixe-etat"></span>
+    </div>
+    <div class="inline-row" style="margin-top:10px">
+      <button class="btn btn-accent" onclick="enregistrerPrefixe()">${I('check',14)} Choisir ce nom</button>
+    </div>
+    ${blocFichier}`;
+
+  if(estPublie(l)) return `
+    <div class="ai-box">
+      <p style="font-weight:600;font-size:13px;margin:0 0 4px">Le lien du voyageur</p>
+      <p class="lien-partage" id="lien-affiche">${esc(lienPartage(l.partage.slug))}</p>
+      <div class="inline-row" style="margin-top:8px" id="lien-actions">
+        <span class="adr-etat attente" id="adresse-etat">Vérification auprès du serveur…</span>
+      </div>
+      <p class="ai-note" style="margin:10px 0 0">Le voyageur voit toujours la dernière version :
+        vos corrections lui parviennent sans avoir à renvoyer le lien.</p>
+    </div>
+    ${blocFichier}`;
+
+  const propose=slugifier(l.nom||'');
+  return `
+    <p class="ai-note">Choisissez l'adresse du lien. Elle vous appartient pour de bon —
+      même dépubliée ou renommée, elle ne sera jamais réattribuée à un autre logement.</p>
+    <div class="field" style="margin-top:12px">
+      <label>Adresse du livret</label>
+      <div class="adr-ligne">
+        <span class="adr-prefixe">guide.aven-ia.com/${esc(prefixePartage)}/</span>
+        <input class="input" id="champ-adresse" value="${esc(propose)}" placeholder="washington-1"
+               autocomplete="off" spellcheck="false" oninput="surSaisieAdresse(this)">
+      </div>
+      <span class="adr-etat" id="adresse-etat"></span>
+    </div>
+    <div class="inline-row" style="margin-top:10px">
+      <button class="btn btn-accent" id="btn-publier" onclick="publierLivret()" disabled>${I('share',14)} Publier le lien</button>
+    </div>
+    ${blocFichier}`;
+}
+
+async function enregistrerPrefixe(){
+  const champ=document.getElementById('champ-prefixe');
+  const etat=document.getElementById('prefixe-etat');
+  const p=slugifier(champ.value);
+  const reproche=validerAdresse(p);
+  if(reproche){ etat.className='adr-etat ko'; etat.textContent=reproche; return; }
+  etat.className='adr-etat attente'; etat.textContent='Enregistrement…';
+  try{
+    await definirPrefixePartage(p);
+    document.getElementById('partage-corps').innerHTML=corpsPartage(cur());
+    const c=document.getElementById('champ-adresse');
+    if(c){ c.focus(); surSaisieAdresse(c); }
+  }catch(e){
+    etat.className='adr-etat ko'; etat.textContent=e.message||'Enregistrement impossible.';
+  }
+}
+
+/* UN LIEN QU'ON NE PEUT PAS COPIER VAUT MIEUX QU'UN LIEN MORT DÉJÀ ENVOYÉ.
+   Publier, c'est écrire dans la base — et une écriture peut ne pas monter :
+   réseau coupé, session expirée, conflit. Tant que le serveur n'a pas confirmé,
+   le bouton copier n'existe pas. Le gérant qui copierait trop tôt enverrait à
+   son voyageur une adresse qui répond « Ce livret n'est pas partagé », juste
+   après l'avoir partagé.
+   La confirmation passe par `livret_public`, c'est-à-dire par la fonction que
+   la page du voyageur appelle elle-même : on ne vérifie pas que l'écriture est
+   partie, on vérifie que la page répond. */
+async function confirmerPublication(l){
+  try{
+    const {data,error}=await sb.rpc('livret_public',{p_slug:l.partage.slug});
+    if(error||!data) throw error||new Error('pas encore servi');
+    const actions=document.getElementById('lien-actions');
+    if(actions) actions.innerHTML=`
+      <button class="btn btn-accent btn-sm" onclick="copierLien()">${I('copy',13)} Copier le lien</button>
+      <span class="adr-etat ok">En ligne.</span>`;
+  }catch(e){
+    const actions=document.getElementById('lien-actions');
+    if(actions) actions.innerHTML=`<span class="adr-etat attente">Publication en cours — le lien n'est pas encore
+      joignable. Rouvrez ce panneau dans un instant ; n'envoyez pas l'adresse avant.</span>`;
+  }
+}
+
+async function publierLivret(){
+  const l=cur(); if(!l) return;
+  const champ=document.getElementById('champ-adresse');
+  const adresse=slugifier(champ.value);
+  const reproche=validerAdresse(adresse);
+  if(reproche){ poserEtatAdresse('ko', reproche, false); return; }
+  const chemin=cheminPartage(prefixePartage, adresse);
+  const bouton=document.getElementById('btn-publier');
+  if(bouton) bouton.disabled=true;
+  poserEtatAdresse('attente','Publication…', false);
+  try{
+    if(!adresseDuLivret(l,chemin) && !await adresseDisponible(chemin)){
+      poserEtatAdresse('ko','Cette adresse est déjà utilisée.', false); return;
+    }
+    l.partage.slug=chemin;
+    l.partage.actif=true;
+    l.partage.publieLe=new Date().toISOString();
+    touch(l);
+    await synchroniser({silencieux:true});
+    document.getElementById('partage-corps').innerHTML=corpsPartage(l);
+    confirmerPublication(l);
+  }catch(e){
+    poserEtatAdresse('ko','La publication n\'a pas abouti — '+(e&&e.message||'réessayez.'), false);
+    if(bouton) bouton.disabled=false;
+  }
+}
+
+function copierLien(){
+  const l=cur(); if(!l||!estPublie(l)) return;
+  const lien=lienPartage(l.partage.slug);
+  navigator.clipboard.writeText(lien)
+    .then(()=>toast('Lien copié — collez-le dans votre message au voyageur'))
+    .catch(()=>toast('Copie impossible — sélectionnez le lien à la main', true));
+}
+
 async function partagerLivret(){
   const l=cur(); if(!l) return;
   const nom=nomFichierLivret(l);
