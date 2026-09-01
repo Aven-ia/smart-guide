@@ -1203,6 +1203,13 @@ const defaultLogement = () => ({
   photos:[], templateId:'lichen', coverStyle:'photo', tone:'chaleureux', logoHaut:'aucun', logoAlign:'gauche',
   wallpaper:null, wallpaperOpacity:18, accent:null, intensite:'standard', ordreSections:null,
   couleurFond:null, couleurBlocs:null, imageBlocs:null, imageBlocsOpacite:18,
+  /* UN LIEN ENVOYÉ EST UNE PROMESSE. RENOMMER UN LOGEMENT NE CASSE PAS LA
+     PROMESSE : l'ancienne adresse rejoint `anciens` et continue de répondre.
+     Et une adresse n'est JAMAIS recyclée — dépubliée, renommée ou supprimée,
+     elle reste réservée, sinon le lien d'un ancien voyageur ouvrirait un jour
+     le logement d'un autre. Même raison que le local_id qui survit à la
+     suppression. */
+  partage:{ actif:false, slug:null, anciens:[], publieLe:null },
   urgences:[], faq:[], services:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
@@ -1694,13 +1701,34 @@ const IGNORES_COMPARAISON = new Set([
   'geo',         // coordonnées résolues automatiquement depuis l'adresse
   'translations',// traductions générées, dérivées et vidées à chaque édition
 ]);
+/* DEUX OBJETS QUI NE DIFFÈRENT QUE PAR L'ORDRE DE LEURS CLÉS N'ONT JAMAIS ÉTÉ
+   DEUX CONTENUS DIFFÉRENTS.
+   `JSON.stringify` sérialise les clés dans leur ordre d'insertion, et PostgreSQL
+   réordonne les clés JSONB au stockage — par longueur, puis par octet. Un livret
+   revenu du nuage porte donc `{"mdp","ssid"}` là où le modèle a `{"ssid","mdp"}`.
+   Mêmes clés, mêmes valeurs, et pourtant la comparaison les déclarait différents :
+   AUCUN livret passé par le nuage n'était reconnu vide, et le gérant lisait
+   « Ce logement contient des informations d'arrivée, un wifi et des contacts »
+   à propos d'un livret entièrement vide. Mesuré : 31 livrets sur 31 réordonnés,
+   0 dans l'ordre du modèle. Ce n'est pas une propriété de ces lignes-là, c'est
+   une propriété du format — donc ça ne se répare pas ligne par ligne.
+   L'ordre des TABLEAUX est conservé : là, il porte du sens (l'ordre des sections,
+   celui des photos). Seules les clés d'objet sont triées. */
+const stableJSON = v => {
+  if(v===undefined || v===null) return 'null';
+  if(typeof v!=='object') return JSON.stringify(v);
+  if(Array.isArray(v)) return '['+v.map(stableJSON).join(',')+']';
+  return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stableJSON(v[k])).join(',')+'}';
+};
+/* Absent et vide sont le même néant : un champ jamais écrit et un champ remis à
+   null disent tous deux « le gérant n'a rien mis là ». */
+const memeContenu = (a,b) => stableJSON(a)===stableJSON(b);
 /* Ce qui, dans ce livret, diffère du vierge. Sert à dire au gérant CE QU'ON A
    TROUVÉ, pas seulement ce qui manque : « 0 équipement, 0 adresse, 0 photo »
    est vrai mais laisse penser qu'on demande pour rien. */
 function ecartsAuVierge(l){
   const vierge=migrateLogement(defaultLogement());
-  const meme=(a,b)=>JSON.stringify(a===undefined?null:a)===JSON.stringify(b===undefined?null:b);
-  return Object.keys(vierge).filter(k=>!IGNORES_COMPARAISON.has(k) && !meme(l[k], vierge[k]));
+  return Object.keys(vierge).filter(k=>!IGNORES_COMPARAISON.has(k) && !memeContenu(l[k], vierge[k]));
 }
 const CHAMPS_APPARENCE=new Set(['templateId','intensite','couleurFond','couleurBlocs','wallpaper',
   'wallpaperOpacity','imageBlocs','imageBlocsOpacite','logoHaut','logoAlign','coverStyle','accent','tone']);
@@ -1721,24 +1749,30 @@ function decrireEcarts(l){
                                 : libelles.join(', ').replace(/, ([^,]*)$/, ' et $1');
   return 'Ce logement contient '+liste+(apparence?", plus des réglages d'apparence":'')+'.';
 }
+/* Un champ absent d'un livret enregistré AVANT son introduction vaut sa valeur
+   par défaut, jamais `undefined`. Sans ça, plus aucun livret existant n'est
+   reconnu comme vierge et la détection redevient un no-op silencieux qui a
+   l'air de marcher. C'est le piège `ordreSections`, et c'est la troisième fois
+   qu'il se présente — `sansObjet` puis `partage`. La normalisation par
+   migrateLogement le règle pour tous les champs à venir, d'un coup. */
 function livretSansContenu(l){
   if(!l) return true;
+  l=migrateLogement(l);
   /* La référence passe par migrateLogement comme le livret comparé : sans ça,
      `ordreSections` — que la réconciliation du lot B calcule à la lecture —
      paraissait modifié sur un livret neuf, et AUCUN livret n'aurait jamais été
      reconnu vide. Un réordonnancement délibéré reste détecté, puisque les deux
      côtés subissent la même dérivation. */
   const vierge=migrateLogement(defaultLogement());
-  const meme=(a,b)=>JSON.stringify(a===undefined?null:a)===JSON.stringify(b===undefined?null:b);
   for(const k of Object.keys(vierge)){
     if(IGNORES_COMPARAISON.has(k)) continue;
-    if(!meme(l[k], vierge[k])) return false;
+    if(!memeContenu(l[k], vierge[k])) return false;
   }
   /* Un champ que le modèle ne connaît pas encore — ou plus — compte aussi :
      mieux vaut garder un livret de trop que d'en effacer un. */
   for(const k of Object.keys(l)){
     if(IGNORES_COMPARAISON.has(k) || (k in vierge)) continue;
-    if(l[k]!=null && !meme(l[k], null)) return false;
+    if(l[k]!=null && !memeContenu(l[k], null)) return false;
   }
   return true;
 }
@@ -1889,6 +1923,13 @@ function avecFocusPreserve(fn){
   try{ n.focus({preventScroll:true}); if(deb!=null&&n.setSelectionRange) n.setSelectionRange(deb,fin); }catch(e){}
 }
 
+/* AVANT DE TESTER LA SYNCHRO, VÉRIFIER `compte !== null`.
+   La garde ci-dessous sort en silence quand aucune session n'est ouverte : rien
+   ne part, rien ne revient, et l'écriture locale réussit quand même. Un test
+   mené dans une session déconnectée ne teste donc RIEN, et il rend des chiffres
+   parfaitement crédibles — trente déplacements « synchronisés » qui n'ont jamais
+   quitté IndexedDB. Le premier contrôle d'un test de synchro est l'existence du
+   compte, avant toute autre mesure. */
 async function synchroniser({silencieux=false}={}){
   if(!sb||!compte||syncEnCours||!chargementOK) return;
   syncEnCours=true; syncEtat='en-cours'; majEtatSync();
