@@ -1941,6 +1941,13 @@ function planSynchro(locaux, distants, meta, voulues, supprimes){
         (livretSansContenu(l) ? plan.supprimerLocal : plan.suppressionsDouteuses).push(l);
         continue;
       }
+      /* UN LIVRET VIDE N'A RIEN À FAIRE DANS LE NUAGE. `livretSansContenu`
+         existait et cette branche ne l'a jamais consultée : elle ne servait
+         qu'à décider du sort d'un livret supprimé en ligne. Un brouillon vide
+         resté sur un appareil est monté chez TILIT le 02/09, un mois après sa
+         création, et c'est littéralement « un logement en cours sans rien ».
+         Il reste sur l'appareil — on ne le supprime pas, on ne le publie pas. */
+      if(livretSansContenu(l)) continue;
       plan.monter.push(l); continue;
     }
     const m=meta[l.id]||{distant:null,pousse:0};
@@ -2661,11 +2668,39 @@ function logementMenu(ev, id){
 }
 function newLogement(){ const l=defaultLogement(); S.logements.unshift(l); save(); route={...route, view:'edit', id:l.id, section:'infos'}; render(); scrollTop(); }
 function openLogement(id){ route={...route, view:'edit', id, section:'infos'}; render(); scrollTop(); }
+/* UN LIVRET DUPLIQUÉ HÉRITE DES TEXTES, PAS DE L'IDENTITÉ DU VOISIN.
+   La copie était une recopie profonde intégrale : seuls l'identifiant, le nom
+   et les horodatages étaient refaits. Quatre champs suivaient qui n'auraient
+   jamais dû.
+
+   `partage` — LE PLUS GRAVE, et c'est moi qui l'ai introduit. Le duplicata
+   revendiquait le slug ET les anciennes adresses de l'original. Deux livrets
+   pour un même lien, `livret_public` fait `limit 1` : un voyageur reçoit le
+   livret d'un autre appartement. Le seul de ces défauts qui puisse nuire à
+   quelqu'un qui n'est pas notre client.
+
+   `photos` — mesuré chez TILIT : 29 livrets portaient le MÊME contenu binaire,
+   au dernier octet, 216 ko chacun. Le voyageur de WASHINGTON 3 voyait la photo
+   d'ALMA, et l'aperçu du lien partagé aussi. 6,3 Mo pour un seul fichier.
+
+   `audit` — un verdict d'IA rendu sur un autre contenu.
+   `translations` — des traductions d'un texte qui va changer.
+
+   Ce qu'on garde est ce que le gérant a écrit : arrivée, départ, wifi,
+   équipements, règlement, quartier, contacts, services, urgences, FAQ, et
+   l'habillage. C'est exactement ce pour quoi on duplique. */
 function duplicateLogement(id){
   const src=S.logements.find(x=>x.id===id); if(!src) return;
   const copy=JSON.parse(JSON.stringify(src));
   copy.id=nid(); copy.nom=(src.nom||'Logement')+' (copie)'; copy.createdAt=Date.now(); copy.updatedAt=Date.now();
-  S.logements.unshift(copy); save(); render(); toast('Logement dupliqué');
+  const neuf=defaultLogement();
+  copy.partage=neuf.partage;          // jamais l'adresse publique d'un autre
+  copy.photos=[];                     // ni sa photo
+  copy.audit=null;                    // ni le verdict rendu sur son contenu
+  copy.translations={};               // ni ses traductions
+  copy.publicUrl='';
+  S.logements.unshift(copy); save(); render();
+  toast('Logement dupliqué — textes repris, photos et lien de partage à refaire');
 }
 function deleteLogement(id){
   const l=S.logements.find(x=>x.id===id);
@@ -3551,15 +3586,40 @@ function csPreview(id){
 }
 
 /* ---------- Photos ---------- */
+/* BORNER LES PIXELS NE BORNE PAS LES OCTETS. On croyait le plafond structurel
+   — « 1600 px et q=0,82, donc 159 ko au maximum ». Mesuré chez TILIT : deux
+   photos de 1563 × 1563, exactement la même taille, l'une à 216 ko et l'autre
+   à 655 ko. À dimensions et qualité égales, une image détaillée pèse trois
+   fois plus. Et mon échantillon de « 30 photos » n'en contenait que deux
+   distinctes : j'avais moyenné 29 copies du même fichier.
+   Conséquence en production : un aperçu de lien partagé à 491 ko d'octets
+   réels, et l'échec d'un aperçu trop lourd est SILENCIEUX chez le destinataire.
+   On descend donc la qualité par paliers jusqu'à passer sous le plafond, puis
+   on réduit les dimensions si ça ne suffit pas. Une photo plus légère reste
+   une photo ; une photo qui ne s'affiche pas n'est rien. */
+const POIDS_MAX_PHOTO = 300 * 1024;   // octets réels, hors encodage base64
+
 function compressImage(file, MAXW, Q, keepAlpha){
   return new Promise((res,rej)=>{
     const img=new Image();
     img.onload=()=>{
       const MAX=MAXW||1600; let w=img.width,h=img.height;
       if(Math.max(w,h)>MAX){ const r=MAX/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r); }
-      const c=document.createElement('canvas'); c.width=w; c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      res(keepAlpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg',Q||0.82));
+      const rendre=(w,h,q)=>{
+        const c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        return keepAlpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg',q);
+      };
+      /* Le PNG est demandé pour garder la transparence : le recompresser en
+         JPEG trahirait la demande. On le laisse tel quel. */
+      if(keepAlpha) return res(rendre(w,h,1));
+      let q=Q||0.82, u=rendre(w,h,q);
+      const octets=d=>Math.round((d.length-d.indexOf(',')-1)*0.75);
+      while(octets(u)>POIDS_MAX_PHOTO && q>0.45){ q=Math.round((q-0.07)*100)/100; u=rendre(w,h,q); }
+      while(octets(u)>POIDS_MAX_PHOTO && Math.max(w,h)>800){
+        w=Math.round(w*0.85); h=Math.round(h*0.85); u=rendre(w,h,q);
+      }
+      res(u);
     };
     img.onerror=rej;
     const rd=new FileReader(); rd.onload=()=>img.src=rd.result; rd.onerror=rej; rd.readAsDataURL(file);
