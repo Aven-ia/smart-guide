@@ -145,6 +145,15 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .prop-city{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:5px}
 .prop-foot{display:flex;align-items:center;justify-content:space-between;margin-top:15px;gap:10px}
 .prop-date{font-size:11.5px;color:var(--muted-2)}
+/* UN ÉLÉMENT MIS EN PAGE PAR UN STYLE EN LIGNE ANONYME EST UN ÉLÉMENT QUE
+   PERSONNE NE RELIT. Ce conteneur n'avait ni classe, ni largeur, ni `flex` :
+   il se rétrécissait à son contenu — l'étiquette de 18 px — et `.pbar`, dont
+   la base flexible vaut 0, n'avait plus rien à prendre. La barre de
+   progression du tableau de bord faisait donc 0 px de large depuis toujours,
+   sur toutes les vignettes, et personne ne l'a vu.
+   Le calcul n'a jamais été en cause : une fois la place rendue, le remplissage
+   mesure 56,70 px sur 90, soit exactement les 63 % affichés à côté. */
+.prop-jauge{display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:0}
 .pbar{height:4px;border-radius:99px;background:var(--line-faint);overflow:hidden;flex:1;max-width:90px}
 .pbar>span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),#8CA07A);transition:width .5s var(--ease)}
 .pct{font-family:var(--mono);font-size:10px;color:var(--ink-faint)}
@@ -2524,7 +2533,7 @@ function renderDash(){
         <div class="prop-city">${I('pin',12)} ${esc(l.ville||'Ville non renseignée')}</div>
         <div class="prop-foot">
           <span class="prop-date">${timeAgo(l.updatedAt)}</span>
-          <div style="display:flex;align-items:center;gap:8px">
+          <div class="prop-jauge">
             <div class="pbar"><span style="width:${pc}%"></span></div>
             ${/* « 100 % » tout court mentirait sur un livret dont trois contrôles
                  ont été écartés : le gérant lirait la même chose que sur un
