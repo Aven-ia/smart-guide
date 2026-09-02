@@ -1133,27 +1133,27 @@ const LANGS = [
 ];
 /* Libellés statiques du livret, par langue */
 const L10N = {
-  fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', horaires:'Horaires', services:'Nos services', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès",
+  fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', horaires:'Horaires', services:'Nos services', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès", acces:'Accès',
        wifi:'Wifi', reseau:'Réseau', mdp:'Mot de passe', scan:'Scanner pour se connecter', equip:'Équipements',
        regl:'Règlement', quartier:'Recommandations', images:'Le logement en images', avantpartir:'Avant de partir',
        checklist:'Check-list', contact:'Nous contacter', urgence:'Urgence hors horaires', itineraire:'Itinéraire Google Maps', parking:'Stationnement', faq:'Questions fréquentes', urgences:'En cas de problème',
        etage:'Étage', guideArr:"Guide d'arrivée", guideDep:'Guide de départ', guideMai:'Guide de la maison', bienvenue:'Bienvenue' },
-  en:{ livret:'Welcome guide', arrivee:'Check-in', horaires:'Times', services:'Our services', depuis:'Check-in from', avant:'Check-out before', code:'Access code',
+  en:{ livret:'Welcome guide', arrivee:'Check-in', horaires:'Times', services:'Our services', depuis:'Check-in from', avant:'Check-out before', code:'Access code', acces:'Getting in',
        wifi:'Wifi', reseau:'Network', mdp:'Password', scan:'Scan to connect', equip:'Amenities',
        regl:'House rules', quartier:'Recommendations', images:'The place in pictures', avantpartir:'Before you leave',
        checklist:'Checklist', contact:'Contact us', urgence:'After-hours emergency', itineraire:'Google Maps directions', parking:'Parking', faq:'Frequently asked questions', urgences:'If something goes wrong',
        etage:'Floor', guideArr:'Arrival guide', guideDep:'Departure guide', guideMai:'House guide', bienvenue:'Welcome' },
-  es:{ livret:'Guía de bienvenida', arrivee:'Llegada', horaires:'Horarios', services:'Nuestros servicios', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso',
+  es:{ livret:'Guía de bienvenida', arrivee:'Llegada', horaires:'Horarios', services:'Nuestros servicios', depuis:'Llegada a partir de', avant:'Salida antes de', code:'Código de acceso', acces:'Acceso',
        wifi:'Wifi', reseau:'Red', mdp:'Contraseña', scan:'Escanear para conectarse', equip:'Equipamiento',
        regl:'Normas de la casa', quartier:'Recomendaciones', images:'El alojamiento en imágenes', avantpartir:'Antes de salir',
        checklist:'Lista', contact:'Contáctenos', urgence:'Emergencia fuera de horario', itineraire:'Ruta en Google Maps', parking:'Aparcamiento', faq:'Preguntas frecuentes', urgences:'En caso de problema',
        etage:'Planta', guideArr:'Guía de llegada', guideDep:'Guía de salida', guideMai:'Guía de la casa', bienvenue:'Bienvenido' },
-  de:{ livret:'Willkommensmappe', arrivee:'Anreise', horaires:'Zeiten', services:'Unsere Leistungen', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode',
+  de:{ livret:'Willkommensmappe', arrivee:'Anreise', horaires:'Zeiten', services:'Unsere Leistungen', depuis:'Check-in ab', avant:'Check-out vor', code:'Zugangscode', acces:'Zugang',
        wifi:'WLAN', reseau:'Netzwerk', mdp:'Passwort', scan:'Zum Verbinden scannen', equip:'Ausstattung',
        regl:'Hausregeln', quartier:'Empfehlungen', images:'Die Unterkunft in Bildern', avantpartir:'Vor der Abreise',
        checklist:'Checkliste', contact:'Kontakt', urgence:'Notfall außerhalb der Zeiten', itineraire:'Google Maps Route', parking:'Parkplatz', faq:'Häufige Fragen', urgences:'Im Problemfall',
        etage:'Etage', guideArr:'Anreise-Guide', guideDep:'Abreise-Guide', guideMai:'Haus-Guide', bienvenue:'Willkommen' },
-  it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', horaires:'Orari', services:'I nostri servizi', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso',
+  it:{ livret:'Guida di benvenuto', arrivee:'Arrivo', horaires:'Orari', services:'I nostri servizi', depuis:'Check-in dalle', avant:'Check-out entro', code:'Codice di accesso', acces:'Accesso',
        wifi:'Wifi', reseau:'Rete', mdp:'Password', scan:'Scansiona per connetterti', equip:'Dotazioni',
        regl:'Regole della casa', quartier:'Consigli', images:"L'alloggio in immagini", avantpartir:'Prima di partire',
        checklist:'Checklist', contact:'Contattaci', urgence:'Emergenza fuori orario', itineraire:'Percorso Google Maps', parking:'Parcheggio', faq:'Domande frequenti', urgences:'In caso di problemi',
@@ -1277,6 +1277,10 @@ const defaultLogement = () => ({
      n'a pas de wifi à annoncer. La liste est vide par défaut, et un livret
      enregistré avant l'existence du champ la reçoit vide à la lecture. */
   sansObjet:[],
+  /* Le HTML du livret publié, produit par livretHTML et rangé ici. La page du
+     voyageur le sert tel quel : un seul moteur de rendu, par construction. Il
+     se recalcule au point d'écriture unique — voir persister(). */
+  rendu:null,
   urgences:[], faq:[], services:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
@@ -1532,11 +1536,51 @@ function bloquerEcriture(){
     vos données sont probablement intactes.`;
   document.body.appendChild(el);
 }
+/* ON NE PEUT PAS ENREGISTRER UN LIVRET PUBLIÉ SANS PRODUIRE SON HTML :
+   C'EST LE MÊME APPEL.
+   La page du voyageur ne doit pas avoir son propre moteur de rendu — deux
+   moteurs divergent toujours, et c'est le voyageur qui voit la différence.
+   Elle sert donc le HTML que l'application a produit. Mais si ce HTML était un
+   champ que du code « doit penser » à rafraîchir, on n'aurait pas supprimé la
+   divergence : on l'aurait déplacée de deux moteurs vers deux copies, et un
+   chemin d'écriture oublié dans six mois — un import, une restauration, une
+   fusion de synchronisation — publierait le rendu d'une version antérieure.
+   Personne ne le verrait, sauf le voyageur.
+   Le rendu se calcule donc DANS le point d'écriture, comme l'encre se pose
+   dans surface(). Ce n'est pas une règle à retenir, c'est une impossibilité.
+   Le hook pre-commit refuse tout dbSet(CLE_PRINCIPALE) écrit ailleurs. */
+function rendusAJour(){
+  for(const l of S.logements){
+    const publie = !!(l.partage && l.partage.actif && l.partage.slug);
+    if(!publie){ if(l.rendu) l.rendu=null; continue; }
+    if(l.rendu && l.rendu.pour===l.updatedAt) continue;      // déjà à jour
+    try{ l.rendu={ html:rendrePourLeLien(l), pour:l.updatedAt, le:new Date().toISOString() }; }
+    catch(e){ /* un rendu qui échoue ne doit pas empêcher d'enregistrer */ }
+  }
+}
+/* LA PHOTO N'EST PAS INCORPORÉE DANS LE HTML RANGÉ. Mesuré sur PERRET : le
+   rendu pèse 272 ko avec la photo et 56 ko sans — la ranger doublerait le
+   livret en base et y stockerait l'image deux fois. Elle passe par l'URL
+   publique que la page sert déjà, /<slug>/apercu.jpg.
+   Une seule photo est référencée : les 29 livrets de TILIT en ont exactement
+   une chacun, la galerie n'existe chez aucun gérant. La route indexée viendra
+   le jour où un gérant en aura deux, pas avant. */
+function rendrePourLeLien(l){
+  const c=JSON.parse(JSON.stringify(l));
+  c.rendu=null;
+  const p=(l.photos&&l.photos[0])||null;
+  c.photos = p ? [{...p, dataUrl:`${DOMAINE_PARTAGE}/${l.partage.slug}/apercu.jpg`}] : [];
+  return livretHTML(c,'complet','fr');
+}
+function persister(){
+  rendusAJour();
+  return dbSet(CLE_PRINCIPALE,S);
+}
 function save(){
   if(!chargementOK){ bloquerEcriture(); return; }
   clearTimeout(saveTimer); setSaveBadge('saving');
   saveTimer=setTimeout(()=>{
-    dbSet(CLE_PRINCIPALE,S).then(()=>{ setSaveBadge('saved'); planifierSync(); })
+    persister().then(()=>{ setSaveBadge('saved'); planifierSync(); })
       .catch(e=>toast('Erreur de sauvegarde : '+e.message,true));
   },350);
 }
@@ -1790,6 +1834,7 @@ const IGNORES_COMPARAISON = new Set([
   'audit',       // verdict de l'IA, dérivé du contenu et non saisi
   'geo',         // coordonnées résolues automatiquement depuis l'adresse
   'translations',// traductions générées, dérivées et vidées à chaque édition
+  'rendu',       // HTML recalculé depuis le reste : dérivé, jamais saisi
 ]);
 /* DEUX OBJETS QUI NE DIFFÈRENT QUE PAR L'ORDRE DE LEURS CLÉS N'ONT JAMAIS ÉTÉ
    DEUX CONTENUS DIFFÉRENTS.
@@ -2096,7 +2141,7 @@ function integrerLivretDistant(d){
 }
 /* Écriture locale qui ne relance PAS la synchro : sans ça, save() replanifie une
    synchro qui rappelle save(), et l'app boucle toutes les 4 secondes. */
-function persisterSansSync(){ try{ dbSet(CLE_PRINCIPALE,S); }catch(e){} }
+function persisterSansSync(){ try{ persister(); }catch(e){} }
 
 /* Rendu ciblé après une descente. Jamais render() : c'est le rendu global qui
    réécrit app.innerHTML, détruit le champ en cours d'édition et fait perdre le
@@ -4534,12 +4579,23 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       <span style="${mono};font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--encre-discrete);flex:none">${esc(libelle)}</span>${esc(valeur)}</p>`;
   const etageTxt=String(l.etage||'').trim();
   const etageP=etageTxt?ligneIdentite(X.etage, etageTxt):'';
-  /* Le code d'accès rejoint le bloc d'identité : le voyageur trouve où aller et
-     comment entrer au même endroit, sans faire défiler. Il n'est plus répété
-     dans la section « Horaires ». */
+  /* LE CODE ET LES INSTRUCTIONS RÉPONDENT À LA MÊME QUESTION : COMMENT J'ENTRE.
+     Ils vivaient à deux endroits. Le code avait sa place et son étiquette dans
+     le bloc d'identité ; les instructions étaient un paragraphe nu à la fin de
+     la section « Horaires », sous une icône d'horloge, sans rien qui dise à
+     quoi elles répondent.
+     Mesuré sur les 29 livrets publiés de TILIT : 20 ont un code, 25 ont des
+     instructions, et pour SIX d'entre eux les instructions sont la seule chose
+     que le voyageur reçoit pour entrer. Pour ces six-là, tout ce qu'il avait
+     était une ligne sans étiquette sous un titre annonçant des horaires.
+     Les deux se lisent maintenant au même endroit, et « Horaires » redevient
+     ce que son titre annonce. Pas d'étiquette sans contenu : chaque ligne
+     n'existe que si sa valeur existe. */
   const codeTxt=String((l.arrivee&&l.arrivee.codeAcces)||'').trim();
+  const instrTxt=String((l.arrivee&&l.arrivee.instructions)||'').trim();
   const codeP=codeTxt?ligneIdentite(X.code, codeTxt):'';
-  const lieuP=adresseP+etageP+codeP;
+  const accesP=instrTxt?ligneIdentite(X.acces, instrTxt):'';
+  const lieuP=adresseP+etageP+codeP+accesP;
   const accP=l.accroche?`<p style="${serif};font-style:italic;font-size:15.5px;color:var(--encre-douce);line-height:1.45">${esc(l.accroche)}</p>`:'';
   const perfo=`<div style="height:1px;background-image:radial-gradient(circle,${t.bg} 2px,transparent 2.5px);background-size:12px 12px"></div>`;
 
@@ -4610,7 +4666,6 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
       ${block(X.depuis, l.arrivee.heure)}
       ${block(X.avant, l.depart.heure)}
     </div>
-    ${l.arrivee.instructions?`<p style="font-size:14px;line-height:1.7;color:var(--encre-douce)">${esc(l.arrivee.instructions)}</p>`:''}
   </section>`;
 
   /* Le stationnement est une section à part entière : il se déplace comme les
