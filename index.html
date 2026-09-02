@@ -598,6 +598,14 @@ body.avec-alerte{padding-bottom:210px}
   text-decoration:underline;text-underline-offset:2px}
 .ctrl-l:hover .ctrl-so,.ctrl-so:focus{opacity:1}
 @media(hover:none){ .ctrl-so{opacity:1} }
+.mascotte-hero{height:132px;width:auto;display:block;margin:0 auto;object-fit:contain}
+.recherche-vide{display:flex;align-items:center;gap:20px;background:var(--paper);border:1px solid var(--line);
+  border-radius:18px;padding:20px 26px 20px 20px;margin-bottom:20px;box-shadow:var(--sh-sm)}
+.recherche-vide img{height:104px;width:auto;flex:none;object-fit:contain}
+.recherche-vide .rv-t{font-size:15px;font-weight:550;margin:0 0 5px;line-height:1.35}
+.recherche-vide .rv-s{font-size:13px;color:var(--ink-faint);margin:0 0 12px;line-height:1.5}
+@media(max-width:560px){ .recherche-vide{flex-direction:column;text-align:center;padding:22px 20px}
+  .recherche-vide img{height:88px} }
 </style>
 </head>
 <body>
@@ -2559,7 +2567,12 @@ function renderDash(){
 
     ${S.logements.length===0 ? `
       <div class="empty-hero">
-        ${logoSVG(50,'#66795A')}
+        ${/* Le personnage remplace le logo : la place existait déjà, ce n'est pas
+             un ajout. Cet écran n'est vu qu'une fois, au tout premier lancement —
+             c'est le seul endroit où une mascotte ne peut pas devenir du bruit.
+             Chargée en URL relative, jamais en base64 : le fichier servi ferait
+             55 ko de plus, sur chaque ouverture, pour un écran vu une fois. */''}
+        <img class="mascotte-hero" src="bob-trois-quarts.png" alt="" width="321" height="512">
         <h2>Créez votre premier livret</h2>
         <p>Trois minutes suffisent : ajoutez un logement, collez vos notes en vrac, laissez l'IA composer un livret soigné.</p>
         <div class="empty-steps">
@@ -2580,6 +2593,20 @@ function renderDash(){
       </div>
       ${S.logements.length>3?`
       <div class="searchbar">${I('search',15)}<input placeholder="Rechercher un logement…" value="${esc(route.search)}" oninput="route.search=this.value;renderDash()"></div>`:''}
+      ${/* CINQ LOGEMENTS QUI DISPARAISSENT SANS UN MOT, C'EST UNE IMPASSE
+           MUETTE. Mesuré : une recherche sans résultat ne laissait que le bouton
+           « Ajouter un logement » — le gérant croit avoir perdu ses données, pas
+           raté sa recherche. Le message se justifie seul ; le personnage ne fait
+           que rendre l'écran habité. */''}
+      ${(route.search && !list.length) ? `
+      <div class="recherche-vide">
+        <img src="bob-carte.png" alt="" width="352" height="512">
+        <div>
+          <p class="rv-t">Aucun logement ne correspond à « ${esc(route.search)} »</p>
+          <p class="rv-s">Vos ${S.logements.length} logements sont toujours là — c'est la recherche qui ne trouve rien.</p>
+          <button class="btn btn-plain btn-sm" onclick="route.search='';renderDash()">Effacer la recherche</button>
+        </div>
+      </div>` : ''}
       <div class="grid-cards">
         ${cards}
         <button class="new-card" onclick="newLogement()"><span class="plus-ring">${I('plus',19)}</span><span style="font-size:13.5px;font-weight:500">Ajouter un logement</span></button>
