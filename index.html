@@ -20,11 +20,29 @@
    ===================================================== */
 :root{
   --bg:#F5F2EB; --bg-deep:#EFEBE1; --paper:#FFFFFF; --paper-warm:#FDFCF9;
-  --ink:#22251E; --ink-soft:#484C3F; --ink-faint:#6E7263;
+  /* --ink-faint restait à 4,05 sur le fond du tableau de bord : le seul défaut
+     que la correction des deux gris n'emportait pas. Il descend juste assez
+     pour passer partout — 5,06 — et reste nettement plus clair que --ink-soft,
+     qui est à 7,24 sur le même fond. */
+  --ink:#22251E; --ink-soft:#484C3F; --ink-faint:#5F6356;
   --accent:#66795A; --accent-dark:#525F3F; --accent-deep:#3E4A31;
   --accent-soft:#E5EADC; --accent-mist:#F0F3E9;
   --line:#E6E1D4; --line-soft:#DBD5C5; --line-faint:#EEEAE0;
-  --muted:#8D897C; --muted-2:#ABA698;
+  /* DEUX GRIS QUI NE SE LISENT NI L'UN NI L'AUTRE NE FONT PAS UNE HIÉRARCHIE.
+     Mesuré sur 76 emplacements : --muted tombait à 2,69 et --muted-2 à 1,87 sur
+     les fonds de l'application, très loin des 4,5 exigés à ces tailles.
+     Le piège en cherchant la correction : calculer le MINIMUM de chacun sous la
+     même contrainte donne évidemment la même couleur, et on croit à un mur.
+     Rien n'oblige --muted à rester à son plancher — la hiérarchie vit en
+     dessous. L'écart perçu passe de 1,44 à 1,32, et les deux deviennent
+     lisibles partout :
+       --muted-2  papier 6,58  fond 5,89  profond 5,53  composé 5,06
+       --muted    papier 8,71  fond 7,79  profond 7,32  composé 6,70 */
+  --muted:#4E4B43; --muted-2:#605D54;
+  /* Le gris clair d'origine survit là où il ne porte AUCUN texte : chevrons,
+     poignées, croix de fermeture, pastille d'audit. Une icône vise 3:1, pas
+     4,5:1 — et l'assombrir sans raison alourdirait l'interface. */
+  --ornement:#ABA698;
   --danger:#B0523B; --danger-soft:#F8EAE5;
   --gold:#B98D3F;
   --serif:'Fraunces',Georgia,serif; --mono:'IBM Plex Mono',monospace; --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
@@ -110,7 +128,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .btn:disabled{opacity:.42;cursor:default;transform:none}
 .btn-lg{padding:12px 22px;font-size:14px;border-radius:11px}
 .btn-sm{padding:6px 11px;font-size:12px;border-radius:7px}
-.icon-x{color:var(--muted-2);padding:6px;border-radius:7px;line-height:0;transition:all .14s}
+.icon-x{color:var(--ornement);padding:6px;border-radius:7px;line-height:0;transition:all .14s}
 .icon-x:hover{color:var(--danger);background:var(--danger-soft)}
 
 /* ---------- Dashboard ---------- */
@@ -219,7 +237,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .card-title{font-family:var(--serif);font-size:20.5px;font-weight:500}
 .card-sub{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.5}
 .card-body{padding:19px 25px 24px;display:flex;flex-direction:column;gap:17px}
-.field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7C8271;margin-bottom:7px}
+.field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);margin-bottom:7px}
 .field .hint{font-family:var(--sans);font-size:12px;color:var(--muted-2);text-transform:none;letter-spacing:0;display:block;margin-top:2.5px;font-weight:400}
 .input,.textarea,select.input{width:100%;background:var(--paper-warm);border:1px solid var(--line-soft);border-radius:9px;padding:10px 13px;transition:all .16s}
 .input:hover,.textarea:hover{border-color:#CCC6B4}
@@ -255,7 +273,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs)}
 .magic-inerte p{margin:0;font-size:12.5px;line-height:1.5;max-width:none}
 .magic-inerte strong{font-weight:600;color:var(--ink)}
-.lien-inline{background:none;border:0;padding:0;font:inherit;color:var(--accent);
+.lien-inline{background:none;border:0;padding:0;font:inherit;color:var(--accent-dark);
   text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 /* Version repliable : l'accordéon porte lui-même son cadre, le bloc ne fait
    qu'espacer. Sans ça le fond dégradé et la bordure se doubleraient. */
@@ -297,7 +315,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .acc-sub{font-size:12px;color:var(--muted-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .acc-badge{flex:none;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted);background:var(--bg-deep);
   border:1px solid var(--line-faint);border-radius:99px;padding:3px 9px;white-space:nowrap}
-.acc-chev{flex:none;color:var(--muted-2);line-height:0;transition:transform .2s var(--ease)}
+.acc-chev{flex:none;color:var(--ornement);line-height:0;transition:transform .2s var(--ease)}
 .acc[data-open="true"] .acc-chev{transform:rotate(180deg)}
 .acc-panel{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .25s var(--ease),opacity .25s var(--ease)}
 .acc[data-open="true"] .acc-panel{grid-template-rows:1fr;opacity:1}
@@ -332,7 +350,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .audit-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--paper);border:1px solid var(--line);
   border-radius:10px;padding:11px 13px;margin-bottom:7px;transition:all .15s}
 .audit-row:hover{border-color:var(--accent);transform:translateX(2px)}
-.audit-row .ar-dot{width:7px;height:7px;border-radius:99px;background:var(--muted-2);flex:none}
+.audit-row .ar-dot{width:7px;height:7px;border-radius:99px;background:var(--ornement);flex:none}
 .audit-row.grave .ar-dot{background:var(--danger)}
 .audit-row.ia .ar-dot{background:var(--gold)}
 .audit-row .ar-txt{flex:1;min-width:0}
@@ -457,7 +475,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .pastille{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);cursor:pointer;transition:transform .12s}
 .pastille:hover{transform:scale(1.08)}
 .pastille.on{box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ink)}
-.poignee{flex:none;color:var(--muted-2);line-height:0;cursor:grab;padding:2px}
+.poignee{flex:none;color:var(--ornement);line-height:0;cursor:grab;padding:2px}
 .btn-ordre{flex:none;width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;
   color:var(--ink-soft);background:var(--bg-deep);border:1px solid var(--line);transition:all .14s}
 .btn-ordre:hover:not(:disabled){background:var(--ink);color:#F2EFE7;border-color:var(--ink)}
