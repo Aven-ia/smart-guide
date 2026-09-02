@@ -1,13 +1,13 @@
 /* Le numéro de cache change à chaque modification de cette liste : sans ça, un
    appareil déjà installé garderait l'ancien précache et n'irait jamais chercher
    les nouveaux fichiers. */
-const CACHE='smart-guide-v4.1.0';
-/* LE PREMIER ÉCRAN NE SE CHARGE PAS EN DEUX FOIS. « bob-trois-quarts » est sur
-   le tableau de bord vierge, c'est-à-dire la toute première chose qu'un gérant
-   voit : sans précache, un premier lancement hors ligne lui montre un cadre
-   vide. « bob-carte » n'apparaît qu'à une recherche infructueuse — la mise en
-   cache paresseuse du gestionnaire de `fetch` suffit pour lui. */
-const CORE=['./index.html','./bob-trois-quarts.png'];
+const CACHE='smart-guide-v4.2.0';
+/* LE PREMIER ÉCRAN NE SE CHARGE PAS EN DEUX FOIS. « bob-carte » est dans
+   l'en-tête du tableau de bord : c'est la toute première chose qu'un gérant
+   voit, et sans précache un premier lancement hors ligne lui montrerait un
+   cadre vide. Les deux autres poses ne servent nulle part aujourd'hui — elles
+   ne sont ni ici, ni dans fichiers.txt. */
+const CORE=['./index.html','./bob-carte.png'];
 self.addEventListener('install',e=>{ self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).catch(()=>{})); });
 self.addEventListener('activate',e=>{ e.waitUntil((async()=>{ const ks=await caches.keys(); await Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))); await self.clients.claim(); })()); });
 self.addEventListener('fetch',e=>{
