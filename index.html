@@ -624,6 +624,10 @@ body.avec-alerte{padding-bottom:210px}
 .recherche-vide .rv-s{font-size:13px;color:var(--ink-faint);margin:0 0 12px;line-height:1.5}
 @media(max-width:560px){ .recherche-vide{flex-direction:column;text-align:center;padding:22px 20px}
   .recherche-vide img{height:88px} }
+.entete-perso{display:flex;align-items:flex-end;gap:16px;min-width:0}
+.entete-perso>img{height:104px;width:auto;flex:none;object-fit:contain;object-position:bottom;margin-bottom:-6px}
+@media(max-width:560px){ .entete-perso>img{height:72px;gap:12px} }
+@media(max-width:430px){ .entete-perso>img{display:none} }
 </style>
 </head>
 <body>
@@ -2575,22 +2579,32 @@ function renderDash(){
   app.innerHTML = topbar() + `
   <div class="view dash">
     <div class="dash-head">
-      <div>
+      ${/* LE PERSONNAGE EST À CÔTÉ DU TITRE, PAS DANS LA BARRE COLLANTE. Une pose
+           de 90 à 110 px dans une barre de 60 px la doublerait — et cette barre
+           est présente sur tous les écrans, donc elle repousserait tout le
+           contenu vers le bas partout. Ici il s'aligne sur le bloc de titre,
+           dont il fait exactement la hauteur : rien ne se décale.
+           « onerror » comme ailleurs : un ornement qui échoue disparaît. */''}
+      <div class="entete-perso">
+        <img src="bob-carte.png" alt="" width="352" height="512" onerror="this.remove()">
+        <div>
         <div class="kicker">${esc(S.settings.conciergerie||'Votre conciergerie')}</div>
         <h1 class="dash-title">Vos logements</h1>
         <p class="dash-sub">Chaque logement génère son livret d'accueil complet ainsi que les guides d'arrivée, de départ et de la maison — en plusieurs langues.</p>
+        </div>
       </div>
       <button class="btn btn-dark btn-lg" onclick="newLogement()">${I('plus',15)} Nouveau logement</button>
     </div>
 
     ${S.logements.length===0 ? `
       <div class="empty-hero">
-        ${/* Le personnage remplace le logo : la place existait déjà, ce n'est pas
-             un ajout. Cet écran n'est vu qu'une fois, au tout premier lancement —
-             c'est le seul endroit où une mascotte ne peut pas devenir du bruit.
-             Chargée en URL relative, jamais en base64 : le fichier servi ferait
-             55 ko de plus, sur chaque ouverture, pour un écran vu une fois. */''}
-        <img class="mascotte-hero" src="bob-trois-quarts.png" alt="" width="321" height="512" onerror="this.remove()">
+        ${/* LE PERSONNAGE EST DANS L'EN-TÊTE, IL N'A PAS À ÊTRE ICI AUSSI. Il y a
+             été un temps, quand l'en-tête ne le portait pas ; mesuré à l'écran,
+             les deux se retrouvaient sur le même tableau de bord vierge, l'un
+             au-dessus de l'autre. Une mascotte deux fois sur un écran, c'est
+             le bruit qu'on cherchait à éviter en la plaçant. Le logo reprend
+             sa place, et le personnage reste unique. */''}
+        ${logoSVG(50,'#66795A')}
         <h2>Créez votre premier livret</h2>
         <p>Trois minutes suffisent : ajoutez un logement, collez vos notes en vrac, laissez l'IA composer un livret soigné.</p>
         <div class="empty-steps">
@@ -2624,7 +2638,6 @@ function renderDash(){
              ça se lit comme un bug alors que l'écran fait son travail. Le
              personnage est un ornement : s'il manque, il disparaît, et le
              message reste. Vaut pour toute panne, pas seulement celle-là. */''}
-        <img src="bob-carte.png" alt="" width="352" height="512" onerror="this.remove()">
         <div>
           <p class="rv-t">Aucun logement ne correspond à « ${esc(route.search)} »</p>
           <p class="rv-s">Vos ${S.logements.length} logements sont toujours là — c'est la recherche qui ne trouve rien.</p>
