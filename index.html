@@ -577,6 +577,18 @@ body.avec-alerte{padding-bottom:210px}
 .lien-partage{font-size:13.5px;font-weight:600;word-break:break-all;margin:0;color:var(--accent-dark)}
 @media(max-width:420px){ .adr-ligne{flex-direction:column} .adr-prefixe{max-width:none;border-right:0;
   border-bottom:1px solid var(--line-faint);padding:6px 10px} }
+.pct-so{font-size:9.5px;letter-spacing:0;text-transform:none;opacity:.72;white-space:nowrap}
+.ctrl-liste{list-style:none;margin:-8px 0 14px;padding:0 11px}
+.ctrl-t{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted-2);margin:9px 0 3px}
+.ctrl-t:first-child{margin-top:0}
+.ctrl-l{display:flex;align-items:baseline;gap:8px;justify-content:space-between;font-size:11.5px;
+  color:var(--muted);line-height:1.45;padding:2.5px 0}
+.ctrl-l.off span:first-child{text-decoration:line-through;opacity:.6}
+.ctrl-so{font-size:10.5px;color:var(--accent-dark);flex:none;opacity:0;transition:opacity .14s;
+  text-decoration:underline;text-underline-offset:2px}
+.ctrl-l:hover .ctrl-so,.ctrl-so:focus{opacity:1}
+@media(hover:none){ .ctrl-so{opacity:1} }
 </style>
 </head>
 <body>
@@ -1221,6 +1233,11 @@ const defaultLogement = () => ({
      le logement d'un autre. Même raison que le local_id qui survit à la
      suppression. */
   partage:{ actif:false, slug:null, anciens:[], publieLe:null },
+  /* Les contrôles que le gérant a déclarés sans objet pour CE logement. Un
+     appartement sans wifi n'est pas un livret incomplet, c'est un livret qui
+     n'a pas de wifi à annoncer. La liste est vide par défaut, et un livret
+     enregistré avant l'existence du champ la reçoit vide à la lecture. */
+  sansObjet:[],
   urgences:[], faq:[], services:[], publicUrl:'',
   translations:{}, geo:null, audit:null,
 });
@@ -2437,20 +2454,57 @@ function topbar(inner=''){
    comptait l'autre case. Aucun de ses livrets ne pouvait dépasser 87,5 %.
    La fusion existait déjà pour l'accès (code OU instructions) ; elle manquait
    ici, même besoin, même forme. */
-function completeness(l){
-  const checks=[!!l.nom, !!(l.arrivee.codeAcces||l.arrivee.instructions), !!l.wifi.ssid, l.photos.length>0,
-    l.equipements.some(e=>e.nom), l.recos.length>0, !!(l.contacts.hote||l.contacts.tel),
-    !!(l.accroche||l.bienvenue)];
-  return Math.round(checks.filter(Boolean).length/checks.length*100);
+/* LES HUIT CONTRÔLES, NOMMÉS. C'était un tableau de booléens anonymes : on ne
+   pouvait ni dire au gérant lequel manque, ni lui laisser en écarter un.
+   DEUX NE S'ÉCARTENT JAMAIS — le nom et le contact. Un voyageur doit savoir
+   où il est et pouvoir joindre quelqu'un ; aucun logement au monde n'a de
+   raison légitime de s'en passer. Les six autres décrivent des choses qui
+   peuvent réellement ne pas exister : un studio sans wifi, une maison isolée
+   sans commerces, des clés remises en main propre. */
+const CONTROLES = [
+  { id:'nom',         libelle:'un nom',                    ok:l=>!!l.nom },
+  { id:'arrivee',     libelle:'comment entrer',            ok:l=>!!(l.arrivee.codeAcces||l.arrivee.instructions), ecartable:true },
+  { id:'wifi',        libelle:'un wifi',                   ok:l=>!!l.wifi.ssid,                                   ecartable:true },
+  { id:'photos',      libelle:'des photos',                ok:l=>l.photos.length>0,                               ecartable:true },
+  { id:'equipements', libelle:'des équipements',           ok:l=>l.equipements.some(e=>e.nom),                     ecartable:true },
+  { id:'quartier',    libelle:'des adresses de quartier',  ok:l=>l.recos.length>0,                                ecartable:true },
+  { id:'contacts',    libelle:'un contact',                ok:l=>!!(l.contacts.hote||l.contacts.tel) },
+  { id:'accroche',    libelle:'un mot de bienvenue',       ok:l=>!!(l.accroche||l.bienvenue),                      ecartable:true },
+];
+/* « Prêt » se compte en contrôles, pas en pourcentage. Voir bilanControles(). */
+const CONTROLES_PRET = 6;
+
+function bilanControles(l){
+  const ecartes=new Set(l&&l.sansObjet||[]);
+  const retenus=CONTROLES.filter(c=>!(c.ecartable && ecartes.has(c.id)));
+  const remplis=retenus.filter(c=>c.ok(l));
+  return {
+    retenus, manquants:retenus.filter(c=>!c.ok(l)),
+    remplis:remplis.length,
+    sansObjet:CONTROLES.length-retenus.length,
+    /* Le pourcentage porte sur les contrôles RETENUS : écarter le wifi d'un
+       logement qui n'en a pas ne doit pas le plafonner à 88 % pour toujours. */
+    pct: retenus.length ? Math.round(remplis.length/retenus.length*100) : 100,
+    /* « PRÊT » NE SE FABRIQUE PAS EN COCHANT « SANS OBJET ». Le seuil porte sur
+       les contrôles RÉELLEMENT REMPLIS, jamais sur le pourcentage — sinon un
+       livret presque vide dont on écarte six contrôles afficherait 100 % et se
+       dirait prêt à être envoyé. Le pourcentage mesure l'avancement du gérant ;
+       le seuil mesure ce que le voyageur va réellement trouver. */
+    pret: remplis.length >= CONTROLES_PRET,
+  };
 }
+function completeness(l){ return bilanControles(l).pct; }
 function renderDash(){
   const q=(route.search||'').toLowerCase();
   const list=S.logements.filter(l=>!q || (l.nom+' '+l.ville).toLowerCase().includes(q));
-  const nbComplete=S.logements.filter(l=>completeness(l)>=80).length;
+  /* Comptait les livrets à 80 % ou plus, c'est-à-dire 7 contrôles sur 8. Le
+     seuil porte désormais sur les contrôles réellement remplis : un livret
+     dont on a écarté des contrôles ne devient pas prêt pour autant. */
+  const nbComplete=S.logements.filter(l=>bilanControles(l).pret).length;
   const nbLangs=new Set(S.logements.flatMap(l=>Object.keys(l.translations||{}))).size;
 
   const cards=list.map(l=>{
-    const cover=l.photos[0], pc=completeness(l);
+    const cover=l.photos[0], bil=bilanControles(l), pc=bil.pct;
     return `
     <div class="prop-card" onclick="openLogement('${l.id}')">
       <div class="prop-cover">
@@ -2472,7 +2526,11 @@ function renderDash(){
           <span class="prop-date">${timeAgo(l.updatedAt)}</span>
           <div style="display:flex;align-items:center;gap:8px">
             <div class="pbar"><span style="width:${pc}%"></span></div>
-            <span class="pct">${pc}%</span>
+            ${/* « 100 % » tout court mentirait sur un livret dont trois contrôles
+                 ont été écartés : le gérant lirait la même chose que sur un
+                 livret réellement complet. Le pourcentage dit l'avancement, la
+                 mention dit sur quoi il porte. */''}
+            <span class="pct">${pc}%${bil.sansObjet?`<span class="pct-so"> · ${bil.sansObjet} sans objet</span>`:''}</span>
           </div>
         </div>
       </div>
@@ -2574,17 +2632,57 @@ function progressRing(pc){
   </div>`;
 }
 function sidebarHTML(l){
-  const pc=completeness(l);
+  const bil=bilanControles(l);
+  const ecartes=new Set(l.sansObjet||[]);
+  /* Dire CE QUI MANQUE, et offrir la sortie dans la même ligne. Un gérant à qui
+     l'on répète « 88 % » sans jamais nommer le contrôle qui bloque finit par
+     ignorer le chiffre ; et celui dont le studio n'a pas de wifi n'a aucun
+     moyen d'atteindre 100 %, donc le compteur cesse de vouloir dire quelque
+     chose pour lui. */
+  const manquants=bil.manquants.map(c=>`
+        <li class="ctrl-l">
+          <span>${esc(c.libelle)}</span>
+          ${c.ecartable?`<button class="ctrl-so" onclick="basculerSansObjet('${c.id}')" title="Ce logement n'est pas concerné">Sans objet</button>`:''}
+        </li>`).join('');
+  const rendus=CONTROLES.filter(c=>ecartes.has(c.id)).map(c=>`
+        <li class="ctrl-l off">
+          <span>${esc(c.libelle)}</span>
+          <button class="ctrl-so" onclick="basculerSansObjet('${c.id}')" title="Remettre ce contrôle">Rétablir</button>
+        </li>`).join('');
   return `
       <div class="side-progress">
-        ${progressRing(pc)}
-        <div class="txts"><div class="t1">${esc(l.nom||'Nouveau logement')}</div><div class="t2">${pc<100?'Livret en cours':'Livret complet'}</div></div>
+        ${progressRing(bil.pct)}
+        <div class="txts"><div class="t1">${esc(l.nom||'Nouveau logement')}</div>
+          <div class="t2">${bil.pret?'Livret prêt':'Livret en cours'}${bil.sansObjet?` · ${bil.sansObjet} sans objet`:''}</div></div>
       </div>
+      ${/* Sans intitulé, « des équipements » flottait sous le nom du logement et
+           ne disait rien : le lecteur voyait « SAINT-MICHEL / Livret prêt / des
+           équipements » sans savoir ce que la dernière ligne affirmait. */''}
+      ${(manquants||rendus)?`<ul class="ctrl-liste">
+        ${manquants?`<li class="ctrl-t">Il manque</li>${manquants}`:''}
+        ${rendus?`<li class="ctrl-t">Sans objet ici</li>${rendus}`:''}
+      </ul>`:''}
       ${SECTIONS.map((s,i)=>`
         <button class="side-item ${route.section===s.id?'active':''}" onclick="goSection('${s.id}')">
           <span class="side-num">${String(i+1).padStart(2,'0')}</span>${I(s.icon,14)}<span class="lb">${s.label}</span>
           ${sectionDone(l,s.id)?'<span class="dot"></span>':''}
         </button>`).join('')}`;
+}
+/* Rendu CHIRURGICAL : on redessine la barre latérale, jamais la page. Un
+   render() global ramènerait le défilement en haut alors que le gérant vient de
+   cliquer sur une ligne — c'est le bug du lot 1, et il ne revient pas. */
+function basculerSansObjet(id){
+  const l=cur(); if(!l) return;
+  const c=CONTROLES.find(x=>x.id===id);
+  if(!c||!c.ecartable) return;
+  const liste=new Set(l.sansObjet||[]);
+  liste.has(id) ? liste.delete(id) : liste.add(id);
+  /* On garde l'ordre des contrôles plutôt que celui des clics : la liste
+     affichée ne se réordonne pas dans le dos du gérant. */
+  l.sansObjet=CONTROLES.filter(x=>liste.has(x.id)).map(x=>x.id);
+  touch(l);
+  const hote=document.getElementById('side-host');
+  if(hote) hote.innerHTML=sidebarHTML(l);
 }
 function renderEditor(){
   const l=cur(); if(!l){ go('dash'); return; }
