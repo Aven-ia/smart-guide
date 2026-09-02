@@ -136,8 +136,6 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .prop-cover{height:158px;background:linear-gradient(150deg,var(--accent-mist),var(--accent-soft));display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
 .prop-cover img{width:100%;height:100%;object-fit:cover;transition:transform .5s var(--ease)}
 .prop-card:hover .prop-cover img{transform:scale(1.045)}
-.prop-chip{position:absolute;top:11px;left:11px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;
-  background:rgba(28,30,24,.78);backdrop-filter:blur(6px);color:#F2EFE7;padding:4.5px 9px;border-radius:6px;text-transform:uppercase}
 .prop-menu-btn{position:absolute;top:9px;right:9px;width:29px;height:29px;border-radius:8px;display:flex;align-items:center;justify-content:center;
   background:rgba(255,255,255,.88);backdrop-filter:blur(6px);color:var(--ink-soft);opacity:0;transition:all .18s;box-shadow:var(--sh-xs)}
 .prop-card:hover .prop-menu-btn{opacity:1}
@@ -2456,8 +2454,15 @@ function renderDash(){
     return `
     <div class="prop-card" onclick="openLogement('${l.id}')">
       <div class="prop-cover">
+        ${/* La pastille du thème disait « LICHEN » sur les 31 livrets du client :
+             une seule valeur en base, donc le même mot répété 31 fois, qui occupe
+             de la place et ne distingue rien. Le réglage existe et sert ; c'est
+             son AFFICHAGE ici qui ne servait pas.
+             Pas de variante conditionnelle « seulement si plusieurs thèmes » : un
+             tableau de bord qui change de forme selon les données déroute plus que
+             l'un ou l'autre de ses deux états, et un gérant qui a deux thèmes les
+             reconnaît à la couverture de la carte, pas à une étiquette de 9 px. */''}
         ${cover?`<img src="${cover.dataUrl}" alt="">`:logoSVG(36,'#66795A')}
-        <span class="prop-chip">${esc(TEMPLATES.find(t=>t.id===l.templateId)?.nom||'')}</span>
         <button class="prop-menu-btn" onclick="logementMenu(event,'${l.id}')">${I('dots',15)}</button>
       </div>
       <div class="prop-body">
