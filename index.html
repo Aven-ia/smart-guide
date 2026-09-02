@@ -2572,7 +2572,7 @@ function renderDash(){
              c'est le seul endroit où une mascotte ne peut pas devenir du bruit.
              Chargée en URL relative, jamais en base64 : le fichier servi ferait
              55 ko de plus, sur chaque ouverture, pour un écran vu une fois. */''}
-        <img class="mascotte-hero" src="bob-trois-quarts.png" alt="" width="321" height="512">
+        <img class="mascotte-hero" src="bob-trois-quarts.png" alt="" width="321" height="512" onerror="this.remove()">
         <h2>Créez votre premier livret</h2>
         <p>Trois minutes suffisent : ajoutez un logement, collez vos notes en vrac, laissez l'IA composer un livret soigné.</p>
         <div class="empty-steps">
@@ -2600,7 +2600,13 @@ function renderDash(){
            que rendre l'écran habité. */''}
       ${(route.search && !list.length) ? `
       <div class="recherche-vide">
-        <img src="bob-carte.png" alt="" width="352" height="512">
+        ${/* UNE IMAGE QUI ÉCHOUE NE LAISSE PAS UNE BOÎTE. Mesuré hors ligne,
+             serveur éteint : le navigateur dessinait un cadre bordé avec son
+             glyphe d'image cassée, à côté d'un message parfaitement lisible —
+             ça se lit comme un bug alors que l'écran fait son travail. Le
+             personnage est un ornement : s'il manque, il disparaît, et le
+             message reste. Vaut pour toute panne, pas seulement celle-là. */''}
+        <img src="bob-carte.png" alt="" width="352" height="512" onerror="this.remove()">
         <div>
           <p class="rv-t">Aucun logement ne correspond à « ${esc(route.search)} »</p>
           <p class="rv-s">Vos ${S.logements.length} logements sont toujours là — c'est la recherche qui ne trouve rien.</p>
