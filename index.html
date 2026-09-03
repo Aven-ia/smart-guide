@@ -1550,13 +1550,15 @@ function bloquerEcriture(){
    dans surface(). Ce n'est pas une règle à retenir, c'est une impossibilité.
    Le hook pre-commit refuse tout dbSet(CLE_PRINCIPALE) écrit ailleurs. */
 function rendusAJour(){
+  let faits=0;
   for(const l of S.logements){
     const publie = !!(l.partage && l.partage.actif && l.partage.slug);
-    if(!publie){ if(l.rendu) l.rendu=null; continue; }
+    if(!publie){ if(l.rendu){ l.rendu=null; faits++; } continue; }
     if(l.rendu && l.rendu.pour===l.updatedAt) continue;      // déjà à jour
-    try{ l.rendu={ html:rendrePourLeLien(l), pour:l.updatedAt, le:new Date().toISOString() }; }
+    try{ l.rendu={ html:rendrePourLeLien(l), pour:l.updatedAt, le:new Date().toISOString() }; faits++; }
     catch(e){ /* un rendu qui échoue ne doit pas empêcher d'enregistrer */ }
   }
+  return faits;
 }
 /* LA PHOTO N'EST PAS INCORPORÉE DANS LE HTML RANGÉ. Mesuré sur PERRET : le
    rendu pèse 272 ko avec la photo et 56 ko sans — la ranger doublerait le
@@ -5895,8 +5897,16 @@ function createDemo(){
       S=saved;
       S.settings=Object.assign({apiKey:'',model:'claude-haiku-4-5',conciergerie:'',derniereExport:0,derniereSynchro:0,rappelReporte:0},S.settings);
       S.logements.forEach(migrateLogement);
-      // Les catégories devinées à la lecture sont réécrites une bonne fois en base.
-      if(migrationsAppliquees) save();
+      /* UN LIVRET PUBLIÉ SANS RENDU RESTERAIT SANS RENDU. persister() le calcule
+         à chaque écriture, mais rien ne déclenche d'écriture à l'ouverture : la
+         sauvegarde de démarrage ne part que si une MIGRATION a changé quelque
+         chose, et completerDefauts n'en est pas une. Un livret publié avant
+         l'existence du champ — ou depuis un appareil resté sur une version
+         antérieure — gardait donc l'ancienne page indéfiniment, et le gérant
+         n'avait aucun moyen de le savoir.
+         On répare à l'ouverture, une fois, et on enregistre. */
+      const rendusPoses=rendusAJour();
+      if(migrationsAppliquees||rendusPoses) save();
     }catch(e){
       // Une donnée inattendue ne doit jamais faire repartir l'app à vide :
       // on garde ce qui a été lu et on interdit l'écriture.
