@@ -98,6 +98,12 @@
      d'erreur : deux rôles opposés dès qu'on inverse le thème. Le fond du toast
      reste sombre dans les deux modes, l'encre s'éclaircit. */
   --danger-fond:#7E3A28;
+  --lavis-1:rgba(102,121,90,.075); --lavis-2:rgba(185,141,63,.055);
+  /* Deux voiles vivaient dans des règles responsives et n'apparaissaient qu'en
+     colonne étroite : c'est le balayage du contraste qui les a trouvés, pas la
+     relecture — la barre latérale repliée gardait un fond crème et ses
+     libellés tombaient à 1,21. */
+  --voile-fort:rgba(245,242,235,.92);
   --danger:#B0523B; --danger-soft:#F8EAE5;
   --gold:#B98D3F;
   --serif:'Fraunces',Georgia,serif; --mono:'IBM Plex Mono',monospace; --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
@@ -132,28 +138,44 @@
    son rôle qui compte — l'accent lisible — pas la lettre de son nom. */
 :root[data-theme="dark"], :root[data-theme="dark"] *{color-scheme:dark}
 :root[data-theme="dark"]{
-  --bg:#191B16; --bg-deep:#121410; --paper:#23261F; --paper-warm:#272B22; --paper-haut:#2B2F25;
-  --ink:#F1EEE6; --ink-soft:#CFCCC0; --ink-faint:#A9A69A;
-  --accent:#8FA57E; --accent-dark:#A7BB94; --accent-deep:#C1D0AF;
-  --accent-soft:#2E3628; --accent-mist:#262D21;
-  --accent-tint:#242B1F; --accent-tint-2:#28301F; --accent-tint-3:#333C2B;
-  --accent-bord:#3F4A35; --accent-bord-fort:#556149;
-  --accent-clair:#70845F; --accent-clair-2:#78906B; --accent-fonce:#525F3F; --accent-vif:#8FA57E;
-  --line:#33372C; --line-soft:#3E4335; --line-faint:#2A2E24;
-  --muted:#C0BCAE; --muted-2:#A5A194; --ornement:#6E6A5C;
-  --fond-ink:#2C3028; --sur-ink:#F1EEE6; --ink-hover:#3A3F33;
-  --surface-haute:#31352A;
-  --placeholder:#7C786B; --bord-survol:#4A4E40;
-  --danger:#D98A6E; --danger-soft:#33211C; --danger-deep:#E8A48F;
-  --danger-pale:#2E1E19; --danger-bord:#5A382E; --danger-vif:#D98A6E;
-  --voile:rgba(25,27,22,.86); --voile-doux:rgba(25,27,22,.6);
-  --voile-haut:rgba(255,255,255,.05); --voile-haut-fort:rgba(43,47,37,.92);
-  --voile-haut-leger:rgba(255,255,255,.035); --voile-champ:rgba(18,20,16,.5);
-  --sh-xs:0 1px 2px rgba(0,0,0,.30);
-  --sh-sm:0 1px 2px rgba(0,0,0,.28),0 3px 10px rgba(0,0,0,.24);
-  --sh-md:0 2px 4px rgba(0,0,0,.26),0 8px 24px rgba(0,0,0,.30);
-  --sh-lg:0 4px 10px rgba(0,0,0,.32),0 24px 60px rgba(0,0,0,.45);
-  --sh-glow:0 0 0 3.5px rgba(143,165,126,.22);
+  /* NEUTRE, PAS OLIVE. La première version dérivait le sombre de l'identité
+     crème et olive : surfaces à teinte 84° et 10 % de saturation. Mesuré à
+     côté des interfaces qu'on trouve premium — Apple 3,4 %, Notion et Vercel
+     0 % — c'était deux à trois fois trop, et un jaune-vert par-dessus le
+     marché. Le client l'a dit avant nous : « c'est pas vraiment du noir,
+     c'est du vert sombre ».
+     Les surfaces passent à teinte 28° et 3 % : ça lit noir, avec juste ce
+     qu'il faut de chaleur pour rester le même produit. L'olive reste, mais
+     UNIQUEMENT dans l'accent — c'est ce qui fait tenir un thème sombre : une
+     seule couleur saturée sur un sol vraiment neutre. */
+  --bg:#121111; --bg-deep:#0C0B0B; --paper:#1C1B1A; --paper-warm:#21201F; --paper-haut:#262524;
+  --ink:#EFEDEC; --ink-soft:#CFCCC9; --ink-faint:#ADA8A4;
+  --accent:#97B47E; --accent-dark:#ACC398; --accent-deep:#C1D2B2;
+  /* Les surfaces teintées descendent à 5,5 % de saturation : la couverture
+     d'une vignette fait 158 px de haut, et un vert à 11 % sur un sol neutre
+     redevient une tache. Ce qui marche au clair ne se transpose pas tel quel. */
+  --accent-soft:#252723; --accent-mist:#1D1F1C;
+  --accent-tint:#1B1C19; --accent-tint-2:#20221E; --accent-tint-3:#2C2F2A;
+  --accent-bord:#3A3E37; --accent-bord-fort:#4F534B;
+  --accent-clair:#70845F; --accent-clair-2:#78906B; --accent-fonce:#525F3F; --accent-vif:#97B47E;
+  --line:#2D2B2A; --line-soft:#373534; --line-faint:#222120;
+  --muted:#C0BCB9; --muted-2:#A29E9A; --ornement:#6F6B67;
+  --fond-ink:#2A2928; --sur-ink:#EFEDEC; --sur-fonce:#EFEDEC; --ink-hover:#383635;
+  --surface-haute:#312F2E;
+  --placeholder:#7A7673; --bord-survol:#494644;
+  --danger:#E0937A; --danger-soft:#2C1F1B; --danger-deep:#EDA893;
+  --danger-pale:#241A17; --danger-bord:#54372E; --danger-vif:#E0937A;
+  /* Les lavis du fond deviennent presque incolores : c'est eux qui reverdissaient
+     tout l'écran quand le sol est sombre. */
+  --lavis-1:rgba(151,180,126,.035); --lavis-2:rgba(185,141,63,.022);
+  --voile:rgba(18,17,17,.88); --voile-doux:rgba(18,17,17,.62); --voile-fort:rgba(18,17,17,.94);
+  --voile-haut:rgba(255,255,255,.05); --voile-haut-fort:rgba(49,47,46,.94);
+  --voile-haut-leger:rgba(255,255,255,.035); --voile-champ:rgba(12,11,11,.55);
+  --sh-xs:0 1px 2px rgba(0,0,0,.38);
+  --sh-sm:0 1px 2px rgba(0,0,0,.34),0 3px 10px rgba(0,0,0,.30);
+  --sh-md:0 2px 4px rgba(0,0,0,.32),0 8px 24px rgba(0,0,0,.38);
+  --sh-lg:0 4px 10px rgba(0,0,0,.40),0 24px 60px rgba(0,0,0,.55);
+  --sh-glow:0 0 0 3.5px rgba(151,180,126,.24);
 }
 /* AUTOMATIQUE = SUIVRE L'APPAREIL, et le choix explicite prime toujours.
    Le garde `:not([data-theme="light"])` est ce qui permet à un gérant en mode
@@ -161,28 +183,44 @@
    chaque rendu par la préférence de l'appareil. */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#191B16; --bg-deep:#121410; --paper:#23261F; --paper-warm:#272B22; --paper-haut:#2B2F25;
-    --ink:#F1EEE6; --ink-soft:#CFCCC0; --ink-faint:#A9A69A;
-    --accent:#8FA57E; --accent-dark:#A7BB94; --accent-deep:#C1D0AF;
-    --accent-soft:#2E3628; --accent-mist:#262D21;
-    --accent-tint:#242B1F; --accent-tint-2:#28301F; --accent-tint-3:#333C2B;
-    --accent-bord:#3F4A35; --accent-bord-fort:#556149;
-    --accent-clair:#70845F; --accent-clair-2:#78906B; --accent-fonce:#525F3F; --accent-vif:#8FA57E;
-    --line:#33372C; --line-soft:#3E4335; --line-faint:#2A2E24;
-    --muted:#C0BCAE; --muted-2:#A5A194; --ornement:#6E6A5C;
-    --fond-ink:#2C3028; --sur-ink:#F1EEE6; --ink-hover:#3A3F33;
-    --surface-haute:#31352A;
-    --placeholder:#7C786B; --bord-survol:#4A4E40;
-    --danger:#D98A6E; --danger-soft:#33211C; --danger-deep:#E8A48F;
-    --danger-pale:#2E1E19; --danger-bord:#5A382E; --danger-vif:#D98A6E;
-    --voile:rgba(25,27,22,.86); --voile-doux:rgba(25,27,22,.6);
-    --voile-haut:rgba(255,255,255,.05); --voile-haut-fort:rgba(43,47,37,.92);
-    --voile-haut-leger:rgba(255,255,255,.035); --voile-champ:rgba(18,20,16,.5);
-    --sh-xs:0 1px 2px rgba(0,0,0,.30);
-    --sh-sm:0 1px 2px rgba(0,0,0,.28),0 3px 10px rgba(0,0,0,.24);
-    --sh-md:0 2px 4px rgba(0,0,0,.26),0 8px 24px rgba(0,0,0,.30);
-    --sh-lg:0 4px 10px rgba(0,0,0,.32),0 24px 60px rgba(0,0,0,.45);
-    --sh-glow:0 0 0 3.5px rgba(143,165,126,.22);
+    /* NEUTRE, PAS OLIVE. La première version dérivait le sombre de l'identité
+       crème et olive : surfaces à teinte 84° et 10 % de saturation. Mesuré à
+       côté des interfaces qu'on trouve premium — Apple 3,4 %, Notion et Vercel
+       0 % — c'était deux à trois fois trop, et un jaune-vert par-dessus le
+       marché. Le client l'a dit avant nous : « c'est pas vraiment du noir,
+       c'est du vert sombre ».
+       Les surfaces passent à teinte 28° et 3 % : ça lit noir, avec juste ce
+       qu'il faut de chaleur pour rester le même produit. L'olive reste, mais
+       UNIQUEMENT dans l'accent — c'est ce qui fait tenir un thème sombre : une
+       seule couleur saturée sur un sol vraiment neutre. */
+    --bg:#121111; --bg-deep:#0C0B0B; --paper:#1C1B1A; --paper-warm:#21201F; --paper-haut:#262524;
+    --ink:#EFEDEC; --ink-soft:#CFCCC9; --ink-faint:#ADA8A4;
+    --accent:#97B47E; --accent-dark:#ACC398; --accent-deep:#C1D2B2;
+    /* Les surfaces teintées descendent à 5,5 % de saturation : la couverture
+       d'une vignette fait 158 px de haut, et un vert à 11 % sur un sol neutre
+       redevient une tache. Ce qui marche au clair ne se transpose pas tel quel. */
+    --accent-soft:#252723; --accent-mist:#1D1F1C;
+    --accent-tint:#1B1C19; --accent-tint-2:#20221E; --accent-tint-3:#2C2F2A;
+    --accent-bord:#3A3E37; --accent-bord-fort:#4F534B;
+    --accent-clair:#70845F; --accent-clair-2:#78906B; --accent-fonce:#525F3F; --accent-vif:#97B47E;
+    --line:#2D2B2A; --line-soft:#373534; --line-faint:#222120;
+    --muted:#C0BCB9; --muted-2:#A29E9A; --ornement:#6F6B67;
+    --fond-ink:#2A2928; --sur-ink:#EFEDEC; --sur-fonce:#EFEDEC; --ink-hover:#383635;
+    --surface-haute:#312F2E;
+    --placeholder:#7A7673; --bord-survol:#494644;
+    --danger:#E0937A; --danger-soft:#2C1F1B; --danger-deep:#EDA893;
+    --danger-pale:#241A17; --danger-bord:#54372E; --danger-vif:#E0937A;
+    /* Les lavis du fond deviennent presque incolores : c'est eux qui reverdissaient
+       tout l'écran quand le sol est sombre. */
+    --lavis-1:rgba(151,180,126,.035); --lavis-2:rgba(185,141,63,.022);
+    --voile:rgba(18,17,17,.88); --voile-doux:rgba(18,17,17,.62); --voile-fort:rgba(18,17,17,.94);
+    --voile-haut:rgba(255,255,255,.05); --voile-haut-fort:rgba(49,47,46,.94);
+    --voile-haut-leger:rgba(255,255,255,.035); --voile-champ:rgba(12,11,11,.55);
+    --sh-xs:0 1px 2px rgba(0,0,0,.38);
+    --sh-sm:0 1px 2px rgba(0,0,0,.34),0 3px 10px rgba(0,0,0,.30);
+    --sh-md:0 2px 4px rgba(0,0,0,.32),0 8px 24px rgba(0,0,0,.38);
+    --sh-lg:0 4px 10px rgba(0,0,0,.40),0 24px 60px rgba(0,0,0,.55);
+    --sh-glow:0 0 0 3.5px rgba(151,180,126,.24);
   }
   :root:not([data-theme="light"]){color-scheme:dark}
 }
@@ -196,9 +234,12 @@ html,body{min-height:100%}
 body{
   font-family:var(--sans);color:var(--ink);font-size:14.5px;line-height:1.5;
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  /* Les deux lavis du fond sont eux aussi des jetons : sur un fond crème ils
+     réchauffent, sur un fond sombre ils reverdissent tout l'écran. C'est en
+     partie ce qui donnait l'impression de « vert sombre » plutôt que de noir. */
   background:
-    radial-gradient(1200px 500px at 85% -8%, rgba(102,121,90,.075), transparent 60%),
-    radial-gradient(900px 480px at -10% 4%, rgba(185,141,63,.055), transparent 55%),
+    radial-gradient(1200px 500px at 85% -8%, var(--lavis-1), transparent 60%),
+    radial-gradient(900px 480px at -10% 4%, var(--lavis-2), transparent 55%),
     var(--bg);
   background-attachment:fixed;
 }
@@ -462,7 +503,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .photo-item:hover .ovl{opacity:1}
 .photo-item .ovl-top{display:flex;justify-content:flex-end}
 .photo-item .ovl-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:5px}
-.pbtn{background:rgba(255,255,255,.93);color:var(--ink-soft);border-radius:7px;padding:5px;line-height:0;transition:all .13s;box-shadow:var(--sh-xs)}
+.pbtn{background:var(--voile-haut-fort);color:var(--ink-soft);border-radius:7px;padding:5px;line-height:0;transition:all .13s;box-shadow:var(--sh-xs)}
 .pbtn:hover{background:var(--surface-haute);color:var(--ink)}
 .pbtn.danger:hover{color:var(--danger)}
 .pbtn.txt{font-size:10.5px;padding:5px 9px;line-height:1.2;font-weight:550}
@@ -679,7 +720,7 @@ body.avec-alerte{padding-bottom:210px}
     padding:8px calc(12px + var(--safe-r)) 8px calc(12px + var(--safe-l));
     border-right:none;border-bottom:1px solid var(--line);
     overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;
-    background:rgba(245,242,235,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+    background:var(--voile-fort);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
   .sidebar::-webkit-scrollbar{display:none}
   .side-progress{display:none}
   .side-num{display:none}
@@ -1753,7 +1794,7 @@ function appliquerTheme(choix){
   /* La barre du navigateur sur mobile suit, sinon elle reste crème au-dessus
      d'une application sombre — et ça se voit plus qu'un défaut d'interface. */
   const m=document.getElementById('meta-theme');
-  if(m) m.setAttribute('content', themeEffectif()==='dark' ? '#191B16' : '#F5F2EB');
+  if(m) m.setAttribute('content', themeEffectif()==='dark' ? '#121111' : '#F5F2EB');
 }
 /* En « automatique », l'écran suit l'appareil SANS RECHARGEMENT : le CSS le
    fait déjà seul, mais la barre du navigateur, elle, ne se met pas à jour. */
