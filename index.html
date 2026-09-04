@@ -4,7 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Smart Guide — Livrets d'accueil</title>
-<meta name="theme-color" content="#F5F2EB">
+<meta name="theme-color" content="#F5F2EB" id="meta-theme">
+<!-- LE THÈME S'APPLIQUE AVANT LE PREMIER PIXEL. Placé plus bas, il y aurait un
+     éclair blanc à chaque ouverture pour un gérant en mode sombre — et cet
+     éclair, on le voit à toutes les ouvertures, tous les jours.
+     C'est aussi pourquoi ce script est en clair dans le <head> et non dans le
+     script principal : il doit s'exécuter avant que la feuille de style ne
+     peigne quoi que ce soit.
+     Le thème est une préférence D'APPAREIL, pas de compte : il vit dans
+     localStorage et ne monte jamais dans le nuage. Un gérant peut vouloir
+     sombre sur son iPad le soir et clair sur son Mac au bureau. -->
+<script>
+(function(){
+  try{
+    var c=localStorage.getItem('sg-theme');
+    if(c==='dark'||c==='light') document.documentElement.setAttribute('data-theme',c);
+  }catch(e){}
+})();
+</script>
 <meta name="description" content="Créez des livrets d'accueil premium et multilingues pour vos locations — remplissage par IA, QR wifi, recommandations de quartier, exports PDF.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -43,6 +60,44 @@
      poignées, croix de fermeture, pastille d'audit. Une icône vise 3:1, pas
      4,5:1 — et l'assombrir sans raison alourdirait l'interface. */
   --ornement:#ABA698;
+  /* LES RÔLES QUI ÉTAIENT ÉCRITS EN DUR. Mesuré avant de les nommer : 88 hex et
+     33 rgba dans la feuille, dont 39 règles mêlant un jeton et un littéral. Un
+     thème sombre qui ne bascule que les jetons aurait laissé ces 39 règles en
+     clair — texte blanc sur blanc pour la moitié. Les littéraux ne jouaient
+     pourtant qu'une dizaine de rôles : on les nomme, et le thème n'a plus qu'un
+     seul endroit à basculer. Même geste que --ornement, même geste que
+     surface() : la couleur ne s'écrit pas là où elle s'emploie. */
+  --sur-accent:#FFFFFF;      /* encre sur un bouton accentué — reste blanche partout */
+  --sur-fonce:#F2EFE7;       /* encre sur une surface foncée : pastille, jeton, toast */
+  --sur-ink:#F5F2EB;         /* encre sur le bouton d'encre, qui s'inverse au sombre */
+  --surface-haute:#FFFFFF;   /* surface surélevée au-dessus du fond : segment actif, focus */
+  --accent-bord:#C6CFB8; --accent-bord-fort:#AFBC9D;
+  --accent-tint:#EEF2E5; --accent-tint-2:#E9EDDF; --accent-tint-3:#DCE3D0;
+  --paper-haut:#F9FAF5;      /* papier un cran plus clair que --paper */
+  --danger-deep:#7E3A28; --danger-pale:#F7EDE9;
+  /* Le dégradé du bouton accentué finissait sur --accent-dark, qui est une
+     couleur d'ENCRE : au sombre elle s'éclaircit, et le blanc du libellé
+     tombait à 3,2. Le bouton a maintenant ses deux arrêts à lui, sombres dans
+     les deux thèmes — mesuré à la hauteur des glyphes, pas à l'arrêt extrême. */
+  --accent-clair:#70845F; --accent-clair-2:#78906B; --accent-fonce:#525F3F; --accent-vif:#8CA07A;
+  /* --INK SERVAIT DE DEUX CHOSES : l'encre principale, et le fond des surfaces
+     sombres — pastille de marque, bouton d'encre, section active, toast. Au
+     sombre l'encre devient presque blanche, et ces surfaces devenaient blanches
+     avec du texte blanc dessus. Troisième collision de rôle du même type, après
+     le rouge et les gris : une couleur qui sert de fond ET d'encre ne peut pas
+     s'inverser. Le fond sombre reste sombre dans les deux thèmes. */
+  --fond-ink:#22251E;
+  --ink-hover:#343830;       /* le bouton d'encre au survol */
+  --voile:rgba(245,242,235,.86); --voile-doux:rgba(245,242,235,.6);   /* barre et colonne */
+  --voile-haut:rgba(255,255,255,.5); --voile-haut-fort:rgba(255,255,255,.88);
+  --voile-haut-leger:rgba(255,255,255,.35); --voile-champ:rgba(255,255,255,.85);
+  --placeholder:#B8B3A4; --bord-survol:#CCC6B4;
+  --accent-pale:#A9BC96;     /* pastille et icône sur fond foncé */
+  --danger-vif:#B0523B; --danger-bord:#E7C5B8; --danger-clair:#F0B9A8;
+  /* --danger-deep était à la fois l'encre rouge sombre ET le fond du toast
+     d'erreur : deux rôles opposés dès qu'on inverse le thème. Le fond du toast
+     reste sombre dans les deux modes, l'encre s'éclaircit. */
+  --danger-fond:#7E3A28;
   --danger:#B0523B; --danger-soft:#F8EAE5;
   --gold:#B98D3F;
   --serif:'Fraunces',Georgia,serif; --mono:'IBM Plex Mono',monospace; --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
@@ -60,6 +115,81 @@
   --safe-l:env(safe-area-inset-left,0px);
   --safe-r:env(safe-area-inset-right,0px);
 }
+
+/* ===================== THÈME SOMBRE =====================
+   TOUT SE JOUE ICI, ET NULLE PART AILLEURS. Les 88 couleurs écrites en dur ont
+   été promues en jetons juste au-dessus, précisément pour que ce bloc soit le
+   SEUL endroit qui bascule. Une règle qui redéfinirait une couleur en sombre
+   au lieu de redéfinir un jeton recréerait la divergence qu'on vient de
+   supprimer — c'est le même raisonnement que surface().
+
+   Le livret n'est PAS concerné : livretHTML n'emploie que --encre-douce et
+   --encre-discrete, produits par surface() depuis le thème choisi par le
+   gérant. Vérifié avant d'écrire ce bloc. Ce que voit le voyageur ne dépend
+   donc pas du thème de l'interface, et un lien déjà envoyé ne bouge pas.
+
+   « --accent-dark » garde son nom mais devient plus CLAIR que le fond : c'est
+   son rôle qui compte — l'accent lisible — pas la lettre de son nom. */
+:root[data-theme="dark"], :root[data-theme="dark"] *{color-scheme:dark}
+:root[data-theme="dark"]{
+  --bg:#191B16; --bg-deep:#121410; --paper:#23261F; --paper-warm:#272B22; --paper-haut:#2B2F25;
+  --ink:#F1EEE6; --ink-soft:#CFCCC0; --ink-faint:#A9A69A;
+  --accent:#8FA57E; --accent-dark:#A7BB94; --accent-deep:#C1D0AF;
+  --accent-soft:#2E3628; --accent-mist:#262D21;
+  --accent-tint:#242B1F; --accent-tint-2:#28301F; --accent-tint-3:#333C2B;
+  --accent-bord:#3F4A35; --accent-bord-fort:#556149;
+  --accent-clair:#70845F; --accent-clair-2:#78906B; --accent-fonce:#525F3F; --accent-vif:#8FA57E;
+  --line:#33372C; --line-soft:#3E4335; --line-faint:#2A2E24;
+  --muted:#C0BCAE; --muted-2:#A5A194; --ornement:#6E6A5C;
+  --fond-ink:#2C3028; --sur-ink:#F1EEE6; --ink-hover:#3A3F33;
+  --surface-haute:#31352A;
+  --placeholder:#7C786B; --bord-survol:#4A4E40;
+  --danger:#D98A6E; --danger-soft:#33211C; --danger-deep:#E8A48F;
+  --danger-pale:#2E1E19; --danger-bord:#5A382E; --danger-vif:#D98A6E;
+  --voile:rgba(25,27,22,.86); --voile-doux:rgba(25,27,22,.6);
+  --voile-haut:rgba(255,255,255,.05); --voile-haut-fort:rgba(43,47,37,.92);
+  --voile-haut-leger:rgba(255,255,255,.035); --voile-champ:rgba(18,20,16,.5);
+  --sh-xs:0 1px 2px rgba(0,0,0,.30);
+  --sh-sm:0 1px 2px rgba(0,0,0,.28),0 3px 10px rgba(0,0,0,.24);
+  --sh-md:0 2px 4px rgba(0,0,0,.26),0 8px 24px rgba(0,0,0,.30);
+  --sh-lg:0 4px 10px rgba(0,0,0,.32),0 24px 60px rgba(0,0,0,.45);
+  --sh-glow:0 0 0 3.5px rgba(143,165,126,.22);
+}
+/* AUTOMATIQUE = SUIVRE L'APPAREIL, et le choix explicite prime toujours.
+   Le garde `:not([data-theme="light"])` est ce qui permet à un gérant en mode
+   sombre système de forcer le clair — sans lui, son choix serait écrasé à
+   chaque rendu par la préférence de l'appareil. */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#191B16; --bg-deep:#121410; --paper:#23261F; --paper-warm:#272B22; --paper-haut:#2B2F25;
+    --ink:#F1EEE6; --ink-soft:#CFCCC0; --ink-faint:#A9A69A;
+    --accent:#8FA57E; --accent-dark:#A7BB94; --accent-deep:#C1D0AF;
+    --accent-soft:#2E3628; --accent-mist:#262D21;
+    --accent-tint:#242B1F; --accent-tint-2:#28301F; --accent-tint-3:#333C2B;
+    --accent-bord:#3F4A35; --accent-bord-fort:#556149;
+    --accent-clair:#70845F; --accent-clair-2:#78906B; --accent-fonce:#525F3F; --accent-vif:#8FA57E;
+    --line:#33372C; --line-soft:#3E4335; --line-faint:#2A2E24;
+    --muted:#C0BCAE; --muted-2:#A5A194; --ornement:#6E6A5C;
+    --fond-ink:#2C3028; --sur-ink:#F1EEE6; --ink-hover:#3A3F33;
+    --surface-haute:#31352A;
+    --placeholder:#7C786B; --bord-survol:#4A4E40;
+    --danger:#D98A6E; --danger-soft:#33211C; --danger-deep:#E8A48F;
+    --danger-pale:#2E1E19; --danger-bord:#5A382E; --danger-vif:#D98A6E;
+    --voile:rgba(25,27,22,.86); --voile-doux:rgba(25,27,22,.6);
+    --voile-haut:rgba(255,255,255,.05); --voile-haut-fort:rgba(43,47,37,.92);
+    --voile-haut-leger:rgba(255,255,255,.035); --voile-champ:rgba(18,20,16,.5);
+    --sh-xs:0 1px 2px rgba(0,0,0,.30);
+    --sh-sm:0 1px 2px rgba(0,0,0,.28),0 3px 10px rgba(0,0,0,.24);
+    --sh-md:0 2px 4px rgba(0,0,0,.26),0 8px 24px rgba(0,0,0,.30);
+    --sh-lg:0 4px 10px rgba(0,0,0,.32),0 24px 60px rgba(0,0,0,.45);
+    --sh-glow:0 0 0 3.5px rgba(143,165,126,.22);
+  }
+  :root:not([data-theme="light"]){color-scheme:dark}
+}
+/* L'APERÇU DU LIVRET GARDE SON PROPRE FOND, quel que soit le thème : c'est le
+   document du voyageur, pas une zone de l'interface. */
+:root[data-theme="dark"] .device, :root[data-theme="dark"] .poster-stage{color-scheme:light}
+
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 html,body{min-height:100%}
@@ -74,7 +204,7 @@ body{
 }
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 input,textarea,select{font-family:inherit;font-size:14.5px;color:var(--ink)}
-::placeholder{color:#B8B3A4}
+::placeholder{color:var(--placeholder)}
 ::selection{background:rgba(102,121,90,.22)}
 h1,h2,h3{font-weight:500}
 a{color:var(--accent-dark)}
@@ -90,12 +220,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;
   padding:calc(13px + var(--safe-t)) calc(26px + var(--safe-r)) 13px calc(26px + var(--safe-l));
   border-bottom:1px solid var(--line);position:sticky;top:0;z-index:80;
-  background:rgba(245,242,235,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  background:var(--voile);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .brand{display:flex;align-items:center;gap:11px;cursor:pointer;user-select:none}
 /* Le pictogramme reprend le traitement de l'icône d'application : même emblème,
    même pastille sombre à coins arrondis. Le gérant fait le lien entre l'icône
    de son écran d'accueil et l'en-tête de l'app. */
-.brand-mark{width:34px;height:34px;flex:none;border-radius:10px;background:var(--ink);color:#F2EFE7;
+.brand-mark{width:34px;height:34px;flex:none;border-radius:10px;background:var(--fond-ink);color:var(--sur-fonce);
   display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs);transition:transform .18s var(--ease)}
 .brand:hover .brand-mark{transform:translateY(-1px)}
 .brand:hover .brand-name{color:var(--accent-dark)}
@@ -115,12 +245,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
   padding:8.5px 15px;border-radius:9px;transition:all .16s var(--ease);white-space:nowrap;letter-spacing:.005em}
 .btn:active{transform:scale(.97)}
 .btn svg{flex:none}
-.btn-dark{background:var(--ink);color:#F5F2EB;box-shadow:var(--sh-xs), inset 0 1px 0 rgba(255,255,255,.07)}
-.btn-dark:hover{background:#343830;box-shadow:var(--sh-sm)}
-.btn-accent{background:linear-gradient(180deg,#70845F,var(--accent-dark));color:#fff;box-shadow:var(--sh-xs), inset 0 1px 0 rgba(255,255,255,.14)}
-.btn-accent:hover{background:linear-gradient(180deg,#78906B,var(--accent-dark));box-shadow:var(--sh-sm)}
-.btn-ghost{color:var(--accent-dark);border:1px solid #C6CFB8;background:rgba(255,255,255,.5)}
-.btn-ghost:hover{background:var(--accent-mist);border-color:#AFBC9D}
+.btn-dark{background:var(--fond-ink);color:var(--sur-ink);box-shadow:var(--sh-xs), inset 0 1px 0 rgba(255,255,255,.07)}
+.btn-dark:hover{background:var(--ink-hover);box-shadow:var(--sh-sm)}
+.btn-accent{background:linear-gradient(180deg,var(--accent-clair),var(--accent-fonce));color:var(--sur-accent);box-shadow:var(--sh-xs), inset 0 1px 0 rgba(255,255,255,.14)}
+.btn-accent:hover{background:linear-gradient(180deg,var(--accent-clair-2),var(--accent-fonce));box-shadow:var(--sh-sm)}
+.btn-ghost{color:var(--accent-dark);border:1px solid var(--accent-bord);background:var(--voile-haut)}
+.btn-ghost:hover{background:var(--accent-mist);border-color:var(--accent-bord-fort)}
 .btn-plain{color:var(--ink-soft)}
 .btn-plain:hover{background:var(--bg-deep)}
 .btn-danger{color:var(--danger)}
@@ -150,14 +280,14 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(305px,1fr));gap:20px}
 .prop-card{background:var(--paper);border:1px solid var(--line);border-radius:17px;overflow:hidden;cursor:pointer;
   transition:all .22s var(--ease);box-shadow:var(--sh-sm);text-align:left;display:flex;flex-direction:column;position:relative}
-.prop-card:hover{transform:translateY(-3px);box-shadow:var(--sh-lg);border-color:#CBD3BD}
+.prop-card:hover{transform:translateY(-3px);box-shadow:var(--sh-lg);border-color:var(--accent-bord)}
 .prop-cover{height:158px;background:linear-gradient(150deg,var(--accent-mist),var(--accent-soft));display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
 .prop-cover img{width:100%;height:100%;object-fit:cover;transition:transform .5s var(--ease)}
 .prop-card:hover .prop-cover img{transform:scale(1.045)}
 .prop-menu-btn{position:absolute;top:9px;right:9px;width:29px;height:29px;border-radius:8px;display:flex;align-items:center;justify-content:center;
-  background:rgba(255,255,255,.88);backdrop-filter:blur(6px);color:var(--ink-soft);opacity:0;transition:all .18s;box-shadow:var(--sh-xs)}
+  background:var(--voile-haut-fort);backdrop-filter:blur(6px);color:var(--ink-soft);opacity:0;transition:all .18s;box-shadow:var(--sh-xs)}
 .prop-card:hover .prop-menu-btn{opacity:1}
-.prop-menu-btn:hover{background:#fff;color:var(--ink)}
+.prop-menu-btn:hover{background:var(--surface-haute);color:var(--ink)}
 .prop-body{padding:17px 19px 18px;flex:1;display:flex;flex-direction:column}
 .prop-name{font-family:var(--serif);font-size:19px;margin-bottom:4px;line-height:1.2}
 .prop-city{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:5px}
@@ -173,13 +303,13 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
    mesure 56,70 px sur 90, soit exactement les 63 % affichés à côté. */
 .prop-jauge{display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:0}
 .pbar{height:4px;border-radius:99px;background:var(--line-faint);overflow:hidden;flex:1;max-width:90px}
-.pbar>span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),#8CA07A);transition:width .5s var(--ease)}
+.pbar>span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent-vif));transition:width .5s var(--ease)}
 .pct{font-family:var(--mono);font-size:10px;color:var(--ink-faint)}
 .new-card{border:1.5px dashed var(--line-soft);border-radius:17px;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:11px;min-height:255px;color:var(--muted);cursor:pointer;transition:all .2s;background:rgba(255,255,255,.35)}
+  gap:11px;min-height:255px;color:var(--muted);cursor:pointer;transition:all .2s;background:var(--voile-haut-leger)}
 .new-card:hover{border-color:var(--accent);color:var(--accent-dark);background:var(--accent-mist);transform:translateY(-2px)}
 .new-card .plus-ring{width:44px;height:44px;border-radius:99px;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;transition:all .2s}
-.new-card:hover .plus-ring{background:var(--accent);border-color:var(--accent);color:#fff}
+.new-card:hover .plus-ring{background:var(--accent);border-color:var(--accent);color:var(--surface-haute)}
 
 /* Empty hero */
 .empty-hero{background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:64px 44px;text-align:center;box-shadow:var(--sh-md);position:relative;overflow:hidden}
@@ -206,7 +336,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 /* ---------- Éditeur ---------- */
 .editor{display:flex;flex:1;min-height:0}
 .sidebar{width:242px;flex:none;border-right:1px solid var(--line);padding:20px 13px 26px;display:flex;flex-direction:column;gap:2px;
-  position:sticky;top:calc(var(--tb) + var(--safe-t));height:calc(100vh - var(--tb) - var(--safe-t));overflow-y:auto;background:rgba(245,242,235,.6);
+  position:sticky;top:calc(var(--tb) + var(--safe-t));height:calc(100vh - var(--tb) - var(--safe-t));overflow-y:auto;background:var(--voile-doux);
   /* Sans z-index, la barre est collante mais reste sous les éléments positionnés
      de la fiche, qui viennent après elle dans le document : au défilement, un
      paragraphe de carte peint par-dessus et avale le clic. Le fond translucide
@@ -220,12 +350,12 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .side-progress .t2{font-size:11px;color:var(--muted)}
 .side-item{display:flex;align-items:center;gap:10px;width:100%;padding:8.5px 11px;border-radius:9px;font-size:13.5px;color:var(--ink-soft);transition:all .14s;text-align:left;position:relative}
 .side-item:hover{background:var(--bg-deep)}
-.side-item.active{background:var(--ink);color:#F2EFE7;box-shadow:var(--sh-xs)}
+.side-item.active{background:var(--fond-ink);color:var(--sur-fonce);box-shadow:var(--sh-xs)}
 .side-num{font-family:var(--mono);font-size:9.5px;width:16px;opacity:.45;flex:none}
 .side-item.active .side-num{opacity:.65}
 .side-item svg{flex:none;opacity:.85}
 .side-item .dot{margin-left:auto;width:6px;height:6px;border-radius:99px;background:var(--accent);flex:none;transition:all .2s}
-.side-item.active .dot{background:#A9BC96}
+.side-item.active .dot{background:var(--accent-pale)}
 .editor-main{flex:1;min-width:0;padding:32px 40px 100px;display:flex;justify-content:center}
 .editor-inner{width:100%;max-width:680px}
 
@@ -240,8 +370,8 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);margin-bottom:7px}
 .field .hint{font-family:var(--sans);font-size:12px;color:var(--muted-2);text-transform:none;letter-spacing:0;display:block;margin-top:2.5px;font-weight:400}
 .input,.textarea,select.input{width:100%;background:var(--paper-warm);border:1px solid var(--line-soft);border-radius:9px;padding:10px 13px;transition:all .16s}
-.input:hover,.textarea:hover{border-color:#CCC6B4}
-.input:focus,.textarea:focus,select.input:focus{outline:none;border-color:var(--accent);box-shadow:var(--sh-glow);background:#fff}
+.input:hover,.textarea:hover{border-color:var(--bord-survol)}
+.input:focus,.textarea:focus,select.input:focus{outline:none;border-color:var(--accent);box-shadow:var(--sh-glow);background:var(--surface-haute)}
 .textarea{resize:vertical;min-height:76px;line-height:1.6}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:15px}
 .subcard{border:1px solid var(--line);background:var(--paper-warm);border-radius:11px;padding:13px;display:flex;flex-direction:column;gap:10px;transition:border-color .18s}
@@ -251,25 +381,25 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .nav-btns{display:flex;justify-content:space-between;margin-top:20px}
 .ai-note{font-size:12.5px;color:var(--muted);line-height:1.5}
 .err{font-size:12.5px;color:var(--danger)}
-.ai-box{background:linear-gradient(180deg,var(--accent-mist),#F7F8F2);border:1px solid #DCE3D0;border-radius:11px;padding:13px 15px}
+.ai-box{background:linear-gradient(180deg,var(--accent-mist),var(--paper-haut));border:1px solid var(--accent-tint-3);border-radius:11px;padding:13px 15px}
 .ai-box .lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-dark);margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .pill-group{display:flex;gap:7px;flex-wrap:wrap}
 .pill{font-size:12.5px;font-weight:500;padding:7px 14px;border-radius:99px;border:1px solid var(--line-soft);background:var(--paper-warm);color:var(--ink-soft);transition:all .15s}
 .pill:hover{border-color:var(--accent)}
-.pill.on{background:var(--ink);border-color:var(--ink);color:#F2EFE7;box-shadow:var(--sh-xs)}
+.pill.on{background:var(--fond-ink);border-color:var(--ink);color:var(--sur-fonce);box-shadow:var(--sh-xs)}
 
 /* ---------- Import magique ---------- */
-.magic{border:1px solid #D3DCC5;border-radius:16px;padding:22px 25px;margin-bottom:20px;position:relative;overflow:hidden;
-  background:linear-gradient(160deg,#EEF2E5 0%,#F9FAF5 55%,#F4EFE3 100%);box-shadow:var(--sh-sm)}
+.magic{border:1px solid var(--accent-bord);border-radius:16px;padding:22px 25px;margin-bottom:20px;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,var(--accent-tint) 0%,var(--paper-haut) 55%,var(--bg-deep) 100%);box-shadow:var(--sh-sm)}
 .magic::after{content:'';position:absolute;top:-40px;right:-40px;width:150px;height:150px;border-radius:99px;
   background:radial-gradient(circle,rgba(102,121,90,.13),transparent 65%)}
 .magic h3{font-family:var(--serif);font-size:18.5px;display:flex;align-items:center;gap:10px;font-weight:500}
-.magic h3 .wico{width:30px;height:30px;border-radius:9px;background:var(--ink);color:#E9EDDF;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs)}
+.magic h3 .wico{width:30px;height:30px;border-radius:9px;background:var(--fond-ink);color:var(--accent-tint-2);display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs)}
 .magic p{font-size:13px;color:var(--ink-soft);margin:9px 0 13px;line-height:1.55;max-width:520px}
-.magic .textarea{background:rgba(255,255,255,.85)}
+.magic .textarea{background:var(--voile-champ)}
 /* Version inerte (aucune clé API) : une ligne, l'usage d'abord. */
 .magic-inerte{display:flex;align-items:flex-start;gap:11px;padding:12px 15px}
-.magic-inerte .wico{width:26px;height:26px;flex:none;border-radius:8px;background:var(--ink);color:#E9EDDF;
+.magic-inerte .wico{width:26px;height:26px;flex:none;border-radius:8px;background:var(--fond-ink);color:var(--accent-tint-2);
   display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs)}
 .magic-inerte p{margin:0;font-size:12.5px;line-height:1.5;max-width:none}
 .magic-inerte strong{font-weight:600;color:var(--ink)}
@@ -278,17 +408,17 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 /* Version repliable : l'accordéon porte lui-même son cadre, le bloc ne fait
    qu'espacer. Sans ça le fond dégradé et la bordure se doubleraient. */
 .magic-acc{margin-bottom:20px}
-.magic-acc .acc{border-color:#D3DCC5;background:linear-gradient(160deg,#EEF2E5 0%,#F9FAF5 55%,#F4EFE3 100%)}
+.magic-acc .acc{border-color:var(--accent-bord);background:linear-gradient(160deg,var(--accent-tint) 0%,var(--paper-haut) 55%,var(--bg-deep) 100%)}
 
 /* ---------- Bibliothèque d'équipements ---------- */
-.lib-open{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:1.5px solid #D3DCC5;border-radius:13px;padding:15px 17px;
-  background:linear-gradient(160deg,#EEF2E5,#FBFCF8);transition:all .17s var(--ease);box-shadow:var(--sh-xs)}
+.lib-open{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:1.5px solid var(--accent-bord);border-radius:13px;padding:15px 17px;
+  background:linear-gradient(160deg,var(--accent-tint),var(--paper-haut));transition:all .17s var(--ease);box-shadow:var(--sh-xs)}
 .lib-open:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--sh-sm)}
-.lib-ico{width:40px;height:40px;border-radius:12px;background:var(--ink);color:#E9EDDF;display:flex;align-items:center;justify-content:center;flex:none}
+.lib-ico{width:40px;height:40px;border-radius:12px;background:var(--fond-ink);color:var(--accent-tint-2);display:flex;align-items:center;justify-content:center;flex:none}
 .lib-txt{flex:1;display:flex;flex-direction:column;gap:2px}
 .lib-txt strong{font-size:14.5px;font-weight:600}
 .lib-txt span{font-size:12.5px;color:var(--ink-faint)}
-.lib-arrow{width:30px;height:30px;border-radius:99px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.lib-arrow{width:30px;height:30px;border-radius:99px;background:var(--accent);color:var(--surface-haute);display:flex;align-items:center;justify-content:center;flex:none}
 .lib-modal{display:flex;flex-direction:column;max-height:86vh}
 .lib-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
 .lib-body{flex:1;overflow-y:auto;margin:12px -6px 0;padding:0 6px}
@@ -298,9 +428,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .lib-chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;padding:8px 13px;border-radius:99px;
   border:1px solid var(--line-soft);background:var(--paper);color:var(--ink-soft);transition:all .14s}
 .lib-chip:hover{border-color:var(--accent);color:var(--accent-dark)}
-.lib-chip.on{background:var(--ink);border-color:var(--ink);color:#F2EFE7;box-shadow:var(--sh-xs)}
-.lib-chip.used{opacity:.42;cursor:default;background:var(--accent-mist);border-color:#CFD9C2;color:var(--accent-dark)}
-.lib-chip.used:hover{border-color:#CFD9C2}
+.lib-chip.on{background:var(--fond-ink);border-color:var(--ink);color:var(--sur-fonce);box-shadow:var(--sh-xs)}
+.lib-chip.used{opacity:.42;cursor:default;background:var(--accent-mist);border-color:var(--accent-bord);color:var(--accent-dark)}
+.lib-chip.used:hover{border-color:var(--accent-bord)}
 
 /* ---------- Accordéons (rythme repris de CollapsibleSection — Smart Host) ---------- */
 .acc{border:1px solid var(--line);border-radius:14px;background:var(--paper);overflow:hidden;transition:box-shadow .18s var(--ease)}
@@ -327,19 +457,19 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
 .photo-item{position:relative;border-radius:11px;overflow:hidden;border:1px solid var(--line);aspect-ratio:4/3;background:var(--bg-deep)}
 .photo-item img{width:100%;height:100%;object-fit:cover;display:block}
-.photo-item .tag{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;background:rgba(28,30,24,.82);backdrop-filter:blur(4px);color:#F2EFE7;padding:3.5px 8px;border-radius:5px}
+.photo-item .tag{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;background:rgba(28,30,24,.82);backdrop-filter:blur(4px);color:var(--sur-fonce);padding:3.5px 8px;border-radius:5px}
 .photo-item .ovl{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,22,17,.45),transparent 40%,transparent 62%,rgba(20,22,17,.5));opacity:0;transition:opacity .18s;display:flex;flex-direction:column;justify-content:space-between;padding:7px}
 .photo-item:hover .ovl{opacity:1}
 .photo-item .ovl-top{display:flex;justify-content:flex-end}
 .photo-item .ovl-bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:5px}
 .pbtn{background:rgba(255,255,255,.93);color:var(--ink-soft);border-radius:7px;padding:5px;line-height:0;transition:all .13s;box-shadow:var(--sh-xs)}
-.pbtn:hover{background:#fff;color:var(--ink)}
+.pbtn:hover{background:var(--surface-haute);color:var(--ink)}
 .pbtn.danger:hover{color:var(--danger)}
 .pbtn.txt{font-size:10.5px;padding:5px 9px;line-height:1.2;font-weight:550}
-.drop{border:1.5px dashed var(--line-soft);border-radius:13px;padding:32px;text-align:center;color:var(--muted);cursor:pointer;transition:all .18s;font-size:13.5px;background:rgba(255,255,255,.4)}
+.drop{border:1.5px dashed var(--line-soft);border-radius:13px;padding:32px;text-align:center;color:var(--muted);cursor:pointer;transition:all .18s;font-size:13.5px;background:var(--voile-haut)}
 .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-mist);color:var(--accent-dark)}
 .drop .dico{width:42px;height:42px;border-radius:12px;background:var(--accent-mist);color:var(--accent-dark);display:inline-flex;align-items:center;justify-content:center;margin-bottom:10px;transition:all .18s}
-.drop:hover .dico{background:var(--accent);color:#fff}
+.drop:hover .dico{background:var(--accent);color:var(--surface-haute)}
 
 /* ---------- Audit ---------- */
 .audit-hero{display:flex;align-items:center;gap:20px;margin:18px 0 4px;padding:16px 18px;background:var(--paper);border:1px solid var(--line);border-radius:14px}
@@ -363,11 +493,11 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .poster-layout{display:grid;grid-template-columns:220px 1fr;gap:18px;margin-top:16px;flex:1;min-height:0}
 .poster-list{display:flex;flex-direction:column;gap:8px}
 .poster-item{display:flex;align-items:center;gap:11px;text-align:left;border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;transition:all .15s;background:var(--paper)}
-.poster-item:hover{border-color:#C6CFB8}
+.poster-item:hover{border-color:var(--accent-bord)}
 .poster-item.on{border-color:var(--accent);background:var(--accent-mist);box-shadow:var(--sh-glow)}
 .poster-item.off{opacity:.42;cursor:default}
 .poster-item .pi-ico{width:32px;height:32px;border-radius:9px;background:var(--accent-mist);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;flex:none}
-.poster-item.on .pi-ico{background:var(--accent);color:#fff}
+.poster-item.on .pi-ico{background:var(--accent);color:var(--surface-haute)}
 .poster-item strong{display:block;font-size:13.5px;font-weight:600}
 .poster-item span span{font-size:11.5px;color:var(--muted);line-height:1.35;display:block;margin-top:1px}
 .poster-stage{background:var(--bg-deep);border-radius:14px;padding:18px;display:flex;align-items:flex-start;justify-content:center;overflow:auto;max-height:52vh}
@@ -384,14 +514,14 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .wp-veil{position:absolute;inset:0;transition:opacity .18s}
 .wp-ctrl{flex:1;min-width:200px;display:flex;flex-direction:column;justify-content:center}
 .wp-range{width:100%;-webkit-appearance:none;appearance:none;height:5px;border-radius:99px;background:var(--line);outline:none}
-.wp-range::-webkit-slider-thumb{-webkit-appearance:none;width:19px;height:19px;border-radius:99px;background:var(--accent);border:3px solid #fff;box-shadow:var(--sh-sm);cursor:pointer}
-.wp-range::-moz-range-thumb{width:15px;height:15px;border-radius:99px;background:var(--accent);border:3px solid #fff;cursor:pointer}
-.ck-box{width:22px;height:22px;border-radius:6px;border:1.5px solid #C6CFB8;color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none;background:var(--accent-mist)}
+.wp-range::-webkit-slider-thumb{-webkit-appearance:none;width:19px;height:19px;border-radius:99px;background:var(--accent);border:3px solid var(--surface-haute);box-shadow:var(--sh-sm);cursor:pointer}
+.wp-range::-moz-range-thumb{width:15px;height:15px;border-radius:99px;background:var(--accent);border:3px solid var(--surface-haute);cursor:pointer}
+.ck-box{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--accent-bord);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none;background:var(--accent-mist)}
 
 /* ---------- Habillage ---------- */
 .tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .tpl-card{text-align:left;border-radius:14px;border:2px solid var(--line);padding:0;transition:all .18s var(--ease);cursor:pointer;overflow:hidden;position:relative}
-.tpl-card:hover{border-color:#C0C9B0;transform:translateY(-2px);box-shadow:var(--sh-md)}
+.tpl-card:hover{border-color:var(--accent-bord);transform:translateY(-2px);box-shadow:var(--sh-md)}
 .tpl-card.sel{border-color:var(--accent);box-shadow:var(--sh-glow)}
 .tpl-mini{padding:16px 16px 13px}
 .tpl-mini .mini-cover{border-radius:8px;height:56px;margin-bottom:10px;display:flex;align-items:flex-end;padding:9px 11px;position:relative;overflow:hidden}
@@ -399,10 +529,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .tpl-meta{padding:0 16px 14px;display:flex;align-items:center;justify-content:space-between}
 .tpl-name{font-family:var(--serif);font-size:15.5px;font-weight:500}
 .tpl-desc{font-size:11.5px;opacity:.6;margin-top:1px}
-.tpl-sel-badge{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:99px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs);animation:menuIn .2s}
+.tpl-sel-badge{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:99px;background:var(--accent);color:var(--surface-haute);display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-xs);animation:menuIn .2s}
 .cover-styles{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
 .cs-card{border:2px solid var(--line);border-radius:11px;padding:11px;cursor:pointer;transition:all .16s;text-align:center;background:var(--paper-warm)}
-.cs-card:hover{border-color:#C0C9B0}
+.cs-card:hover{border-color:var(--accent-bord)}
 .cs-card.sel{border-color:var(--accent);box-shadow:var(--sh-glow)}
 .cs-card .cs-pre{height:52px;border-radius:6px;background:var(--bg-deep);margin-bottom:8px;position:relative;overflow:hidden}
 .cs-card p{font-size:11.5px;font-weight:550;color:var(--ink-soft)}
@@ -415,7 +545,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .osm-row .ds{font-size:12px;color:var(--muted);margin-top:1px}
 .osm-row .add{margin-left:auto;flex:none}
 .osm-ico{width:32px;height:32px;border-radius:10px;background:var(--accent-mist);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;flex:none}
-.skel{height:52px;border-radius:10px;background:linear-gradient(90deg,var(--line-faint) 25%,#F6F3EC 50%,var(--line-faint) 75%);background-size:200% 100%;animation:shimmer 1.3s infinite}
+.skel{height:52px;border-radius:10px;background:linear-gradient(90deg,var(--line-faint) 25%,var(--bg-deep) 50%,var(--line-faint) 75%);background-size:200% 100%;animation:shimmer 1.3s infinite}
 @keyframes shimmer{to{background-position:-200% 0}}
 
 /* ---------- Modales ---------- */
@@ -430,11 +560,17 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 
 /* ---------- Aperçu ---------- */
 .preview-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 26px;border-bottom:1px solid var(--line);
-  background:rgba(245,242,235,.86);backdrop-filter:blur(14px);position:sticky;top:calc(var(--tb) + var(--safe-t));z-index:70;flex-wrap:wrap}
+  background:var(--voile);backdrop-filter:blur(14px);position:sticky;top:calc(var(--tb) + var(--safe-t));z-index:70;flex-wrap:wrap}
 .seg{display:inline-flex;background:var(--bg-deep);border-radius:10px;padding:3px;gap:2px}
 .seg button{font-size:12.5px;padding:6.5px 13px;border-radius:8px;color:var(--ink-soft);font-weight:500;transition:all .16s;display:inline-flex;align-items:center;gap:6px}
 .seg button:hover{color:var(--ink)}
-.seg button.on{background:#fff;color:var(--ink);box-shadow:var(--sh-xs)}
+.seg button.on{background:var(--surface-haute);color:var(--ink);box-shadow:var(--sh-xs)}
+/* Le segment du thème épouse ses trois boutons. « inline-flex » ne suffisait
+   pas : la fiche est une colonne flex, et un enfant de colonne s'étire sur
+   toute la largeur par défaut. C'est align-self qui l'en empêche — mesuré à
+   548 px pour 300 px de contenu avant de le poser. */
+.seg-theme{display:inline-flex;align-self:flex-start;flex-wrap:wrap}
+@media(max-width:430px){ .seg-theme{display:flex;width:100%} .seg-theme button{flex:1;justify-content:center;padding:8px 6px} }
 .preview-wrap{flex:1;overflow-y:auto;background:
   radial-gradient(800px 400px at 70% -5%, rgba(102,121,90,.08), transparent 60%), var(--bg-deep);padding-bottom:80px}
 .device{margin:36px auto 30px;border-radius:20px;overflow:hidden;box-shadow:var(--sh-lg);transition:max-width .35s var(--ease);border:1px solid rgba(34,37,30,.09)}
@@ -448,9 +584,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
    clic. Ils flottent au-dessus du contenu et rendaient inatteignables les
    boutons situés derrière eux pendant leurs 3 secondes d'affichage. */
 #toasts{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;gap:9px;align-items:center;pointer-events:none}
-.toast{background:var(--ink);color:#F2EFE7;font-size:13.5px;padding:12px 19px;border-radius:12px;box-shadow:var(--sh-lg);display:flex;align-items:center;gap:10px;animation:toastIn .3s var(--ease);max-width:90vw}
-.toast .tico{color:#A9BC96;line-height:0;flex:none}
-.toast.error{background:#7E3A28}.toast.error .tico{color:#F0B9A8}
+.toast{background:var(--fond-ink);color:var(--sur-fonce);font-size:13.5px;padding:12px 19px;border-radius:12px;box-shadow:var(--sh-lg);display:flex;align-items:center;gap:10px;animation:toastIn .3s var(--ease);max-width:90vw}
+.toast .tico{color:var(--accent-pale);line-height:0;flex:none}
+.toast.error{background:var(--danger-fond)}.toast.error .tico{color:var(--danger-clair)}
 @keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
 .spin{animation:spin 1s linear infinite;display:inline-flex;line-height:0}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -478,7 +614,7 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .poignee{flex:none;color:var(--ornement);line-height:0;cursor:grab;padding:2px}
 .btn-ordre{flex:none;width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;
   color:var(--ink-soft);background:var(--bg-deep);border:1px solid var(--line);transition:all .14s}
-.btn-ordre:hover:not(:disabled){background:var(--ink);color:#F2EFE7;border-color:var(--ink)}
+.btn-ordre:hover:not(:disabled){background:var(--fond-ink);color:var(--sur-fonce);border-color:var(--ink)}
 .btn-ordre:disabled{opacity:.3;cursor:default}
 @media(max-width:700px){ .ligne-ordre{gap:6px;padding:6px 7px} }
 
@@ -492,10 +628,10 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .guide-court{display:none}
 
 /* Alerte de lecture impossible — écriture bloquée pour ne rien écraser. */
-.savebadge.bloque{color:#7E3A28;border-color:#E7C5B8;background:#F8EAE5}
-.savebadge.bloque .pulse{background:#B0523B}
+.savebadge.bloque{color:var(--danger-deep);border-color:var(--danger-bord);background:var(--danger-soft)}
+.savebadge.bloque .pulse{background:var(--danger-vif)}
 .alerte-donnees{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:600;
-  max-width:min(560px,calc(100vw - 24px));background:#7E3A28;color:#F7EDE9;border-radius:14px;
+  max-width:min(560px,calc(100vw - 24px));background:var(--danger-fond);color:var(--danger-pale);border-radius:14px;
   padding:14px 18px;font-size:13.5px;line-height:1.55;box-shadow:var(--sh-lg)}
 /* La bannière ne capte AUCUN clic : seuls ses boutons le font. Une bannière
    en position fixe recouvre forcément ce qui défile dessous — réserver de la
@@ -505,13 +641,13 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{outline:none}
 .alerte-donnees{pointer-events:none}
 .alerte-donnees .btn{pointer-events:auto}
 .alerte-donnees strong{display:block;margin-bottom:3px;font-weight:600}
-.alerte-donnees.rappel{background:var(--ink);color:#F2EFE7}
+.alerte-donnees.rappel{background:var(--fond-ink);color:var(--sur-fonce)}
 /* La réserve de place est posée par ajusterPlaceAlerte(), qui MESURE la
    bannière : une valeur en dur finit toujours par être trop courte. */
 body.avec-alerte{padding-bottom:210px}
 .alerte-donnees .actions{display:flex;gap:8px;margin-top:10px}
-.alerte-donnees .actions .btn{background:#F2EFE7;color:var(--ink);font-weight:550}
-.alerte-donnees .actions .btn.ghost{background:transparent;color:#F2EFE7;box-shadow:inset 0 0 0 1px rgba(242,239,231,.35)}
+.alerte-donnees .actions .btn{background:var(--sur-fonce);color:var(--fond-ink);font-weight:550}
+.alerte-donnees .actions .btn.ghost{background:transparent;color:var(--sur-fonce);box-shadow:inset 0 0 0 1px rgba(242,239,231,.35)}
 
 /* ---------- Tablette : la sidebar garde ses libellés, seules les grilles se resserrent ---------- */
 @media(max-width:880px){
@@ -1588,6 +1724,44 @@ function save(){
 }
 function touch(l){ l.updatedAt=Date.now(); save(); }
 const cur = () => S.logements.find(l=>l.id===route.id);
+
+/* ---------------- Thème clair / sombre ----------------
+   TROIS ÉTATS, PAS DEUX. Un interrupteur ne sait pas dire « comme mon
+   appareil » — et c'est la réponse juste par défaut : un gérant qui a mis son
+   iPad en sombre le soir n'a rien à demander à l'application.
+   Le choix explicite prime toujours sur l'appareil, dans les deux sens : le
+   garde `:not([data-theme="light"])` du bloc @media est ce qui permet de
+   forcer le clair alors que le système est en sombre.
+   Préférence D'APPAREIL, jamais du compte : elle ne monte pas dans le nuage.
+   Le livret n'est pas concerné — livretHTML n'emploie que les jetons produits
+   par surface() depuis le thème choisi par le gérant pour ses voyageurs. */
+const THEMES = [
+  { id:'auto',  label:'Automatique', icon:'smartphone', aide:"Suit le réglage de votre appareil" },
+  { id:'light', label:'Clair',       icon:'sparkles',   aide:'' },
+  { id:'dark',  label:'Sombre',      icon:'eye',        aide:'' },
+];
+const CLE_THEME='sg-theme';
+const themeChoisi = () => { try{ const v=localStorage.getItem(CLE_THEME); return (v==='dark'||v==='light')?v:'auto'; }catch(e){ return 'auto'; } };
+/* Ce que l'écran affiche RÉELLEMENT, une fois « automatique » résolu. */
+const themeEffectif = () => { const c=themeChoisi();
+  return c!=='auto' ? c : (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'); };
+
+function appliquerTheme(choix){
+  try{ if(choix==='auto') localStorage.removeItem(CLE_THEME); else localStorage.setItem(CLE_THEME,choix); }catch(e){}
+  const r=document.documentElement;
+  if(choix==='auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme',choix);
+  /* La barre du navigateur sur mobile suit, sinon elle reste crème au-dessus
+     d'une application sombre — et ça se voit plus qu'un défaut d'interface. */
+  const m=document.getElementById('meta-theme');
+  if(m) m.setAttribute('content', themeEffectif()==='dark' ? '#191B16' : '#F5F2EB');
+}
+/* En « automatique », l'écran suit l'appareil SANS RECHARGEMENT : le CSS le
+   fait déjà seul, mais la barre du navigateur, elle, ne se met pas à jour. */
+try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{
+  if(themeChoisi()==='auto') appliquerTheme('auto');
+  if(route.view==='settings') renderSettings();
+}); }catch(e){}
+function choisirTheme(id){ appliquerTheme(id); if(route.view==='settings') renderSettings(); }
 
 /* ---------------- Détection de nouvelle version ----------------
    Une PWA installée sur iOS reprend la page en mémoire et peut rester des jours
@@ -5752,7 +5926,16 @@ function renderSettings(){
         <input type="file" id="logo-input" accept="image/*" style="display:none" onchange="addLogo(this.files[0]);this.value=''">
       </div>
     `)}
-    ${card('03','Vos données','Tout est stocké localement, dans ce navigateur, sur cet ordinateur',`
+    ${card('03','Apparence','Le réglage vaut pour cet appareil : il ne suit pas votre compte',`
+      <div class="seg seg-theme">
+        ${THEMES.map(t=>`<button class="${themeChoisi()===t.id?'on':''}" onclick="choisirTheme('${t.id}')">${I(t.icon,14)} ${t.label}</button>`).join('')}
+      </div>
+      <p class="ai-note" style="margin-top:10px">${themeChoisi()==='auto'
+        ? `Suit le réglage de votre appareil — actuellement <strong>${themeEffectif()==='dark'?'sombre':'clair'}</strong>.`
+        : 'Ce choix prime sur le réglage de votre appareil.'}</p>
+      <p class="ai-note">Vos livrets ne changent pas : leur habillage est celui que vous avez choisi pour vos voyageurs, dans la fiche « Habillage » de chaque logement.</p>
+    `)}
+    ${card('04','Vos données','Tout est stocké localement, dans ce navigateur, sur cet ordinateur',`
       <div class="inline-row" style="flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="backupData()">${I('download',14)} Sauvegarder (fichier .json)</button>
         <button class="btn btn-ghost" onclick="document.getElementById('restore-input').click()">${I('upload',14)} Restaurer une sauvegarde</button>
