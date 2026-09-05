@@ -106,7 +106,20 @@
   --voile-fort:rgba(245,242,235,.92);
   --danger:#B0523B; --danger-soft:#F8EAE5;
   --gold:#B98D3F;
-  --serif:'Fraunces',Georgia,serif; --mono:'IBM Plex Mono',monospace; --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  /* AUCUNE DE NOS TROIS POLICES NE COUVRE LE CHINOIS, LE JAPONAIS, LE CORÉEN,
+     L'ARABE NI L'HÉBREU. Fraunces et Inter n'ont pas ces glyphes : sans repli
+     nommé, le navigateur choisit seul, et le résultat va du passable au carré
+     vide selon la machine. On ne charge pas de police web pour autant — une
+     fonte chinoise pèse plusieurs mégaoctets, et le voyageur la téléchargerait
+     pour lire deux écrans. On nomme les polices SYSTÈME, qui sont déjà là :
+     PingFang et Hiragino sur Apple, Yahei et Malgun sur Windows, Noto ailleurs.
+     Le repli s'applique caractère par caractère : un titre français reste en
+     Fraunces même si la liste contient des polices chinoises. */
+  --cjk:'PingFang SC','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo','Microsoft YaHei','Malgun Gothic','Apple SD Gothic Neo','Noto Sans CJK SC','Noto Sans SC','Noto Sans JP','Noto Sans KR';
+  --rtl:'SF Arabic','Geeza Pro','Segoe UI','Tahoma','Noto Sans Arabic','Noto Sans Hebrew','Arial';
+  --serif:'Fraunces',var(--cjk),var(--rtl),Georgia,serif;
+  --mono:'IBM Plex Mono',var(--cjk),var(--rtl),monospace;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,var(--cjk),var(--rtl),sans-serif;
   --sh-xs:0 1px 2px rgba(34,37,30,.05);
   --sh-sm:0 1px 2px rgba(34,37,30,.04),0 3px 10px rgba(34,37,30,.05);
   --sh-md:0 2px 4px rgba(34,37,30,.04),0 8px 24px rgba(34,37,30,.07);
@@ -1301,13 +1314,30 @@ const MODELS = [
   { id:'claude-haiku-4-5',  label:'Claude Haiku — rapide & très économique (recommandé)' },
   { id:'claude-sonnet-4-6', label:'Claude Sonnet — qualité maximale (plus cher)' },
 ];
+/* LE NOM DE LA LANGUE EST ÉCRIT DANS LA LANGUE, jamais traduit : un voyageur
+   coréen cherche « 한국어 » dans une liste, pas « Coréen ». C'est la seule
+   convention qui marche pour quelqu'un qui ne lit pas la langue de l'interface.
+   `rtl` marque les langues qui s'écrivent de droite à gauche : ce n'est pas une
+   préférence d'affichage, c'est une propriété de la langue. */
 const LANGS = [
-  { id:'fr', label:'Français', flag:'FR' },
-  { id:'en', label:'English',  flag:'EN' },
-  { id:'es', label:'Español',  flag:'ES' },
-  { id:'de', label:'Deutsch',  flag:'DE' },
-  { id:'it', label:'Italiano', flag:'IT' },
+  { id:'fr', label:'Français',   flag:'FR' },
+  { id:'en', label:'English',    flag:'EN' },
+  { id:'es', label:'Español',    flag:'ES' },
+  { id:'de', label:'Deutsch',    flag:'DE' },
+  { id:'it', label:'Italiano',   flag:'IT' },
+  { id:'pt', label:'Português',  flag:'PT' },
+  { id:'nl', label:'Nederlands', flag:'NL' },
+  { id:'pl', label:'Polski',     flag:'PL' },
+  { id:'ru', label:'Русский',    flag:'RU' },
+  { id:'uk', label:'Українська', flag:'UA' },
+  { id:'tr', label:'Türkçe',     flag:'TR' },
+  { id:'zh', label:'中文',        flag:'ZH' },
+  { id:'ja', label:'日本語',      flag:'JA' },
+  { id:'ko', label:'한국어',       flag:'KO' },
+  { id:'ar', label:'العربية',      flag:'AR', rtl:true },
+  { id:'he', label:'עברית',       flag:'HE', rtl:true },
 ];
+const estRTL = id => !!(LANGS.find(x=>x.id===id)||{}).rtl;
 /* Libellés statiques du livret, par langue */
 const L10N = {
   fr:{ livret:"Livret d'accueil", arrivee:'Arrivée', horaires:'Horaires', services:'Nos services', depuis:'Arrivée à partir de', avant:'Départ avant', code:"Code d'accès", acces:'Accès',
@@ -1335,6 +1365,61 @@ const L10N = {
        regl:'Regole della casa', quartier:'Consigli', images:"L'alloggio in immagini", avantpartir:'Prima di partire',
        checklist:'Checklist', contact:'Contattaci', urgence:'Emergenza fuori orario', itineraire:'Percorso Google Maps', parking:'Parcheggio', faq:'Domande frequenti', urgences:'In caso di problemi',
        etage:'Piano', guideArr:'Guida di arrivo', guideDep:'Guida di partenza', guideMai:'Guida della casa', bienvenue:'Benvenuto' },
+  pt:{ livret:'Guia de boas-vindas', arrivee:'Chegada', horaires:'Horários', services:'Os nossos serviços', depuis:'Entrada a partir das', avant:'Saída antes das', code:'Código de acesso', acces:'Acesso',
+       wifi:'Wi-Fi', reseau:'Rede', mdp:'Palavra-passe', scan:'Digitalizar para ligar', equip:'Equipamentos',
+       regl:'Regras da casa', quartier:'Recomendações', images:'O alojamento em imagens', avantpartir:'Antes de sair',
+       checklist:'Lista de verificação', contact:'Contactar-nos', urgence:'Emergência fora de horas', itineraire:'Itinerário Google Maps', parking:'Estacionamento', faq:'Perguntas frequentes', urgences:'Em caso de problema',
+       etage:'Andar', guideArr:'Guia de chegada', guideDep:'Guia de saída', guideMai:'Guia da casa', bienvenue:'Bem-vindo' },
+  nl:{ livret:'Welkomstgids', arrivee:'Aankomst', horaires:'Tijden', services:'Onze diensten', depuis:'Inchecken vanaf', avant:'Uitchecken voor', code:'Toegangscode', acces:'Toegang',
+       wifi:'Wifi', reseau:'Netwerk', mdp:'Wachtwoord', scan:'Scan om te verbinden', equip:'Voorzieningen',
+       regl:'Huisregels', quartier:'Aanbevelingen', images:'De woning in beeld', avantpartir:'Voor u vertrekt',
+       checklist:'Checklist', contact:'Contact', urgence:'Noodgeval buiten kantooruren', itineraire:'Route via Google Maps', parking:'Parkeren', faq:'Veelgestelde vragen', urgences:'Als er iets misgaat',
+       etage:'Verdieping', guideArr:'Aankomstgids', guideDep:'Vertrekgids', guideMai:'Huisgids', bienvenue:'Welkom' },
+  pl:{ livret:'Przewodnik powitalny', arrivee:'Przyjazd', horaires:'Godziny', services:'Nasze usługi', depuis:'Zameldowanie od', avant:'Wymeldowanie do', code:'Kod dostępu', acces:'Dostęp',
+       wifi:'Wi-Fi', reseau:'Sieć', mdp:'Hasło', scan:'Zeskanuj, aby połączyć', equip:'Wyposażenie',
+       regl:'Regulamin', quartier:'Polecane miejsca', images:'Mieszkanie w obrazach', avantpartir:'Przed wyjazdem',
+       checklist:'Lista kontrolna', contact:'Kontakt', urgence:'Nagły wypadek poza godzinami', itineraire:'Trasa w Google Maps', parking:'Parking', faq:'Częste pytania', urgences:'W razie problemu',
+       etage:'Piętro', guideArr:'Przewodnik przyjazdu', guideDep:'Przewodnik wyjazdu', guideMai:'Przewodnik po domu', bienvenue:'Witamy' },
+  ru:{ livret:'Путеводитель', arrivee:'Заезд', horaires:'Время', services:'Наши услуги', depuis:'Заезд с', avant:'Выезд до', code:'Код доступа', acces:'Как войти',
+       wifi:'Wi-Fi', reseau:'Сеть', mdp:'Пароль', scan:'Отсканируйте для подключения', equip:'Удобства',
+       regl:'Правила дома', quartier:'Рекомендации', images:'Жильё в фотографиях', avantpartir:'Перед отъездом',
+       checklist:'Чек-лист', contact:'Связаться с нами', urgence:'Экстренный случай', itineraire:'Маршрут в Google Maps', parking:'Парковка', faq:'Частые вопросы', urgences:'Если что-то случилось',
+       etage:'Этаж', guideArr:'Гид по заезду', guideDep:'Гид по отъезду', guideMai:'Гид по дому', bienvenue:'Добро пожаловать' },
+  uk:{ livret:'Путівник', arrivee:'Заїзд', horaires:'Час', services:'Наші послуги', depuis:'Заїзд з', avant:'Виїзд до', code:'Код доступу', acces:'Як увійти',
+       wifi:'Wi-Fi', reseau:'Мережа', mdp:'Пароль', scan:'Скануйте для підключення', equip:'Зручності',
+       regl:'Правила дому', quartier:'Рекомендації', images:'Житло у фотографіях', avantpartir:'Перед від\'їздом',
+       checklist:'Чек-лист', contact:'Зв\'язатися з нами', urgence:'Екстрений випадок', itineraire:'Маршрут у Google Maps', parking:'Паркування', faq:'Часті запитання', urgences:'Якщо щось сталося',
+       etage:'Поверх', guideArr:'Гід із заїзду', guideDep:'Гід із виїзду', guideMai:'Гід по дому', bienvenue:'Ласкаво просимо' },
+  tr:{ livret:'Karşılama rehberi', arrivee:'Giriş', horaires:'Saatler', services:'Hizmetlerimiz', depuis:'Giriş saati', avant:'Çıkış saati', code:'Giriş kodu', acces:'Giriş',
+       wifi:'Wi-Fi', reseau:'Ağ', mdp:'Şifre', scan:'Bağlanmak için tarayın', equip:'Olanaklar',
+       regl:'Ev kuralları', quartier:'Öneriler', images:'Fotoğraflarla konaklama', avantpartir:'Ayrılmadan önce',
+       checklist:'Kontrol listesi', contact:'Bize ulaşın', urgence:'Mesai dışı acil durum', itineraire:'Google Haritalar yol tarifi', parking:'Otopark', faq:'Sık sorulan sorular', urgences:'Bir sorun olursa',
+       etage:'Kat', guideArr:'Giriş rehberi', guideDep:'Çıkış rehberi', guideMai:'Ev rehberi', bienvenue:'Hoş geldiniz' },
+  zh:{ livret:'欢迎指南', arrivee:'入住', horaires:'时间', services:'我们的服务', depuis:'入住时间自', avant:'退房时间前', code:'门禁密码', acces:'如何进入',
+       wifi:'Wi-Fi', reseau:'网络名称', mdp:'密码', scan:'扫码连接', equip:'设施',
+       regl:'住宿规则', quartier:'推荐去处', images:'住宿实景', avantpartir:'离开之前',
+       checklist:'清单', contact:'联系我们', urgence:'非工作时间紧急联系', itineraire:'谷歌地图路线', parking:'停车', faq:'常见问题', urgences:'遇到问题时',
+       etage:'楼层', guideArr:'入住指南', guideDep:'退房指南', guideMai:'住宿指南', bienvenue:'欢迎' },
+  ja:{ livret:'ご滞在ガイド', arrivee:'チェックイン', horaires:'時間', services:'サービス', depuis:'チェックイン', avant:'チェックアウト', code:'暗証番号', acces:'入り方',
+       wifi:'Wi-Fi', reseau:'ネットワーク', mdp:'パスワード', scan:'スキャンして接続', equip:'設備',
+       regl:'ハウスルール', quartier:'おすすめ', images:'お部屋の写真', avantpartir:'ご出発の前に',
+       checklist:'チェックリスト', contact:'お問い合わせ', urgence:'時間外の緊急連絡', itineraire:'Google マップの経路', parking:'駐車場', faq:'よくある質問', urgences:'お困りのときは',
+       etage:'階', guideArr:'チェックインガイド', guideDep:'チェックアウトガイド', guideMai:'ハウスガイド', bienvenue:'ようこそ' },
+  ko:{ livret:'환영 안내서', arrivee:'체크인', horaires:'시간', services:'서비스', depuis:'체크인 시각', avant:'체크아웃 시각', code:'출입 번호', acces:'들어오는 방법',
+       wifi:'와이파이', reseau:'네트워크', mdp:'비밀번호', scan:'스캔하여 연결', equip:'편의시설',
+       regl:'이용 수칙', quartier:'추천 장소', images:'숙소 사진', avantpartir:'떠나기 전에',
+       checklist:'체크리스트', contact:'문의하기', urgence:'영업시간 외 긴급 연락', itineraire:'구글 지도 길찾기', parking:'주차', faq:'자주 묻는 질문', urgences:'문제가 생겼을 때',
+       etage:'층', guideArr:'체크인 안내', guideDep:'체크아웃 안내', guideMai:'숙소 안내', bienvenue:'환영합니다' },
+  ar:{ livret:'دليل الاستقبال', arrivee:'الوصول', horaires:'المواعيد', services:'خدماتنا', depuis:'الوصول ابتداءً من', avant:'المغادرة قبل', code:'رمز الدخول', acces:'كيفية الدخول',
+       wifi:'واي فاي', reseau:'الشبكة', mdp:'كلمة المرور', scan:'امسح للاتصال', equip:'التجهيزات',
+       regl:'قواعد المنزل', quartier:'توصيات', images:'صور المكان', avantpartir:'قبل المغادرة',
+       checklist:'قائمة التحقق', contact:'اتصل بنا', urgence:'طوارئ خارج الأوقات', itineraire:'المسار على خرائط جوجل', parking:'موقف السيارات', faq:'أسئلة شائعة', urgences:'عند حدوث مشكلة',
+       etage:'الطابق', guideArr:'دليل الوصول', guideDep:'دليل المغادرة', guideMai:'دليل المنزل', bienvenue:'أهلاً وسهلاً' },
+  he:{ livret:'מדריך אירוח', arrivee:'צ׳ק־אין', horaires:'שעות', services:'השירותים שלנו', depuis:'כניסה החל מ', avant:'יציאה עד', code:'קוד כניסה', acces:'איך נכנסים',
+       wifi:'Wi-Fi', reseau:'רשת', mdp:'סיסמה', scan:'סרקו כדי להתחבר', equip:'ציוד ומתקנים',
+       regl:'כללי הבית', quartier:'המלצות', images:'הדירה בתמונות', avantpartir:'לפני היציאה',
+       checklist:'רשימת בדיקה', contact:'צרו קשר', urgence:'חירום מחוץ לשעות', itineraire:'מסלול ב־Google Maps', parking:'חניה', faq:'שאלות נפוצות', urgences:'אם משהו משתבש',
+       etage:'קומה', guideArr:'מדריך הגעה', guideDep:'מדריך יציאה', guideMai:'מדריך הבית', bienvenue:'ברוכים הבאים' },
 };
 /* Libellés de catégorie dans le livret voyageur. La clé est le libellé français,
    qui est aussi la valeur persistée sur l'élément. */
@@ -4640,6 +4725,24 @@ const MENTION_SMART_GUIDE=true;
    fragments, remplacé à l'assemblage par le rang réel dans la page. Une suite
    improbable dans un texte de gérant, et jamais rendue telle quelle. */
 const JETON_NUM='@@N°@@';
+/* LE LIVRET EST RENDU EN HTML AUTONOME : il n'hérite pas des jetons de
+   l'application, et le voyageur l'ouvre parfois sans réseau. Ses polices de
+   repli sont donc écrites ici, en dur, une seule fois — et reprises partout
+   où le livret déclare une famille. Sans elles, un livret en chinois s'affiche
+   dans la police que le navigateur veut bien choisir, quand il en trouve une. */
+const REPLI_CJK = "'PingFang SC','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo','Microsoft YaHei','Malgun Gothic','Apple SD Gothic Neo','Noto Sans CJK SC','Noto Sans SC','Noto Sans JP','Noto Sans KR'";
+const REPLI_RTL = "'SF Arabic','Geeza Pro','Segoe UI','Tahoma','Noto Sans Arabic','Noto Sans Hebrew','Arial'";
+const POLICE_MONO  = `font-family:'IBM Plex Mono',${REPLI_CJK},${REPLI_RTL},monospace`;
+const POLICE_SERIF = `font-family:'Fraunces',${REPLI_CJK},${REPLI_RTL},Georgia,serif`;
+const POLICE_SANS  = `'Inter',-apple-system,${REPLI_CJK},${REPLI_RTL},sans-serif`;
+/* L'ARABE ET L'HÉBREU S'ÉCRIVENT DE DROITE À GAUCHE. Ce n'est pas un réglage
+   d'apparence : c'est une propriété de la langue, et le navigateur fait tout le
+   travail de miroir — alignements, ordre des colonnes, marges logiques — dès
+   qu'on le lui dit à la racine. Encore faut-il le lui dire.
+   `lang` sert en plus au navigateur pour la coupure des mots et à un lecteur
+   d'écran pour choisir sa voix. */
+const dirLivret = lang => ` lang="${lang||'fr'}"${estRTL(lang)?' dir="rtl"':''}`;
+
 const LIVRET_CSS=`<style>
 .lv .lvacc{border-radius:10px;overflow:hidden}
 .lv .lvacc+.lvacc{margin-top:8px}
@@ -4719,8 +4822,8 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
   const cover=l.photos[0], gallery=l.photos.slice(1);
   const qr=has('wifi')?wifiQR(lRaw):'';
   const surface = faireSurface(t);
-  const mono=`font-family:'IBM Plex Mono',monospace`;
-  const serif=`font-family:'Fraunces',Georgia,serif`;
+  const mono=POLICE_MONO;
+  const serif=POLICE_SERIF;
   /* Gabarit unique du titre : numéro (facultatif), libellé, filet, icône.
      Le numéro reste facultatif pour un futur bloc interne à une section — le
      stationnement, lui, est devenu une section et se numérote comme les autres.
@@ -4765,7 +4868,7 @@ function livretHTML(lRaw, guideId='complet', lang='fr', opts={}){
     </details>`;
 
   const frag={};
-  let out=LIVRET_CSS+`<div class="lv${opts.fondColore?' garde-fond':''}" style="${wpStyle}${varsBloc}color:${t.inkSurFond};padding-bottom:46px;min-height:100%;font-family:'Inter',-apple-system,sans-serif">`;
+  let out=LIVRET_CSS+`<div class="lv${opts.fondColore?' garde-fond':''}" style="${wpStyle}${varsBloc}color:${t.inkSurFond};padding-bottom:46px;min-height:100%;font-family:${POLICE_SANS}"${dirLivret(lang)}>`;
 
   /* ---- Couverture (3 styles) ---- */
   const coverLabel=guideLabelLang(g.id, lang);
@@ -5202,11 +5305,11 @@ function posterHTML(lRaw, type, lang='fr'){
   const t=paletteLivret(l);
   const surface = faireSurface(t);
   const X=L10N[lang]||L10N.fr;
-  const mono=`font-family:'IBM Plex Mono',monospace`, serif=`font-family:'Fraunces',Georgia,serif`;
+  const mono=POLICE_MONO, serif=POLICE_SERIF;
   const qr=type==='wifi'?wifiQR(lRaw,320):'';
 
   const shell = (kicker, body) => `
-  <div class="poster" style="${surface(t.bg)}font-family:'Inter',sans-serif;
+  <div class="poster" style="${surface(t.bg)}font-family:${POLICE_SANS};
     width:148mm;min-height:210mm;padding:18mm 16mm;display:flex;flex-direction:column;box-sizing:border-box">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:auto">
       <p style="${mono};font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:${t.accent}">${esc(kicker)}</p>
@@ -5458,7 +5561,7 @@ function documentLivretAutonome(l){
   return `<!DOCTYPE html><html lang="${route.lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(gl)} — ${esc(l.nom||'')}</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',-apple-system,sans-serif}.lv{min-height:100vh}section{break-inside:avoid}
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:${POLICE_SANS}}.lv{min-height:100vh}section{break-inside:avoid}
 /* Le fond était porté par .lv seul, qui s'arrête au contenu : sur un fond
    foncé, une bande claire restait en bas de page. html et body le portent
    aussi — uniquement ici, pour ne pas repeindre l'éditeur. */
