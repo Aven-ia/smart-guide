@@ -792,6 +792,9 @@ body.avec-alerte{padding-bottom:210px}
 .adr-ancienne{display:inline-block;font-family:var(--mono);font-size:11.5px;background:var(--bg-deep);
   border-radius:5px;padding:1px 5px;margin:2px 2px 0 0;word-break:break-all}
 .lien-partage{font-size:13.5px;font-weight:600;word-break:break-all;margin:0;color:var(--accent-dark)}
+.lien-lang{display:flex;align-items:center;gap:8px;margin-top:7px}
+.lien-lang .nom{flex:none;min-width:76px;font-size:12px;font-weight:600;color:var(--ink-soft)}
+.lien-lang .adr{flex:1;min-width:0;font-family:var(--mono);font-size:11.5px;word-break:break-all;color:var(--accent-dark)}
 @media(max-width:420px){ .adr-ligne{flex-direction:column} .adr-prefixe{max-width:none;border-right:0;
   border-bottom:1px solid var(--line-faint);padding:6px 10px} }
 .pct-so{font-size:9.5px;letter-spacing:0;text-transform:none;opacity:.72;white-space:nowrap}
@@ -1811,13 +1814,36 @@ function bloquerEcriture(){
    Le rendu se calcule donc DANS le point d'écriture, comme l'encre se pose
    dans surface(). Ce n'est pas une règle à retenir, c'est une impossibilité.
    Le hook pre-commit refuse tout dbSet(CLE_PRINCIPALE) écrit ailleurs. */
+/* UNE ADRESSE PAR LANGUE, DONC UN RENDU PAR LANGUE. Le lien du voyageur chinois
+   n'est pas le lien français avec un réglage à trouver : c'est /<adresse>/zh, et
+   la page qui répond là est en chinois jusque dans l'aperçu affiché par
+   WhatsApp. Le gérant ENVOIE un lien — il ne peut pas envoyer un réglage.
+   Seules les langues RÉELLEMENT traduites sont rendues : un livret sans
+   traduction chinoise n'a pas d'adresse chinoise, et ne coûte rien en base.
+   LA FRAÎCHEUR NE SE JUGE PAS SUR `updatedAt` SEUL. Elle suffirait aujourd'hui,
+   puisque traduire appelle touch() — mais ce serait une règle à retenir, et un
+   chemin d'écriture l'oublierait un jour. On compare aussi l'ensemble des
+   langues : le rendu se refait dès qu'il ne couvre plus exactement les
+   traductions du livret. */
+const memesLangues = l =>
+  Object.keys(l.translations||{}).sort().join(',')
+  === Object.keys((l.rendu&&l.rendu.langues)||{}).sort().join(',');
 function rendusAJour(){
   let faits=0;
   for(const l of S.logements){
     const publie = !!(l.partage && l.partage.actif && l.partage.slug);
     if(!publie){ if(l.rendu){ l.rendu=null; faits++; } continue; }
-    if(l.rendu && l.rendu.pour===l.updatedAt) continue;      // déjà à jour
-    try{ l.rendu={ html:rendrePourLeLien(l), pour:l.updatedAt, le:new Date().toISOString() }; faits++; }
+    if(l.rendu && l.rendu.pour===l.updatedAt && memesLangues(l)) continue;   // déjà à jour
+    try{
+      const langues={};
+      for(const id of Object.keys(l.translations||{})) langues[id]=rendrePourLeLien(l,id);
+      /* `html` RESTE LE RENDU FRANÇAIS, À SA PLACE D'ORIGINE. C'est ce champ que
+         la page publique en ligne lit aujourd'hui : le déplacer aurait éteint
+         tous les liens déjà partagés pendant l'intervalle entre le déploiement
+         de l'application et celui de la page. */
+      l.rendu={ html:rendrePourLeLien(l,'fr'), langues, pour:l.updatedAt, le:new Date().toISOString() };
+      faits++;
+    }
     catch(e){ /* un rendu qui échoue ne doit pas empêcher d'enregistrer */ }
   }
   return faits;
@@ -1829,12 +1855,15 @@ function rendusAJour(){
    Une seule photo est référencée : les 29 livrets de TILIT en ont exactement
    une chacun, la galerie n'existe chez aucun gérant. La route indexée viendra
    le jour où un gérant en aura deux, pas avant. */
-function rendrePourLeLien(l){
+function rendrePourLeLien(l, lang){
   const c=JSON.parse(JSON.stringify(l));
   c.rendu=null;
   const p=(l.photos&&l.photos[0])||null;
+  /* L'IMAGE N'A PAS DE LANGUE. Une seule adresse pour la photo, quelle que soit
+     celle du livret : c'est la même image, et lui donner une adresse par langue
+     multiplierait les entrées de cache du CDN sans rien changer au pixel. */
   c.photos = p ? [{...p, dataUrl:`${DOMAINE_PARTAGE}/${l.partage.slug}/apercu.jpg`}] : [];
-  return livretHTML(c,'complet','fr');
+  return livretHTML(c,'complet',lang||'fr');
 }
 function persister(){
   rendusAJour();
@@ -2253,7 +2282,9 @@ function validerAdresse(s){
    et déjà valide : il n'est pas re-slugifié ici, sinon un préfixe existant
    pourrait changer de forme et casser tous les liens envoyés. */
 const cheminPartage = (prefixe, adresse) => `${prefixe}/${adresse}`;
-const lienPartage = chemin => `${DOMAINE_PARTAGE}/${chemin}`;
+/* L'adresse française est le chemin nu — elle ne bouge pas, elle a déjà été
+   envoyée. Les autres langues s'y ajoutent en suffixe : /zh, /ar, /ko. */
+const lienPartage = (chemin, lang) => `${DOMAINE_PARTAGE}/${chemin}${lang&&lang!=='fr'?'/'+lang:''}`;
 
 /* Une adresse déjà portée par CE livret — courante ou ancienne — n'est pas
    « prise » de son point de vue : c'est la sienne. Sans ça, le gérant qui
@@ -5674,7 +5705,11 @@ function ouvrirPartage(){
   if(champ){ champ.focus(); surSaisieAdresse(champ); }
   const pfx=document.getElementById('champ-prefixe');
   if(pfx) pfx.focus();
-  if(estPublie(l)) confirmerPublication(l);
+  /* Le panneau va afficher une adresse par langue traduite. Si le rendu rangé
+     ne les couvre pas encore — traduction faite dans la même session, sans
+     autre modification depuis — on le refait maintenant, avant que le gérant
+     n'ait copié une adresse qui servirait encore du français. */
+  if(estPublie(l)){ if(!memesLangues(l)) save(); confirmerPublication(l); }
 }
 const estPublie = l => !!(l && l.partage && l.partage.actif && l.partage.slug);
 
@@ -5736,6 +5771,7 @@ function corpsPartage(l){
       </div>
       <p class="ai-note" style="margin:10px 0 0">Le voyageur voit toujours la dernière version :
         vos corrections lui parviennent sans avoir à renvoyer le lien.</p>
+      ${blocLangues(l)}
       ${anciens.length ? `<p class="ai-note" style="margin:8px 0 0">
         ${anciens.length>1?'Vos adresses précédentes répondent toujours':'Votre adresse précédente répond toujours'} :
         ${anciens.map(a=>`<span class="adr-ancienne">${esc(a)}</span>`).join(' ')}</p>` : ''}
@@ -5928,11 +5964,36 @@ async function publierLivret(){
   }
 }
 
-function copierLien(){
+/* CE QUE LE GÉRANT COPIE, C'EST UNE ADRESSE — pas un réglage, pas une option à
+   expliquer au voyageur. Chaque langue traduite est donc écrite ici en toutes
+   lettres, sous la seule forme où elle sert : à coller dans un message.
+   La liste vient des traductions du livret, pas des rendus déjà rangés : le
+   gérant qui vient de traduire doit voir son adresse tout de suite. L'écart
+   d'une seconde entre les deux est fermé par le save() déclenché à l'ouverture
+   du panneau, et par le repli français de la page publique s'il ne l'était pas. */
+function blocLangues(l){
+  const langues=LANGS.filter(x=>x.id!=='fr' && (l.translations||{})[x.id]);
+  if(!langues.length) return `<p class="ai-note" style="margin:10px 0 0">Ce lien est en français.
+    Traduisez le livret depuis l'aperçu : chaque langue recevra sa propre adresse,
+    à envoyer telle quelle au voyageur.</p>`;
+  return `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--accent-tint-3)">
+    <p style="font-weight:600;font-size:13px;margin:0">Un lien par langue</p>
+    <p class="ai-note" style="margin:3px 0 2px">Le voyageur qui ouvre l'une de ces adresses reçoit
+      le livret dans cette langue, jusque dans l'aperçu affiché par WhatsApp.</p>
+    ${langues.map(x=>`<div class="lien-lang">
+      <span class="nom">${esc(x.label)}</span>
+      <span class="adr">${esc(lienPartage(l.partage.slug,x.id))}</span>
+      <button class="btn btn-plain btn-sm" onclick="copierLien('${x.id}')"
+        title="Copier le lien ${esc(x.label)}" aria-label="Copier le lien ${esc(x.label)}">${I('copy',13)}</button>
+    </div>`).join('')}
+  </div>`;
+}
+function copierLien(lang){
   const l=cur(); if(!l||!estPublie(l)) return;
-  const lien=lienPartage(l.partage.slug);
+  const lien=lienPartage(l.partage.slug, lang);
+  const nom=(LANGS.find(x=>x.id===lang)||{}).label;
   navigator.clipboard.writeText(lien)
-    .then(()=>toast('Lien copié — collez-le dans votre message au voyageur'))
+    .then(()=>toast(nom&&lang!=='fr' ? 'Lien '+nom+' copié' : 'Lien copié — collez-le dans votre message au voyageur'))
     .catch(()=>toast('Copie impossible — sélectionnez le lien à la main', true));
 }
 
